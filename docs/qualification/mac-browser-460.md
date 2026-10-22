@@ -26,6 +26,10 @@ and all ActiveCatalog policy remain unchanged. A dedicated native test proves
 this distinction. Native volume anchors are Catalog media identity, not active
 Catalog storage admission.
 
+Native mount namespaces prevent startup `/` mappings from swallowing separately mounted
+volumes. Recursive scans refuse crossing into another mount under the wrong RootId.
+Historical cross-volume records require mapping review instead of automatic migration.
+
 Only explicit folder navigation/Refresh invokes discovery. Expanding Locations
 remains read-only. Direct scopes reconcile one visited folder; recursive scopes
 reuse the existing per-folder pipeline, default 4 concurrent folders and 20,000
@@ -62,9 +66,9 @@ Task clone:
 Branch: `codex/027-mac-browser-discovery`.
 Fetched base: `6d5aee56cb84786633d416bfce4b1d8c1e87ebbd`.
 
-Release results before publication: 38 native adapter/lifecycle tests; 50 Catalog
+Release results before publication: 39 native adapter/lifecycle tests; 50 Catalog
 and mutation/discovery tests; 20 headless presentation tests. All passed. Relevant
-TRX files live in their test projects' TestResults as `lf027-native-regression.trx`,
+TRX files live in their test projects' TestResults as `lf027-native-final-mounts.trx`,
 `lf027-catalog-regression.trx`, and `lf027-presentation-final.trx`. Focused development
 runs and original failures are preserved separately; they are not relabeled passing.
 Two existing platform-analysis warnings in MacBrowserCatalogTests remain.

@@ -38,6 +38,8 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         using var assessor=new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
         var request=new StorageAssessmentRequest(Guid.NewGuid(),0,StorageRole.MediaSource,StorageOperation.Read,mediaRootPath);
         RefuseProtected(folderPath);
+        if (GetAnchor(mediaRootPath) != GetAnchor(folderPath))
+            throw new IOException("Browse this mounted volume through its own location. Catalog records are preserved.");
         var first=await ValidateAsync(assessor,request,cancellationToken).ConfigureAwait(false);
         var result=await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath,folderPath,cancellationToken).ConfigureAwait(false);
         result = result.Where(entry => !IsProtected(entry.FullPath)).ToArray();
@@ -74,9 +76,8 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
     public bool Overlaps(string left, string right) => Contains(left, right) || Contains(right, left);
     public string NormalizeRelativePath(string path) => CatalogRelativePaths.NormalizeRelativePath(path);
     public string RelativePathKey(string path) => CatalogRelativePaths.RelativePathKey(path);
-    public bool IsNaturalAnchor(string path) => DriveInfo.GetDrives().Any(drive =>
-        NormalizeRootPath(drive.Name) == NormalizeRootPath(path) &&
-        (path == "/" || path.StartsWith("/Volumes/", StringComparison.Ordinal)));
+    public string GetAnchor(string path) => MacBrowserMounts.Anchor(path, DriveInfo.GetDrives().Select(drive => drive.Name));
+    public bool IsNaturalAnchor(string path) => GetAnchor(path) == NormalizeRootPath(path);
     public IMediaRootPathAdmission OpenAdmission(string root) => new Admission(this, root);
     public void ValidatePaths(string root, IReadOnlyList<PathIdentityCandidate> candidates, CancellationToken token)
     {

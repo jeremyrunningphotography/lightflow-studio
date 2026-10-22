@@ -14,6 +14,16 @@ public sealed class MacBrowserDiscoveryTests
         ?? Path.Combine(AppContext.BaseDirectory, "BrowserFixtures"), "lf027-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void MountedVolumeNamespaceNeverReusesStartupAncestor()
+    {
+        var mounts = new[] { "/", "/Volumes/Field", "/Volumes/Field Backup" };
+        Assert.Equal("/", MacBrowserMounts.Anchor("/Users/task/Media", mounts));
+        Assert.Equal("/Volumes/Field", MacBrowserMounts.Anchor("/Volumes/Field/Media", mounts));
+        Assert.Equal("/Volumes/Field Backup", MacBrowserMounts.Anchor("/Volumes/Field Backup/Media", mounts));
+        Assert.Equal("/", MacBrowserMounts.Anchor("/Volumes/Fields/Media", mounts));
+    }
+
+    [Fact]
     public async Task MediaAncestorModeNeverChangesCatalogStorageAdmission()
     {
         var parent = Fixture(); var owned = Path.Combine(parent, "OwnedCatalog"); Directory.CreateDirectory(owned);

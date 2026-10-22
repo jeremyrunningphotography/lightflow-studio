@@ -115,17 +115,21 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         if (absolutePath is not null)
         {
             var path = effects.NormalizeRootPath(absolutePath);
-            var mapped = BrowserLocationMapping.Find(path, await roots.ListAsync(token), StringComparison.Ordinal);
+            var anchor = effects.GetAnchor(path);
+            var mappings = await roots.ListAsync(token);
+            var mapped = BrowserLocationMapping.Find(path, mappings.Where(root => root.PhysicalPath is { } physical &&
+                effects.GetAnchor(physical) == anchor), StringComparison.Ordinal);
             if (mapped is null)
             {
                 // Establish identity only at a real mounted volume boundary. This does not scan the volume.
-                var anchor = DriveInfo.GetDrives().Select(drive => effects.NormalizeRootPath(drive.Name))
-                    .Where(candidate => effects.IsNaturalAnchor(candidate) && effects.Contains(candidate, path))
-                    .OrderByDescending(candidate => candidate.Length).FirstOrDefault()
-                    ?? throw new IOException("This folder has no available volume boundary.");
+                // Do not migrate historical cross-volume records or silently create duplicate identities.
+                var prior = BrowserLocationMapping.Find(path, mappings, StringComparison.Ordinal);
+                if (prior is not null && (await new CatalogMediaAssetRepository(() => owner.Session)
+                    .ListScopeAsync(prior.RootId, prior.RelativeFolder, true, token)).Count > 0)
+                    throw new IOException("This volume has Catalog records under a different location mapping. Review its mapping before discovery.");
                 var created = await roots.CreateBrowserAnchorAsync(anchor == "/" ? "Macintosh HD" : Path.GetFileName(anchor), anchor, token);
                 if (!created.Succeeded) throw new IOException(created.Diagnostic);
-                mapped = BrowserLocationMapping.Find(path, await roots.ListAsync(token), StringComparison.Ordinal)
+                mapped = BrowserLocationMapping.Find(path, (await roots.ListAsync(token)).Where(root => root.PhysicalPath is { } physical && effects.GetAnchor(physical) == anchor), StringComparison.Ordinal)
                     ?? throw new IOException("The folder identity could not be established.");
             }
             rootId = mapped.RootId; folder = mapped.RelativeFolder;

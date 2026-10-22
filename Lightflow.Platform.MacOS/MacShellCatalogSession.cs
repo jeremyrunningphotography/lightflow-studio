@@ -74,6 +74,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     public Task<BrowserCatalogSnapshot> ReadBrowserCatalogAsync(Guid? rootId = null, string folder = "",
         bool recursive = false, CancellationToken cancellationToken = default) => BorrowAsync(async owner =>
     {
+        using var timing = BrowserPerformance.Measure("mac.catalog.read");
         var roots = await Roots(owner).ListAsync(cancellationToken).ConfigureAwait(false);
         var assets = rootId is { } id
             ? await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(id, folder, recursive, cancellationToken).ConfigureAwait(false)
@@ -109,11 +110,14 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     public Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? absolutePath, Guid rootId,
         string folder, CancellationToken token = default) => BorrowAsync(async owner =>
     {
+        using var timing = BrowserPerformance.Measure("mac.discovery");
+        if (absolutePath is not null) MacBrowserMediaEffects.RefuseApplicationPackage(absolutePath);
         var effects = MediaEffects(owner);
         var roots = new CatalogMediaRootService(() => owner.Session,
             new MachineIdentityProvider(Path.Combine(DataRoot, "machine-id")), new MediaFiles(), effects);
         if (absolutePath is not null)
         {
+            using var mappingTiming = BrowserPerformance.Measure("mac.root.mapping");
             var path = effects.NormalizeRootPath(absolutePath);
             var anchor = effects.GetAnchor(path);
             var mappings = await roots.ListAsync(token);
@@ -144,17 +148,20 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         var recursive = BrowserRecursiveRootLogic.IsEffectivelyRecursive(await recursiveRoots.ListAsync(token), rootId, folder);
         CatalogReconciliationResult result;
         IReadOnlyList<MediaFolderEntry> visible;
+        MediaFolderEnumerationResult listing;
         if (recursive)
         {
             var scan = await new RecursiveMediaDiscoveryService(folders, discovery).DiscoverAsync(new(rootId, folder), enumerationToken: token);
             if (!scan.Succeeded || scan.Reconciliation is null) throw new IOException(scan.Diagnostic ?? "This folder could not be scanned.");
             result = scan.Reconciliation; visible = scan.MediaEntries;
+            listing = await folders.EnumerateAsync(new(rootId, folder), token);
+            if (!listing.Succeeded) throw new IOException(listing.Diagnostic ?? "This folder is unavailable.");
         }
         else
         {
             result = (await discovery.RefreshAsync(new(rootId, folder), cancellationToken: token)).Reconciliation;
             if (!result.Succeeded) throw new IOException(result.Diagnostic ?? "This folder could not be scanned.");
-            var listing = await folders.EnumerateAsync(new(rootId, folder), token);
+            listing = await folders.EnumerateAsync(new(rootId, folder), token);
             if (!listing.Succeeded) throw new IOException(listing.Diagnostic ?? "This folder is unavailable.");
             visible = listing.Entries;
         }
@@ -163,9 +170,15 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         // Missing records and failed recursive descendants remain in Catalog, outside this visible set.
         var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
             .Select(entry => entry.RelativePathKey).ToHashSet(StringComparer.Ordinal);
-        var content = await new BrowserCatalogReader(assets, recursiveRoots, folders).ReadAsync(rootId, folder, token);
-        return content with { Assets = content.Assets.Where(asset => asset.SourceStatus != MediaAssetSourceStatus.Missing &&
-            visiblePaths.Contains(asset.RelativePathKey) && mediaTypes.Classify(new(asset.RelativePath)).IsKnown).ToArray(), Diagnostic = result.Diagnostic };
+        using var projectionTiming = BrowserPerformance.Measure("mac.catalog.projection");
+        // Reuse the post-reconciliation listing for the tree projection. The old reader repeated
+        // that same native enumeration once more; Catalog scope reads need no filesystem traversal.
+        var content = await assets.ListScopeAsync(rootId, folder, recursive, token);
+        return new BrowserFolderSnapshot(rootId, folder, recursive, listing.Status,
+            listing.Entries.Where(entry => entry.IsDirectory).ToArray(),
+            content.Where(asset => asset.SourceStatus != MediaAssetSourceStatus.Missing &&
+                visiblePaths.Contains(asset.RelativePathKey) && mediaTypes.Classify(new(asset.RelativePath)).IsKnown).ToArray(),
+            result.Diagnostic);
 
     }, token);
 

@@ -94,6 +94,7 @@ public sealed class BrowserTests
         await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         var expand=pane.GetVisualDescendants().OfType<Button>().Single(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Home");
         Assert.True(expand.IsVisible);
+        Assert.True(expand.Bounds.Width >= 32 && expand.Bounds.Height >= 32);
         expand.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         var leaves=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
@@ -139,6 +140,23 @@ public sealed class BrowserTests
         var forward = model.ForwardAsync(); service.Discoveries["/task/two"].SetResult(new(service.RootId,"two",false,MediaFolderEnumerationStatus.Succeeded,[],[selected])); await forward;
         Assert.Equal("/task/two",model.Location!.AbsolutePath);
     }
+    [Fact]
+    public async Task PartialScanDiagnosticsStayConciseAndNeverClaimCompleteReconciliation()
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/partial");
+        var details = string.Join(" ", Enumerable.Range(0, 100).Select(i => $"internal-{i}: Filesystem links were skipped; Catalog refresh refused."));
+        service.Discoveries["/task/partial"].SetResult(new(service.RootId, "partial", true,
+            MediaFolderEnumerationStatus.Succeeded, [], [Asset(service.RootId, "safe.jpg")], details));
+        await loading;
+        Assert.StartsWith("Scan incomplete", model.Message);
+        Assert.Contains("Catalog records are preserved", model.Message);
+        Assert.DoesNotContain("internal-", model.Message);
+        Assert.True(model.Message.Length < 200);
+        Assert.Single(model.Assets);
+    }
+
     private sealed class FakeDiscovery : FakeBrowser, IBrowserDiscoverySession
     {
         public Dictionary<string,TaskCompletionSource<BrowserFolderSnapshot>> Discoveries = [];

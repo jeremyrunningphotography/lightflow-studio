@@ -33,16 +33,29 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         if (policy.Decision != StorageLocationDecision.Eligible || !check.IsSafe) throw new IOException($"This media location needs review ({policy.Reason}; {check.Status}): {check.Diagnostic}");
         return first;
     }
+    // Application packages are opaque navigation boundaries, including explicit typed paths.
+    // This intentionally supports .app only; it does not infer other Finder package types.
+    internal static bool IsApplicationPackagePath(string path) =>
+        Path.GetFullPath(path).Split('/').Any(component => component.EndsWith(".app", StringComparison.OrdinalIgnoreCase));
+    internal static void RefuseApplicationPackage(string path)
+    {
+        if (IsApplicationPackagePath(path))
+            throw new IOException("Application packages cannot be browsed as media folders.");
+    }
+
     public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath, string folderPath, CancellationToken cancellationToken = default)
     {
         using var assessor=new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
         var request=new StorageAssessmentRequest(Guid.NewGuid(),0,StorageRole.MediaSource,StorageOperation.Read,mediaRootPath);
         RefuseProtected(folderPath);
+        RefuseApplicationPackage(folderPath);
         if (GetAnchor(mediaRootPath) != GetAnchor(folderPath))
             throw new IOException("Browse this mounted volume through its own location. Catalog records are preserved.");
+        using var timing = BrowserPerformance.Measure("mac.filesystem.enumeration");
         var first=await ValidateAsync(assessor,request,cancellationToken).ConfigureAwait(false);
         var result=await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath,folderPath,cancellationToken).ConfigureAwait(false);
-        result = result.Where(entry => !IsProtected(entry.FullPath)).ToArray();
+        result = result.Where(entry => !IsProtected(entry.FullPath) &&
+            !(entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))).ToArray();
         await ValidateAsync(assessor,request,cancellationToken,first).ConfigureAwait(false);
         return result;
     }
@@ -54,6 +67,7 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         var first=await ValidateAsync(assessor,request,token).ConfigureAwait(false);
         var path=ResolveContained(root.PhysicalPath,relativePath);
         RefuseProtected(path);
+        RefuseApplicationPackage(path);
         // No opening, probing or authored observation. Refuse linked path components before an existence observation.
         var current=NormalizeRootPath(root.PhysicalPath);
         foreach(var component in relativePath.Split('/'))
@@ -135,6 +149,8 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
     internal async Task<SourceFingerprint> FingerprintAsync(string path, CancellationToken token)
     {
         RefuseProtected(path);
+        RefuseApplicationPackage(path);
+        using var timing = BrowserPerformance.Measure("mac.source.fingerprint");
         var parent = Path.GetDirectoryName(path)!;
         using var assessor = new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
         var request = new StorageAssessmentRequest(Guid.NewGuid(), 0, StorageRole.MediaSource, StorageOperation.Read, parent);

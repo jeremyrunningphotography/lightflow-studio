@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Collections.Concurrent;
+using System.Text.Json;
 using Lightflow.Application;
 using Lightflow.Domain;
 using Lightflow.Platform.MacOS;
@@ -108,6 +111,123 @@ public sealed class MacBrowserDiscoveryTests
             Assert.Equal(root, (await new CatalogMediaAssetRepository(() => owner.Session).GetAsync(asset))!.RootId);
             Assert.False(File.Exists(owner.Locations.PreviewsDatabasePath));
         }
+    }
+
+    [Fact]
+    public async Task ApplicationPackagesAreOpaqueWithoutRelaxingLinkRefusal()
+    {
+        var data = Fixture(); var media = Path.Combine(data, "Media");
+        var package = Path.Combine(media, "Example.APP");
+        var contents = Path.Combine(package, "Contents", "Resources");
+        Directory.CreateDirectory(Path.Combine(data, "Catalog"));
+        Directory.CreateDirectory(contents);
+        await File.WriteAllTextAsync(Path.Combine(contents, "internal.png"), "package resource");
+        await File.WriteAllTextAsync(Path.Combine(media, "photo.jpg"), "outside");
+        Directory.CreateSymbolicLink(Path.Combine(contents, "loop"), package);
+        var locations = new MacBrowserLocationProvider();
+        var listing = await locations.GetFoldersAsync(media, default, true);
+        Assert.Empty(listing.Folders);
+        Assert.Equal(MediaFolderEnumerationStatus.FolderUnavailable,
+            (await locations.GetFoldersAsync(contents, default, true)).Status);
+        await using var shell = new MacShellCatalogSession(data);
+        Assert.True((await shell.CreateAsync(Path.Combine(data, "Catalog"))).IsReady);
+        var first = await shell.DiscoverBrowserFolderAsync(media, Guid.Empty, "");
+        await shell.SetBrowserRecursiveAsync(first.RootId, first.RelativeFolder, true);
+        var scan = await shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder);
+        Assert.Null(scan.Diagnostic); // Internal links were never enumerated.
+        Assert.Equal("photo.jpg", Path.GetFileName(Assert.Single(scan.Assets).RelativePath));
+        await Assert.ThrowsAsync<IOException>(() => shell.DiscoverBrowserFolderAsync(contents, Guid.Empty, ""));
+        // A link masquerading as a package is still a link, never an exemption from safety.
+        Directory.CreateSymbolicLink(Path.Combine(media, "Linked.app"), package);
+        await Assert.ThrowsAsync<IOException>(() => shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder));
+        Assert.Equal(MediaAssetSourceStatus.Available,
+            Assert.Single((await shell.ReadBrowserCatalogAsync(first.RootId, first.RelativeFolder, true)).Assets).SourceStatus);
+    }
+
+    [Fact]
+    public async Task PersistenceRevisitAndStageCostsAreRecordedWithoutGui()
+    {
+        var evidenceRoot = Environment.GetEnvironmentVariable("LIGHTFLOW_BROWSER_QUALIFICATION_ROOT");
+        var data = evidenceRoot is null ? Fixture() : Path.Combine(evidenceRoot, "Acceptance");
+        // Never overwrite an existing acceptance Catalog or claim reused evidence is a fresh discovery.
+        Assert.False(Directory.Exists(data));
+        var existing = Path.Combine(data, "Media", "Existing");
+        var newlyDiscovered = Path.Combine(data, "Media", "New");
+        Directory.CreateDirectory(Path.Combine(data, "Catalog"));
+        Directory.CreateDirectory(existing); Directory.CreateDirectory(newlyDiscovered);
+        for (var i = 0; i < 24; i++)
+            await File.WriteAllTextAsync(Path.Combine(existing, $"photo-{i:00}.jpg"), $"fixture {i}");
+        await File.WriteAllTextAsync(Path.Combine(newlyDiscovered, "new.jpg"), "new source");
+        var activities = new ConcurrentQueue<(string Name, double Milliseconds)>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == BrowserPerformance.Source.Name,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity => activities.Enqueue((activity.OperationName, activity.Duration.TotalMilliseconds))
+        };
+        ActivitySource.AddActivityListener(listener);
+        var phases = new List<object>();
+        async Task<T> Measure<T>(string name, Func<Task<T>> action)
+        {
+            while (activities.TryDequeue(out _)) { }
+            var clock = Stopwatch.StartNew();
+            var result = await action();
+            phases.Add(new { phase = name, elapsedMs = clock.Elapsed.TotalMilliseconds,
+                stages = activities.GroupBy(a => a.Name).Select(g => new { name = g.Key, count = g.Count(), totalMs = g.Sum(a => a.Milliseconds) }).ToArray() });
+            return result;
+        }
+        Guid catalogId, rootId, assetId, collectionId;
+        string folder;
+        Guid newId;
+        await using (var shell = new MacShellCatalogSession(data))
+        {
+            Assert.True((await shell.CreateAsync(Path.Combine(data, "Catalog"))).IsReady);
+            var first = await Measure("existing-first-discovery", () => shell.DiscoverBrowserFolderAsync(existing, Guid.Empty, ""));
+            Assert.Equal(24, first.Assets.Count);
+            rootId = first.RootId; folder = first.RelativeFolder; assetId = first.Assets[0].AssetId;
+            catalogId = (await shell.ReadBrowserCatalogAsync()).CatalogId;
+        }
+        var started = await new CatalogLifecycle(new MacCatalogLifecycleEffects(data)).StartAsync(allowFirstCreation: false);
+        await using (var owner = started.Coordinator!)
+        {
+            await new CatalogAssetClassificationStore(() => owner.Session).UpdateAsync(assetId, prior => prior with { Rating = 4 });
+            var store = new CatalogCollectionOrganizationStore(() => owner.Session);
+            collectionId = (await store.CreateCollectionAsync("LF027 persistence")).CollectionId;
+            await store.AddMembershipAsync(collectionId, assetId);
+        }
+        await using (var shell = new MacShellCatalogSession(data))
+        {
+            Assert.True((await Measure("reopen", shell.StartAsync)).IsReady);
+            var read = await Measure("existing-catalog-read", () => shell.ReadBrowserCatalogAsync(rootId, folder));
+            Assert.Equal(catalogId, read.CatalogId); Assert.Contains(read.Assets, a => a.AssetId == assetId);
+            Assert.DoesNotContain(activities, a => a.Name is "mac.discovery" or "mac.filesystem.enumeration" or "mac.source.fingerprint");
+            var revisit = await Measure("existing-navigation-revalidation", () => shell.DiscoverBrowserFolderAsync(existing, rootId, folder));
+            Assert.Contains(revisit.Assets, a => a.AssetId == assetId);
+            var discovered = await Measure("new-first-discovery", () => shell.DiscoverBrowserFolderAsync(newlyDiscovered, Guid.Empty, ""));
+            newId = Assert.Single(discovered.Assets).AssetId;
+            var repeated = await Measure("new-repeat-discovery", () => shell.DiscoverBrowserFolderAsync(newlyDiscovered, Guid.Empty, ""));
+            Assert.Equal(newId, Assert.Single(repeated.Assets).AssetId);
+        }
+        await using (var shell = new MacShellCatalogSession(data))
+        {
+            Assert.True((await shell.StartAsync()).IsReady);
+            var read = await Measure("new-reopened-catalog-read", () => shell.ReadBrowserCatalogAsync(rootId, Path.GetRelativePath("/", newlyDiscovered)));
+            Assert.Equal(newId, Assert.Single(read.Assets).AssetId);
+            Assert.DoesNotContain(activities, a => a.Name is "mac.discovery" or "mac.filesystem.enumeration" or "mac.source.fingerprint");
+        }
+        var reopened = await new CatalogLifecycle(new MacCatalogLifecycleEffects(data)).StartAsync(allowFirstCreation: false);
+        await using (var owner = reopened.Coordinator!)
+        {
+            Assert.Equal(catalogId, owner.CatalogSession.Identity.CatalogId);
+            Assert.Equal(4, (await new CatalogAssetClassificationStore(() => owner.Session).GetAsync([assetId]))[assetId].Rating);
+            Assert.Equal(assetId, Assert.Single(await new CatalogCollectionOrganizationStore(() => owner.Session).ListMembershipsAsync(collectionId)).AssetId);
+            Assert.Equal(rootId, (await new CatalogMediaAssetRepository(() => owner.Session).GetAsync(newId))!.RootId);
+            Assert.False(File.Exists(owner.Locations.PreviewsDatabasePath));
+        }
+        var report = new { dataRoot = data, existing, newlyDiscovered, catalogId, rootId, assetId, newId, collectionId, rating = 4,
+            phases, limitation = "Catalog-only reads do not scan. Explicit navigation/Refresh revalidates the requested scope using the unchanged shared Windows workflow; no persistent scan cache or whole-volume traversal." };
+        var output = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(Path.Combine(evidenceRoot ?? data, "persistence-timing.json"), output);
     }
 
     [Fact]

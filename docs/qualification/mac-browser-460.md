@@ -1,5 +1,10 @@
 # Mac Browser discovery — LF-MAC-DEV-027
 
+Current correction acceptance and launch: [mac-browser-460-corrections.md](mac-browser-460-corrections.md).
+The earlier package/scenarios/results below are retained historical qualification.
+Current-candidate GUI checks remain pending; do not reuse earlier GUI PASS.
+
+
 Issue #460; bounded owner-approved extraction and Mac Browser slice. No merge or
 release authorization. Owner authorization:
 https://github.com/jeremyrunningphotography/lightflow-studio/issues/460#issuecomment-6346316550

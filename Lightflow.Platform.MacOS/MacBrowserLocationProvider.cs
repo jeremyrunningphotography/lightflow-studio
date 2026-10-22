@@ -42,10 +42,12 @@ public sealed class MacBrowserLocationProvider : IBrowserLocationProvider
         {
             var paths = new MacBrowserMediaEffects([]);
             var path = paths.NormalizeRootPath(absolutePath);
+            MacBrowserMediaEffects.RefuseApplicationPackage(path);
             // Start at / so every component, including the requested folder, is checked for links.
             var entries = await new ContainedMediaFolderFileSystem(paths, directoriesOnly: true).EnumerateAsync("/", path, token).ConfigureAwait(false);
             return new(MediaFolderEnumerationStatus.Succeeded, entries
-                .Where(entry => entry.IsDirectory && !entry.IsReparsePoint && !entry.Name.StartsWith('.'))
+                .Where(entry => entry.IsDirectory && !entry.IsReparsePoint && !entry.Name.StartsWith('.') &&
+                    !MacBrowserMediaEffects.IsApplicationPackagePath(entry.FullPath))
                 .OrderBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
                 .Select(entry => new BrowserFileLocation(entry.FullPath, entry.Name, CanPrefetch: false)).ToArray());
         }

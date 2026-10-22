@@ -132,7 +132,11 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) :
                 Assets.Count==0 ? "No supported media in this folder." :
                 $"{Assets.Count} Catalog asset{(Assets.Count==1 ? "" : "s")} · {(Recursive ? "Includes subfolders" : "This folder")} · Source availability is checked on selection.";
-            if (content.Diagnostic is { Length: > 0 } diagnostic) Message += " · " + diagnostic;
+            if (content.Diagnostic is { Length: > 0 } diagnostic)
+            {
+                Console.Error.WriteLine($"Browser scan details: {diagnostic}");
+                Message = $"Scan incomplete · {Assets.Count} supported media shown. Some folders could not be reconciled; Catalog records are preserved. Retry or check folder access.";
+            }
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message="This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }

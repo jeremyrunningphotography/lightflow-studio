@@ -108,7 +108,8 @@ public sealed class BrowserPane : UserControl
         choose.Padding=new Thickness(6,8); choose.BorderThickness=new Thickness(0); choose.Background=Brush("#171A20");
         var toggle=Action("›"); toggle.Padding=new Thickness(0); toggle.BorderThickness=new Thickness(0);
         toggle.Background=Brush("#171A20"); toggle.FontSize=18; toggle.IsVisible=true;
-        var row=new Grid { ColumnDefinitions=new("24,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);
+        toggle.MinWidth=32; toggle.MinHeight=32; toggle.HorizontalContentAlignment=HorizontalAlignment.Center;
+        var row=new Grid { ColumnDefinitions=new("32,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);
         AutomationProperties.SetName(toggle,$"Expand {node.Name}");
         ToolTip.SetTip(choose,node.AbsolutePath ?? node.Name);
         var state=new FolderRow(key,node,new StackPanel { Spacing=2, Children={row,children} },children,choose,toggle);

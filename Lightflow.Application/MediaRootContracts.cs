@@ -65,6 +65,12 @@ public interface IBrowserFolderPaths
 
 public interface IMediaRootPathEffects : IBrowserFolderPaths
 {
+    bool IsNaturalAnchor(string path)
+    {
+        var normalized = NormalizeRootPath(path);
+        var root = Path.GetPathRoot(normalized);
+        return !string.IsNullOrWhiteSpace(root) && string.Equals(normalized, NormalizeRootPath(root), StringComparison.OrdinalIgnoreCase);
+    }
     IMediaRootPathAdmission OpenAdmission(string root);
     void ValidatePaths(string root, IReadOnlyList<PathIdentityCandidate> candidates, CancellationToken token);
     string NormalizeRelativePath(string path);

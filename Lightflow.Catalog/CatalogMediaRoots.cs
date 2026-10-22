@@ -190,13 +190,7 @@ public class CatalogMediaRootService(Func<CatalogDatabaseSession?> session, IMac
         return null;
     }
 
-    private bool IsNaturalAnchor(string path)
-    {
-        var normalized = paths.NormalizeRootPath(path);
-        var root = Path.GetPathRoot(normalized);
-        return !string.IsNullOrWhiteSpace(root) && string.Equals(normalized,
-            paths.NormalizeRootPath(root), StringComparison.OrdinalIgnoreCase);
-    }
+    private bool IsNaturalAnchor(string path) => paths.IsNaturalAnchor(path);
 
     private Guid? FindExactMappingWithoutTransaction(SqliteConnection connection, string path, string machineId)
     {

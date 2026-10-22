@@ -23,7 +23,7 @@ namespace LightflowStudio;
 /// <see cref="BrowserNavigationSession"/>'s existing generic failure handling already converts into an honest
 /// Browser failure state, so no second Catalog-unavailable UI path is needed for this feature.
 /// </summary>
-internal interface IBrowserRecursiveRootService
+public interface IBrowserRecursiveRootService
 {
     /// <summary>Every stored recursive root across every Media Root. The table is expected to stay small (a handful of user-established roots), so callers are free to fetch the full list rather than filtering server-side.</summary>
     Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default);
@@ -43,7 +43,7 @@ internal interface IBrowserRecursiveRootService
     Task DisableAsync(Guid rootId, string relativeFolder, CancellationToken cancellationToken = default);
 }
 
-internal sealed class BrowserRecursiveRootService(IBrowserRecursiveRootRepository repository) : IBrowserRecursiveRootService
+public sealed class BrowserRecursiveRootService(IBrowserRecursiveRootRepository repository) : IBrowserRecursiveRootService
 {
     private CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(repository);
     public Task<IReadOnlyList<BrowserRecursiveRoot>> ListAsync(CancellationToken cancellationToken = default) =>
@@ -75,5 +75,5 @@ internal sealed class BrowserRecursiveRootService(IBrowserRecursiveRootRepositor
     }
 
     private static string NormalizeFolder(string relativeFolder) =>
-        relativeFolder.Length == 0 ? "" : MediaPathSemantics.NormalizeRelativePath(relativeFolder);
+        relativeFolder.Length == 0 ? "" : CatalogRelativePaths.NormalizeRelativePath(relativeFolder);
 }

@@ -17,13 +17,15 @@ public sealed class MacStorageLocationAssessor : IStorageLocationAssessor, IDisp
     private bool _disposed;
     private readonly string[] _protectedRoots;
     private readonly TimeProvider _time;
+    private readonly bool _allowMediaSourceAncestor;
     private readonly TimeSpan _lifetime;
 
     public MacStorageLocationAssessor(IEnumerable<string> protectedRoots, TimeProvider? timeProvider = null,
-        TimeSpan? lifetime = null)
+        TimeSpan? lifetime = null, bool allowMediaSourceAncestor = false)
     {
         ArgumentNullException.ThrowIfNull(protectedRoots);
         _protectedRoots = protectedRoots.ToArray();
+        _allowMediaSourceAncestor = allowMediaSourceAncestor;
         if (_protectedRoots.Any(p => string.IsNullOrWhiteSpace(p) || !Path.IsPathFullyQualified(p) || p.Contains('\0')))
             throw new ArgumentException("Protected roots must be explicit absolute filesystem paths.", nameof(protectedRoots));
         _time = timeProvider ?? TimeProvider.System;
@@ -87,11 +89,13 @@ public sealed class MacStorageLocationAssessor : IStorageLocationAssessor, IDisp
                     || b.GetProperty("missingLeaf").GetString() != "")
                 { containment = false; continue; }
                 var protectedPath = b.GetProperty("canonical").GetString()!;
-                // Roots represent storage of other ownership classes. Refuse either nesting
-                // direction; identical underlying objects also fail despite different spelling.
-                if (Overlaps(canonical, protectedPath)
+                // Default storage assessment refuses both nesting directions. Browser-only
+                // MediaSource anchors may contain owned storage; actual scans exclude it.
+                // Equal/inside protected objects and ambiguous identities remain refused.
+                var mediaAncestor = _allowMediaSourceAncestor && request.Role == StorageRole.MediaSource;
+                if ((mediaAncestor ? canonical == protectedPath || canonical.StartsWith(protectedPath.TrimEnd('/') + "/", StringComparison.Ordinal) : Overlaps(canonical, protectedPath))
                     || facts.GetProperty("ancestors").EnumerateArray().Any(v => v.GetString() == b.GetProperty("target").GetString())
-                    || (facts.GetProperty("missingLeaf").GetString() == "" && b.GetProperty("ancestors").EnumerateArray().Any(v => v.GetString() == facts.GetProperty("target").GetString()))
+                    || (!mediaAncestor && facts.GetProperty("missingLeaf").GetString() == "" && b.GetProperty("ancestors").EnumerateArray().Any(v => v.GetString() == facts.GetProperty("target").GetString()))
                     || (facts.GetProperty("missingLeaf").GetString() == ""
                         && b.GetProperty("missingLeaf").GetString() == ""
                         && facts.GetProperty("target").GetString() == b.GetProperty("target").GetString()))

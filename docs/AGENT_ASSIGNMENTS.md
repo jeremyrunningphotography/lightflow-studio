@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 027 | LF-MAC-DEV-027 | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), parent #366 | Implementation review; owner approved shared extraction; shared/native/UI tests pass, exact-head CI and Mac/Windows owner package gates remain |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
@@ -381,3 +382,36 @@ reconciliation changes no production, tests, build inputs, other assignment, acc
 qualification document or historical narrative. Chronicle assessment: this bounded
 follow-up needs no separate historical entry; evidence remains available for a later
 shared Browser milestone account.
+
+## Assignment 027 reservation — 2026-10-22
+
+Jeremy allocated LF-MAC-DEV-027 for bounded #460 automatic supported-media discovery
+and Catalog reconciliation. Number 027 was absent from fetched main
+`6d5aee56cb84786633d416bfce4b1d8c1e87ebbd` and the open PR inventory
+(#457/#448/#360). Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-027-BrowserDiscovery`; branch
+`codex/027-mac-browser-discovery`. Preimplementation hygiene/architecture gate only;
+no production implementation or acceptance claimed. Project #4 uses Browser Area,
+unset Priority and Backlog until implementation begins; native parent #366.
+Existing Catalog safety, R2/R3/R4 dependencies and incomplete DoD remain intact.
+No Preview, Player, thumbnails, new Catalog writer/lifecycle, storage-policy expansion,
+merge, release or next milestone is authorized.
+
+027 preimplementation gate: hygiene completed (#29/#73 moved to Backlog;
+#345/#366 retained In Progress; Jeremy explicitly retained #289 In Progress).
+Windows reconciliation, asset observation/fingerprinting and recursive discovery
+remain internal to the Windows WPF project; accepted Mac Browser contracts are
+read-only. #460's explicit material-extraction gate therefore stops production
+implementation pending owner review. See [source inventory and proposal](architecture/mac-browser-discovery-460-gate.md).
+No new app, implementation PR or runtime/CI acceptance is claimed.
+
+027 continuation: Jeremy approved bounded shared extraction within #460 on 2026-10-22
+(owner comment 6346316550). Pre-edit contract inventory and Windows compatibility
+plan recorded on #460. Shared asset observation/reconciliation/recursive owners
+compose over the existing lifecycle; Mac visited-folder discovery requires no Preview.
+Project #4 Browser / unset Priority / In Progress while implementing; native parent
+#366, broader incomplete R2/R3/R4 and prior hygiene preserved. Local Release 38 native,
+50 Catalog and 20 UI tests passed; real task-owned Mac app discovery/selection/recursive
+scope/normal shutdown exercised. See [qualification and owner launch](qualification/mac-browser-460.md).
+Final-head CI, refreshed exact-head Mac bundle, separate DARKMATTER package report
+and explicit owner acceptance remain distinct gates. No merge/release/next milestone.

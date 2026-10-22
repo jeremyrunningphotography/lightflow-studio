@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Lightflow.Platform.MacOS.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("macos")]
 [Collection("Native storage descriptor ownership")]
 public sealed class MacBrowserDiscoveryTests
 {
@@ -50,6 +51,17 @@ public sealed class MacBrowserDiscoveryTests
             await shell.SetBrowserRecursiveAsync(root, first.RelativeFolder, true);
             var recursive = await shell.DiscoverBrowserFolderAsync(media, root, first.RelativeFolder);
             Assert.True(recursive.Recursive); Assert.Equal(2, recursive.Assets.Count);
+            var nested = recursive.Assets.Single(a => a.RelativePath.EndsWith("clip.mov"));
+            var nestedFolder = Path.Combine(media, "Nested"); var permissions = File.GetUnixFileMode(nestedFolder);
+            try
+            {
+                File.SetUnixFileMode(nestedFolder, UnixFileMode.None);
+                var partial = await shell.DiscoverBrowserFolderAsync(media, root, first.RelativeFolder);
+                Assert.DoesNotContain(partial.Assets, a => a.AssetId == nested.AssetId);
+                Assert.False(string.IsNullOrWhiteSpace(partial.Diagnostic));
+                Assert.Equal(MediaAssetSourceStatus.Available, (await shell.ReadBrowserCatalogAsync(root, first.RelativeFolder, recursive: true)).Assets.Single(a => a.AssetId == nested.AssetId).SourceStatus);
+            }
+            finally { File.SetUnixFileMode(nestedFolder, permissions); }
             await shell.SetBrowserRecursiveAsync(root, first.RelativeFolder, false);
             Assert.Single((await shell.DiscoverBrowserFolderAsync(media, root, first.RelativeFolder)).Assets);
             using var canceled = new CancellationTokenSource(); canceled.Cancel();
@@ -74,9 +86,9 @@ public sealed class MacBrowserDiscoveryTests
             Assert.Equal(asset, Assert.Single((await shell.DiscoverBrowserFolderAsync(media, root, "")).Assets).AssetId);
             File.Move(Path.Combine(media, "photo.JPG"), Path.Combine(media, "renamed.jpg"));
             var renamed = await shell.DiscoverBrowserFolderAsync(media, root, "");
-            Assert.Equal(2, renamed.Assets.Count);
-            Assert.Equal(MediaAssetSourceStatus.Missing, renamed.Assets.Single(a => a.AssetId == asset).SourceStatus);
-            Assert.NotEqual(asset, renamed.Assets.Single(a => a.RelativePath.EndsWith("renamed.jpg")).AssetId);
+            Assert.NotEqual(asset, Assert.Single(renamed.Assets).AssetId);
+            var preserved = await shell.ReadBrowserCatalogAsync(root, renamed.RelativeFolder);
+            Assert.Equal(MediaAssetSourceStatus.Missing, preserved.Assets.Single(a => a.AssetId == asset).SourceStatus);
         }
         var reopened = await new CatalogLifecycle(new MacCatalogLifecycleEffects(data)).StartAsync(allowFirstCreation: false);
         await using (var owner = reopened.Coordinator!)

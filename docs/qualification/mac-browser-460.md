@@ -40,7 +40,7 @@ prevents concurrent host requests from retiring or competing over its session.
 | Supported formats | Existing extension registry, no promise of codec decoding | Same registry; unsupported files omitted |
 | Same logical file path | Retain RootId/AssetId and authored state | Same service/repository; qualified with rating and Collection membership |
 | External rename/move | New path identity; old record marked missing, not deleted | Same behavior; no content-based relink |
-| Missing/unavailable/error | Missing only after authoritative successful scan; no destructive offline inference | Same rules and native refusal |
+| Missing/unavailable/error | Missing only after authoritative successful scan; absent files omitted from final view, records retained | Same rules; visible candidates come only from successful scan folders |
 | Cancellation | Completed observations may persist; no unseen missing inference on interrupted scan | Same rules; latest UI generation wins; Cancel or navigate elsewhere |
 | Include Subfolders | Stored roots with inheritance; bounded shared walk | Same root rules and walk; toggle supported |
 | Locations/Refresh | Retain valid navigation/selection/expansion context | Existing retained tree rows/scroll plus stable selected AssetId |

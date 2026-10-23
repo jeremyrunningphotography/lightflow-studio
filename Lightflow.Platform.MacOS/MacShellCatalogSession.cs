@@ -4,7 +4,7 @@ using LightflowStudio;
 namespace Lightflow.Platform.MacOS;
 
 /// <summary>Thin shell composition adapter; CatalogLifecycle retains admission, configuration and resource ownership.</summary>
-public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession, IBrowserFolderSession
+public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession, IBrowserDiscoverySession
 {
     public string DataRoot { get; } = Path.GetFullPath(dataRoot);
     private readonly SemaphoreSlim _requests = new(1, 1);
@@ -74,6 +74,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     public Task<BrowserCatalogSnapshot> ReadBrowserCatalogAsync(Guid? rootId = null, string folder = "",
         bool recursive = false, CancellationToken cancellationToken = default) => BorrowAsync(async owner =>
     {
+        using var timing = BrowserPerformance.Measure("mac.catalog.read");
         var roots = await Roots(owner).ListAsync(cancellationToken).ConfigureAwait(false);
         var assets = rootId is { } id
             ? await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(id, folder, recursive, cancellationToken).ConfigureAwait(false)
@@ -105,6 +106,94 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         return asset is not null && asset.RootId == rootId && root is not null &&
             await MediaEffects(owner).FileExistsAsync(root, asset.RelativePath, token).ConfigureAwait(false);
     }, token);
+
+    public Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? absolutePath, Guid rootId,
+        string folder, CancellationToken token = default) => BorrowAsync(async owner =>
+    {
+        using var timing = BrowserPerformance.Measure("mac.discovery");
+        if (absolutePath is not null) MacBrowserMediaEffects.RefuseApplicationPackage(absolutePath);
+        var effects = MediaEffects(owner);
+        var roots = new CatalogMediaRootService(() => owner.Session,
+            new MachineIdentityProvider(Path.Combine(DataRoot, "machine-id")), new MediaFiles(), effects);
+        if (absolutePath is not null)
+        {
+            using var mappingTiming = BrowserPerformance.Measure("mac.root.mapping");
+            var path = effects.NormalizeRootPath(absolutePath);
+            var anchor = effects.GetAnchor(path);
+            var mappings = await roots.ListAsync(token);
+            var mapped = BrowserLocationMapping.Find(path, mappings.Where(root => root.PhysicalPath is { } physical &&
+                effects.GetAnchor(physical) == anchor), StringComparison.Ordinal);
+            if (mapped is null)
+            {
+                // Establish identity only at a real mounted volume boundary. This does not scan the volume.
+                // Do not migrate historical cross-volume records or silently create duplicate identities.
+                var prior = BrowserLocationMapping.Find(path, mappings, StringComparison.Ordinal);
+                if (prior is not null && (await new CatalogMediaAssetRepository(() => owner.Session)
+                    .ListScopeAsync(prior.RootId, prior.RelativeFolder, true, token)).Count > 0)
+                    throw new IOException("This volume has Catalog records under a different location mapping. Review its mapping before discovery.");
+                var created = await roots.CreateBrowserAnchorAsync(anchor == "/" ? "Macintosh HD" : Path.GetFileName(anchor), anchor, token);
+                if (!created.Succeeded) throw new IOException(created.Diagnostic);
+                mapped = BrowserLocationMapping.Find(path, (await roots.ListAsync(token)).Where(root => root.PhysicalPath is { } physical && effects.GetAnchor(physical) == anchor), StringComparison.Ordinal)
+                    ?? throw new IOException("The folder identity could not be established.");
+            }
+            rootId = mapped.RootId; folder = mapped.RelativeFolder;
+        }
+        var mediaTypes = MediaTypeRegistry.CreateDefault();
+        var folders = new CatalogMediaFolderEnumerator(roots, mediaTypes, effects, effects, excludedPath: effects.IsProtected);
+        var assets = new CatalogMediaAssetRepository(() => owner.Session);
+        var observations = new MediaAssetService(assets, roots, new NativeFingerprints(effects));
+        var reconciliation = new CatalogReconciliationService(folders, observations);
+        var discovery = new MediaDiscoveryRefreshService(reconciliation, () => null);
+        var recursiveRoots = new CatalogBrowserRecursiveRootRepository(() => owner.Session);
+        var recursive = BrowserRecursiveRootLogic.IsEffectivelyRecursive(await recursiveRoots.ListAsync(token), rootId, folder);
+        CatalogReconciliationResult result;
+        IReadOnlyList<MediaFolderEntry> visible;
+        MediaFolderEnumerationResult listing;
+        if (recursive)
+        {
+            var scan = await new RecursiveMediaDiscoveryService(folders, discovery).DiscoverAsync(new(rootId, folder), enumerationToken: token);
+            if (!scan.Succeeded || scan.Reconciliation is null) throw new IOException(scan.Diagnostic ?? "This folder could not be scanned.");
+            result = scan.Reconciliation; visible = scan.MediaEntries;
+            listing = await folders.EnumerateAsync(new(rootId, folder), token);
+            if (!listing.Succeeded) throw new IOException(listing.Diagnostic ?? "This folder is unavailable.");
+        }
+        else
+        {
+            result = (await discovery.RefreshAsync(new(rootId, folder), cancellationToken: token)).Reconciliation;
+            if (!result.Succeeded) throw new IOException(result.Diagnostic ?? "This folder could not be scanned.");
+            listing = await folders.EnumerateAsync(new(rootId, folder), token);
+            if (!listing.Succeeded) throw new IOException(listing.Diagnostic ?? "This folder is unavailable.");
+            visible = listing.Entries;
+        }
+        token.ThrowIfCancellationRequested();
+        // Windows' authoritative view comes from successfully scanned filesystem candidates.
+        // Missing records and failed recursive descendants remain in Catalog, outside this visible set.
+        var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
+            .Select(entry => entry.RelativePathKey).ToHashSet(StringComparer.Ordinal);
+        using var projectionTiming = BrowserPerformance.Measure("mac.catalog.projection");
+        // Reuse the post-reconciliation listing for the tree projection. The old reader repeated
+        // that same native enumeration once more; Catalog scope reads need no filesystem traversal.
+        var content = await assets.ListScopeAsync(rootId, folder, recursive, token);
+        return new BrowserFolderSnapshot(rootId, folder, recursive, listing.Status,
+            listing.Entries.Where(entry => entry.IsDirectory).ToArray(),
+            content.Where(asset => asset.SourceStatus != MediaAssetSourceStatus.Missing &&
+                visiblePaths.Contains(asset.RelativePathKey) && mediaTypes.Classify(new(asset.RelativePath)).IsKnown).ToArray(),
+            result.Diagnostic);
+
+    }, token);
+
+    public Task SetBrowserRecursiveAsync(Guid rootId, string folder, bool enabled, CancellationToken token = default) => BorrowAsync(async owner =>
+    {
+        var service = new BrowserRecursiveRootService(new CatalogBrowserRecursiveRootRepository(() => owner.Session));
+        if (enabled) await service.EnableAsync(rootId, folder, token);
+        else await service.DisableAsync(rootId, folder, token);
+        return true;
+    }, token);
+
+    private sealed class NativeFingerprints(MacBrowserMediaEffects effects) : ISourceFingerprintService
+    {
+        public Task<SourceFingerprint> CreateAsync(string path, CancellationToken token = default) => effects.FingerprintAsync(path, token);
+    }
 
     private async Task<T> BorrowAsync<T>(Func<CatalogLifecycle, Task<T>> read, CancellationToken token)
     {

@@ -19,7 +19,8 @@ public sealed class BrowserPane : UserControl
     private readonly ListBox _assets = new() { SelectionMode = SelectionMode.Single, Background=Brush("#11141A"), BorderThickness=new Thickness(0) };
     private readonly TextBlock _location=Text("Choose a location",18), _message=Text("",13), _summary=Text("",13), _source=Text("",13);
     private readonly TextBlock _path=Text("",12);
-    private readonly Button _up=Action("↑  Parent"), _refresh=Action("Refresh");
+    private readonly Button _back=Action("←"), _forward=Action("→"), _up=Action("↑"), _refresh=Action("↻"), _go=Action("Go"), _cancel=Action("Cancel"), _recursive=Action("Include Subfolders");
+    private readonly TextBox _address = new() { Watermark="Folder path", MinWidth=100, VerticalAlignment=VerticalAlignment.Center };
     private IReadOnlyList<BrowserFolderNode>? _shownRoots;
     private IReadOnlyList<MediaAsset>? _shownAssets;
     private bool _updating;
@@ -39,23 +40,30 @@ public sealed class BrowserPane : UserControl
     public BrowserPane(BrowserViewModel model)
     {
         _model=model;
-        var layout=new Grid { ColumnDefinitions=new("250,12,*,12,250"), RowDefinitions=new("52,*,64") };
+        var layout=new Grid { ColumnDefinitions=new("230,8,*,8,230"), RowDefinitions=new("52,*,64") };
         var heading=Text("Browser",24); heading.VerticalAlignment=VerticalAlignment.Center; layout.Children.Add(heading);
-        var toolbar=new StackPanel { Orientation=Orientation.Horizontal, Spacing=10, VerticalAlignment=VerticalAlignment.Center };
-        toolbar.Children.Add(_up); toolbar.Children.Add(_refresh); Grid.SetColumn(toolbar,2); layout.Children.Add(toolbar);
+        var toolbar=new Grid { ColumnDefinitions=new("Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"), VerticalAlignment=VerticalAlignment.Center };
+        var controls = new Control[] { _back, _forward, _up, _address, _go, _refresh, _recursive, _cancel };
+        for (var i=0; i<controls.Length; i++) { Grid.SetColumn(controls[i],i); controls[i].Margin=new Thickness(2,0); toolbar.Children.Add(controls[i]); }
+        foreach (var (button, label) in new[] { (_back,"Back"), (_forward,"Forward"), (_up,"Up one folder"), (_go,"Open folder path"), (_refresh,"Refresh current folder"), (_recursive,"Include Subfolders") })
+        { ToolTip.SetTip(button,label); AutomationProperties.SetName(button,label); }
+        AutomationProperties.SetName(_address,"Current folder path"); Grid.SetColumn(toolbar,2); Grid.SetColumnSpan(toolbar,3); layout.Children.Add(toolbar);
         var side=new StackPanel { Spacing=14, Children={Text("LOCATIONS",12), _roots} };
         _sideScroll=new ScrollViewer { Content=side, HorizontalScrollBarVisibility=Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         var left=Panel(_sideScroll); Grid.SetRow(left,1); layout.Children.Add(left);
         var center=new Grid { RowDefinitions=new("Auto,36,*") };
         _path.TextWrapping=TextWrapping.NoWrap; _path.TextTrimming=TextTrimming.CharacterEllipsis; _path.Foreground=Brush("#9DA5B3");
         var locationHeading=new StackPanel { Spacing=6, Margin=new Thickness(16,14), Children={_location,_path} }; center.Children.Add(locationHeading);
-        var columns=Text("CATALOG ASSETS",11); columns.Margin=new Thickness(16,4); columns.Foreground=Brush("#9DA5B3"); Grid.SetRow(columns,1);center.Children.Add(columns);
+        var columns=Text("NAME",11); columns.Margin=new Thickness(16,4); columns.Foreground=Brush("#9DA5B3"); Grid.SetRow(columns,1);center.Children.Add(columns);
         _assets.ItemTemplate=new FuncDataTemplate<MediaAsset>((asset,_)=>
         {
             if(asset is null)return new TextBlock();
-            var row=new StackPanel { Spacing=5, Margin=new Thickness(8,6) };
-            row.Children.Add(Text(asset.RelativePath.Split('/')[^1],15));
-            var detail=Text($"{asset.RelativePath}  ·  {asset.MediaType}  ·  {asset.FileSizeBytes:N0} bytes",12); detail.Foreground=Brush("#B9BEC8"); row.Children.Add(detail);
+            var row=new Grid { ColumnDefinitions=new("*,74,90"), Margin=new Thickness(8,5), MinHeight=24 };
+            var name=Text(asset.RelativePath.Split('/')[^1],14); name.TextWrapping=TextWrapping.NoWrap; name.TextTrimming=TextTrimming.CharacterEllipsis;
+            row.Children.Add(name);
+            var kind=Text(asset.MediaType,12); kind.Foreground=Brush("#B9BEC8"); Grid.SetColumn(kind,1); row.Children.Add(kind);
+            var size=Text($"{asset.FileSizeBytes:N0} bytes",12); size.Foreground=Brush("#B9BEC8"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,2); row.Children.Add(size);
+            ToolTip.SetTip(row,asset.RelativePath);
             AutomationProperties.SetName(row,$"{asset.RelativePath}, {asset.MediaType}, Catalog asset {asset.AssetId}");
             return row;
         });
@@ -74,6 +82,18 @@ public sealed class BrowserPane : UserControl
         var details=new StackPanel { Spacing=18, Children={Text("SELECTED ASSET",12),_source,_summary} };
         _source.Foreground=Brush("#DFA273"); var right=Panel(new ScrollViewer { Content=details }); Grid.SetRow(right,1);Grid.SetColumn(right,4);layout.Children.Add(right);
         _message.Margin=new Thickness(0,14,0,0); _message.Foreground=Brush("#B9BEC8"); Grid.SetRow(_message,2);Grid.SetColumnSpan(_message,5);layout.Children.Add(_message);
+        _cancel.Click+=(_,_)=>model.CancelNavigation();
+        _back.Click+=async(_,_)=>await model.BackAsync(); _forward.Click+=async(_,_)=>await model.ForwardAsync();
+        _go.Click+=async(_,_)=>await model.GoPathAsync(_address.Text ?? "");
+        _address.KeyDown+=async(_,e)=> { if(e.Key==Avalonia.Input.Key.Enter) { e.Handled=true; await model.GoPathAsync(_address.Text ?? ""); } };
+        _recursive.Click+=async(_,_)=>await model.ToggleRecursiveAsync();
+        KeyDown+=async(_,e)=> {
+            var primary=(e.KeyModifiers & (Avalonia.Input.KeyModifiers.Meta | Avalonia.Input.KeyModifiers.Control)) != 0;
+            if(e.Key==Avalonia.Input.Key.F5 || primary && e.Key==Avalonia.Input.Key.R) { e.Handled=true; await model.RefreshAsync(); }
+            else if(primary && e.Key==Avalonia.Input.Key.L) { e.Handled=true; _address.Focus(); _address.SelectAll(); }
+            else if((e.KeyModifiers & Avalonia.Input.KeyModifiers.Alt)!=0 && e.Key==Avalonia.Input.Key.Left) { e.Handled=true; await model.BackAsync(); }
+            else if((e.KeyModifiers & Avalonia.Input.KeyModifiers.Alt)!=0 && e.Key==Avalonia.Input.Key.Right) { e.Handled=true; await model.ForwardAsync(); }
+        };
         _up.Click+=async(_,_)=>await model.UpAsync(); _refresh.Click+=async(_,_)=>await model.RefreshAsync();
         model.PropertyChanged+=(_,_)=> { if(Dispatcher.UIThread.CheckAccess())Update();else Dispatcher.UIThread.Post(Update); };
         Content=layout; Update();
@@ -88,7 +108,8 @@ public sealed class BrowserPane : UserControl
         choose.Padding=new Thickness(6,8); choose.BorderThickness=new Thickness(0); choose.Background=Brush("#171A20");
         var toggle=Action("›"); toggle.Padding=new Thickness(0); toggle.BorderThickness=new Thickness(0);
         toggle.Background=Brush("#171A20"); toggle.FontSize=18; toggle.IsVisible=true;
-        var row=new Grid { ColumnDefinitions=new("24,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);
+        toggle.MinWidth=32; toggle.MinHeight=32; toggle.HorizontalContentAlignment=HorizontalAlignment.Center;
+        var row=new Grid { ColumnDefinitions=new("32,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);
         AutomationProperties.SetName(toggle,$"Expand {node.Name}");
         ToolTip.SetTip(choose,node.AbsolutePath ?? node.Name);
         var state=new FolderRow(key,node,new StackPanel { Spacing=2, Children={row,children} },children,choose,toggle);
@@ -136,6 +157,10 @@ public sealed class BrowserPane : UserControl
     }
     private void Update()
     {
+        _cancel.IsVisible=_model.IsLoading;
+        _back.IsEnabled=_model.CanGoBack; _forward.IsEnabled=_model.CanGoForward;
+        _recursive.IsEnabled=_model.CanChangeRecursive; _recursive.Content=_model.Recursive ? "✓ Include Subfolders" : "Include Subfolders";
+        if (!_address.IsFocused) _address.Text=_model.Location?.AbsolutePath ?? "";
         _up.IsEnabled=_model.CanGoUp; _refresh.IsEnabled=_model.CanRefresh;
         _location.Text=_model.Location?.Name ?? "Choose a location";
         _path.Text=_model.Location is { } node ? node.AbsolutePath ?? "/" + node.RelativeFolder : "";

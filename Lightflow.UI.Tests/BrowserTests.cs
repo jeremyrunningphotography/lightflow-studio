@@ -94,6 +94,7 @@ public sealed class BrowserTests
         await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         var expand=pane.GetVisualDescendants().OfType<Button>().Single(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Home");
         Assert.True(expand.IsVisible);
+        Assert.True(expand.Bounds.Width >= 32 && expand.Bounds.Height >= 32);
         expand.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         var leaves=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
@@ -116,6 +117,92 @@ public sealed class BrowserTests
         Assert.Contains(provider.Requests,request=>request.Path=="/task" && request.UserInitiated);
         window.Close();model.Suspend();
     }
+    [Fact]
+    public async Task DiscoveryNavigationRejectsLateCommitAndExpansionNeverIngests()
+    {
+        var service = new FakeDiscovery(); var provider = new FakeLocations();
+        var model = new BrowserViewModel(service, provider); await model.OpenAsync(service.CatalogId);
+        await model.ExpandAsync(model.Roots.Single(node => node.Name == "Home"));
+        Assert.Empty(service.Discoveries);
+        var first = model.GoPathAsync("/task/one"); var second = model.GoPathAsync("/task/two");
+        var selected = Asset(service.RootId, "two.jpg");
+        service.Discoveries["/task/two"].SetResult(new(service.RootId,"two",false,MediaFolderEnumerationStatus.Succeeded,[],[selected]));
+        await second;
+        service.Discoveries["/task/one"].SetResult(new(service.RootId,"one",false,MediaFolderEnumerationStatus.Succeeded,[],[Asset(service.RootId,"stale.jpg")]));
+        await first;
+        Assert.Equal("/task/two", model.Location!.AbsolutePath); Assert.Equal(selected, Assert.Single(model.Assets));
+        service.Source.SetResult(true); await model.SelectAsync(selected.AssetId);
+        var refresh = model.RefreshAsync();
+        service.Discoveries["/task/two"].SetResult(new(service.RootId,"two",false,MediaFolderEnumerationStatus.Succeeded,[],[selected]));
+        await refresh; Assert.Equal(selected.AssetId, model.SelectedAssetId);
+        var back = model.BackAsync(); service.Discoveries["/task/one"].SetResult(new(service.RootId,"one",false,MediaFolderEnumerationStatus.Succeeded,[],[])); await back;
+        Assert.Equal("/task/one", model.Location!.AbsolutePath); Assert.True(model.CanGoForward);
+        var forward = model.ForwardAsync(); service.Discoveries["/task/two"].SetResult(new(service.RootId,"two",false,MediaFolderEnumerationStatus.Succeeded,[],[selected])); await forward;
+        Assert.Equal("/task/two",model.Location!.AbsolutePath);
+    }
+    [Fact]
+    public async Task PartialScanDiagnosticsStayConciseAndNeverClaimCompleteReconciliation()
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/partial");
+        var details = string.Join(" ", Enumerable.Range(0, 100).Select(i => $"internal-{i}: Filesystem links were skipped; Catalog refresh refused."));
+        service.Discoveries["/task/partial"].SetResult(new(service.RootId, "partial", true,
+            MediaFolderEnumerationStatus.Succeeded, [], [Asset(service.RootId, "safe.jpg")], details));
+        await loading;
+        Assert.StartsWith("Scan incomplete", model.Message);
+        Assert.Contains("Catalog records are preserved", model.Message);
+        Assert.DoesNotContain("internal-", model.Message);
+        Assert.True(model.Message.Length < 200);
+        Assert.Single(model.Assets);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task SuccessfulBrowseAndRefreshLeaveStatusQuiet(bool recursive, bool empty)
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/ordinary");
+        Assert.True(model.IsLoading); Assert.False(string.IsNullOrWhiteSpace(model.Message));
+        var content = new BrowserFolderSnapshot(service.RootId, "ordinary", recursive,
+            MediaFolderEnumerationStatus.Succeeded, [], empty ? [] : [Asset(service.RootId, "photo.jpg")]);
+        service.Discoveries["/task/ordinary"].SetResult(content);
+        await loading;
+        Assert.False(model.IsLoading); Assert.Empty(model.Message);
+        var refresh = model.RefreshAsync();
+        service.Discoveries["/task/ordinary"].SetResult(content);
+        await refresh;
+        Assert.Empty(model.Message);
+    }
+
+    [Fact]
+    public async Task QuietSuccessDoesNotSuppressCancellationOrRefusal()
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/canceled");
+        model.CancelNavigation(); await loading;
+        Assert.Contains("Loading stopped", model.Message);
+        var refused = model.GoPathAsync("/task/denied");
+        service.Discoveries["/task/denied"].SetResult(new(service.RootId, "denied", false,
+            MediaFolderEnumerationStatus.AccessDenied, [], []));
+        await refused;
+        Assert.Contains("permissions", model.Message);
+        Assert.False(model.IsLoading);
+    }
+
+    private sealed class FakeDiscovery : FakeBrowser, IBrowserDiscoverySession
+    {
+        public Dictionary<string,TaskCompletionSource<BrowserFolderSnapshot>> Discoveries = [];
+        public Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? path, Guid rootId, string folder, CancellationToken token = default)
+        {
+            var pending = new TaskCompletionSource<BrowserFolderSnapshot>(); Discoveries[path!] = pending; return pending.Task;
+        }
+        public Task SetBrowserRecursiveAsync(Guid rootId, string folder, bool enabled, CancellationToken token = default) => Task.CompletedTask;
+    }
     private sealed class FakeLocations : IBrowserLocationProvider
     {
         public bool Delayed, ProtectedHome;
@@ -130,7 +217,7 @@ public sealed class BrowserTests
         }
     }
     private static MediaAsset Asset(Guid root,string path)=>new(Guid.NewGuid(),root,path,path.ToUpperInvariant(),"image",68,DateTime.UtcNow.Ticks,null,MediaAssetSourceStatus.Available,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null);
-    private sealed class FakeBrowser : IBrowserFolderSession
+    private class FakeBrowser : IBrowserFolderSession
     {
         public Guid CatalogId=Guid.NewGuid(),RootId=Guid.NewGuid();
         public Dictionary<string,TaskCompletionSource<BrowserFolderSnapshot>> Folders=[];

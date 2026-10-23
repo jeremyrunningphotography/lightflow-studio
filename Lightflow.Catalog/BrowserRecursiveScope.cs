@@ -8,7 +8,7 @@ namespace LightflowStudio;
 /// bare bool, so a later scope kind (Favorites, Collections, Smart Collections, All Media, Recent — see #72)
 /// can extend the same seam without redesigning the boundary between scope and <see cref="BrowserQuery"/>.
 /// </summary>
-internal enum BrowserScopeMode { DirectFolder, IncludeSubfolders }
+public enum BrowserScopeMode { DirectFolder, IncludeSubfolders }
 
 /// <summary>
 /// Pure scope-membership logic, kept separate from any particular consumer so both the recursive discovery
@@ -23,7 +23,7 @@ internal enum BrowserScopeMode { DirectFolder, IncludeSubfolders }
 /// <see cref="AggregateDerivedWorkBatch"/>) so #108's existing grid/thumbnail/metadata hydration code needs
 /// no recursive-specific branch at all.
 /// </summary>
-internal sealed record RecursiveScopeResult(
+public sealed record RecursiveScopeResult(
     CatalogReconciliationStatus Status,
     Guid RootId,
     string RelativeFolder,
@@ -45,10 +45,10 @@ internal sealed record RecursiveScopeResult(
 /// same honest denominator a caller like <c>MainWindow</c> can present as determinate progress once it has
 /// enough data to be meaningful.
 /// </summary>
-internal readonly record struct RecursiveScopeProgress(int FoldersDiscovered, int FoldersVisited,
+public readonly record struct RecursiveScopeProgress(int FoldersDiscovered, int FoldersVisited,
     long NavigationGeneration = 0);
 
-internal interface IRecursiveMediaDiscoveryService
+public interface IRecursiveMediaDiscoveryService
 {
     Task<RecursiveScopeResult> DiscoverAsync(MediaFolderEnumerationRequest baseRequest,
         DerivedWorkPriority priority = DerivedWorkPriority.Background,
@@ -66,7 +66,7 @@ internal interface IRecursiveMediaDiscoveryService
 /// reconciliation strategy, no parallel thumbnail/metadata pipeline, and no Browser-owned filesystem walk:
 /// this is the one place recursion itself lives, and it lives in the service layer, not in WPF.
 /// </summary>
-internal sealed class RecursiveMediaDiscoveryService(
+public sealed class RecursiveMediaDiscoveryService(
     IMediaFolderEnumerator folders,
     IMediaDiscoveryRefreshService discovery,
     int maximumConcurrentFolders = 4,
@@ -181,7 +181,7 @@ internal sealed class RecursiveMediaDiscoveryService(
     private static string NormalizeFolder(string? relativeFolder) =>
         string.IsNullOrWhiteSpace(relativeFolder) || relativeFolder.Trim() == "."
             ? ""
-            : MediaPathSemantics.NormalizeRelativePath(relativeFolder);
+            : CatalogRelativePaths.NormalizeRelativePath(relativeFolder);
 
     private static string? CombineDiagnostics(IReadOnlyList<string> diagnostics) =>
         diagnostics.Count == 0 ? null : string.Join(" ", diagnostics);
@@ -271,7 +271,7 @@ internal sealed class RecursiveMediaDiscoveryService(
 /// live children on every access (matching <see cref="DerivedWorkBatch"/>'s own snapshot-under-lock convention)
 /// rather than duplicated/cached, so it can never drift from what the children actually report.
 /// </summary>
-internal sealed class AggregateDerivedWorkBatch : IDerivedWorkBatch
+public sealed class AggregateDerivedWorkBatch : IDerivedWorkBatch
 {
     private readonly IReadOnlyList<IDerivedWorkBatch> _children;
     private readonly Lazy<Task<DerivedWorkProgress>> _completion;

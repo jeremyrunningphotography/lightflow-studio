@@ -19,6 +19,10 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     private Guid? _catalogId;
     private IReadOnlyList<MediaRootInfo> _catalogRoots = [];
     private long _refreshGeneration;
+    private readonly List<BrowserFolderNode> _back = [], _forward = [];
+    public bool CanGoBack => _back.Count > 0;
+    public bool CanGoForward => _forward.Count > 0;
+    public bool CanChangeRecursive => session is IBrowserDiscoverySession && Location?.RootId != Guid.Empty && Location is not null && !IsLoading;
     public bool CanRefresh => _catalogId is not null;
     private readonly BrowserGridSelection _selection = new();
     public IReadOnlyList<BrowserFolderNode> Roots { get; private set; } = [];
@@ -39,6 +43,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         _epoch++; _generation++; _selectionGeneration++;
         _lifetime.Cancel(); _lifetime.Dispose(); _lifetime = new();
         _navigation?.Cancel(); _selectionRead?.Cancel();
+        _back.Clear(); _forward.Clear();
         _catalogId = null; IsAvailable = false; IsLoading = false; Roots = []; Assets = []; Location = null;
         _selection.Clear(); SourceMessage = "Select an asset to see its Catalog details."; Notify();
     }
@@ -47,7 +52,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         Suspend(); _catalogId = catalogId; var epoch = _epoch;
         using var demand = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         demand.CancelAfter(TimeSpan.FromSeconds(15)); var token = demand.Token;
-        Message="Loading Catalog content…"; IsLoading=true; Notify();
+        Message="Checking folder…"; IsLoading=true; Notify();
         try
         {
             var content = await session.ReadBrowserCatalogAsync(cancellationToken:token).WaitAsync(token);
@@ -91,14 +96,15 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         catch(OperationCanceledException) { return epoch == _epoch && !_lifetime.IsCancellationRequested ? [new(node.RootId,node.RelativeFolder,"Folder check stopped. Collapse and expand to retry.","unavailable")] : []; }
         catch(Exception error) { Console.Error.WriteLine(error); return epoch==_epoch ? [new(node.RootId,node.RelativeFolder,"Couldn't load folders. Collapse and expand to retry.","unavailable")] : []; }
     }
-    public async Task NavigateAsync(BrowserFolderNode node, bool refreshing = false)
+    public async Task NavigateAsync(BrowserFolderNode node, bool refreshing = false, bool history = true)
     {
         if(!IsAvailable) return;
         _navigation?.Cancel(); _navigation?.Dispose(); _navigation=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _navigation.CancelAfter(TimeSpan.FromSeconds(15)); var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
+        var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
+        if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
         Location=node; IsLoading=true; Recursive=false;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
-        Message="Loading Catalog content…"; Notify();
+        Message="Checking folder…"; Notify();
         try
         {
             if (locations is not null && node.AbsolutePath is { } path)
@@ -109,23 +115,58 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
                 { Assets=[]; _selection.Clear(); Message = Unavailable(listing.Status); return; }
                 node = FileNode(new(path, node.Name));
                 Location = node;
-                if (node.RootId == Guid.Empty)
+                if (node.RootId == Guid.Empty && session is not IBrowserDiscoverySession)
                 { Assets=[]; _selection.Clear(); Message = "This folder is not cataloged. Folder navigation does not import files."; return; }
             }
-            var content=await session.ReadBrowserFolderAsync(node.RootId,node.RelativeFolder,token).WaitAsync(token);
+            var content = session is IBrowserDiscoverySession discovery
+                ? await discovery.DiscoverBrowserFolderAsync(node.AbsolutePath, node.RootId, node.RelativeFolder, token).WaitAsync(token)
+                : await session.ReadBrowserFolderAsync(node.RootId,node.RelativeFolder,token).WaitAsync(token);
+            node = node with { RootId = content.RootId, RelativeFolder = content.RelativeFolder };
+            if (generation == _generation && !token.IsCancellationRequested) Location = node;
             if(generation!=_generation || token.IsCancellationRequested) return;
             var retainAssetId = refreshing ? SelectedAssetId : null;
             Assets=content.Assets; Recursive=content.Recursive;
             if (retainAssetId is { } selected && Assets.Any(asset => asset.AssetId == selected)) await SelectAsync(selected);
             else { _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
             if (generation != _generation || token.IsCancellationRequested) return;
-            Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) :
-                Assets.Count==0 ? "No Catalog assets in this folder scope. New files are not imported by this Browser foundation." :
-                $"{Assets.Count} Catalog asset{(Assets.Count==1 ? "" : "s")} · {(Recursive ? "Includes subfolders" : "This folder")} · Source availability is checked on selection.";
+            Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) : "";
+            if (content.Diagnostic is { Length: > 0 } diagnostic)
+            {
+                Console.Error.WriteLine($"Browser scan details: {diagnostic}");
+                Message = $"Scan incomplete · {Assets.Count} supported media shown. Some folders could not be reconciled; Catalog records are preserved. Retry or check folder access.";
+            }
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message="This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }
         finally { if(generation==_generation) { IsLoading=false; Notify(); } }
+    }
+    public void CancelNavigation() => _navigation?.Cancel();
+    public Task GoPathAsync(string path) => NavigateAsync(FileNode(new(path, path == "/" ? "/" : path.TrimEnd('/').Split('/')[^1])));
+    public async Task BackAsync()
+    {
+        if (!CanGoBack) return;
+        var target = _back[^1]; _back.RemoveAt(_back.Count - 1);
+        if (Location is { } current) _forward.Add(current);
+        await NavigateAsync(target, history: false);
+    }
+    public async Task ForwardAsync()
+    {
+        if (!CanGoForward) return;
+        var target = _forward[^1]; _forward.RemoveAt(_forward.Count - 1);
+        if (Location is { } current) _back.Add(current);
+        await NavigateAsync(target, history: false);
+    }
+    public async Task ToggleRecursiveAsync()
+    {
+        if (!CanChangeRecursive || session is not IBrowserDiscoverySession discovery || Location is not { } node) return;
+        var generation = _generation;
+        try
+        {
+            await discovery.SetBrowserRecursiveAsync(node.RootId, node.RelativeFolder, !Recursive, _lifetime.Token);
+            if (generation == _generation) await NavigateAsync(node, refreshing: true);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { Console.Error.WriteLine(error); Message = "Subfolder scope couldn't be changed. Retry."; Notify(); }
     }
     public Task UpAsync()
     {

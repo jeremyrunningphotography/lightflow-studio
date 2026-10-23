@@ -7,16 +7,11 @@ using Microsoft.Data.Sqlite;
 
 namespace LightflowStudio;
 
-internal interface ISourceFingerprintService
-{
-    Task<SourceFingerprint> CreateAsync(string path, CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Version 1 hashes bounded samples, not the complete source. It detects many ordinary changes cheaply but is not
 /// cryptographic proof that two media files are byte-for-byte identical.
 /// </summary>
-internal sealed class SampledSourceFingerprintService : ISourceFingerprintService
+public sealed class SampledSourceFingerprintService : ISourceFingerprintService
 {
     public const int CurrentVersion = 1;
     internal const int SampleBytes = 64 * 1024;
@@ -62,27 +57,7 @@ internal sealed class SampledSourceFingerprintService : ISourceFingerprintServic
     }
 }
 
-internal interface IMediaAssetService
-{
-    async Task<IReadOnlyList<MediaAsset>> ListScopeAsync(Guid rootId, string folder, bool recursive,
-        CancellationToken cancellationToken = default) =>
-        (await ListAsync(cancellationToken).ConfigureAwait(false)).Where(asset =>
-            MediaAssetScope.Contains(asset, rootId, folder, recursive)).ToArray();
-    Task<MediaAssetOperationResult> CreateAsync(Guid rootId, string relativePath, string mediaType = "unknown",
-        CancellationToken cancellationToken = default);
-    Task<MediaAssetResolution?> GetAsync(Guid assetId, CancellationToken cancellationToken = default);
-    // Raw Catalog projection: omit absent IDs, retain missing sources, and perform no filesystem resolution.
-    Task<IReadOnlyDictionary<Guid, MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken cancellationToken = default);
-    Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default);
-    Task<MediaAssetOperationResult> ObserveAsync(Guid assetId, CancellationToken cancellationToken = default);
-    Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> assetIds, CancellationToken cancellationToken = default);
-    Task<MediaAssetOperationResult> RelocateAsync(Guid assetId, Guid rootId, string relativePath,
-        CancellationToken cancellationToken = default) => Task.FromResult(new MediaAssetOperationResult(
-            MediaAssetOperationStatus.Failed, Diagnostic: "Catalog relocation is not supported by this asset provider."));
-}
-
-internal sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
+public sealed class MediaAssetService(IMediaAssetRepository repository, IMediaRootService roots,
     ISourceFingerprintService fingerprints) : IMediaAssetService, ICatalogMutationParticipant
 {
     public CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(repository);
@@ -92,8 +67,8 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         CancellationToken cancellationToken = default)
     {
         return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
-        var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
-        var key = MediaPathSemantics.RelativePathKey(normalized);
+        var normalized = CatalogRelativePaths.NormalizeRelativePath(relativePath);
+        var key = CatalogRelativePaths.RelativePathKey(normalized);
         if (await repository.FindAsync(rootId, key, cancellationToken).ConfigureAwait(false) is not null)
             return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "An asset already exists at that logical location.");
         var portableCheck = PortablePathIdentityValidator.ValidateRelativePath(relativePath.Replace('\\', '/'), cancellationToken);
@@ -148,7 +123,7 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
 
     public async Task<MediaAssetResolution?> FindAsync(Guid rootId, string relativePath, CancellationToken cancellationToken = default)
     {
-        var key = MediaPathSemantics.RelativePathKey(relativePath);
+        var key = CatalogRelativePaths.RelativePathKey(relativePath);
         var asset = await repository.FindAsync(rootId, key, cancellationToken).ConfigureAwait(false);
         return asset is null ? null : await ResolveAsync(asset, cancellationToken).ConfigureAwait(false);
     }
@@ -202,8 +177,8 @@ internal sealed class MediaAssetService(IMediaAssetRepository repository, IMedia
         return await Mutations.RunAsync<MediaAssetOperationResult>(async () => {
         var portableCheck = PortablePathIdentityValidator.ValidateRelativePath(relativePath.Replace('\\', '/'), cancellationToken);
         if (!portableCheck.IsSafe) return new(MediaAssetOperationStatus.Failed, Diagnostic: portableCheck.Diagnostic);
-        var normalized = MediaPathSemantics.NormalizeRelativePath(relativePath);
-        var existing = await repository.FindAsync(rootId, MediaPathSemantics.RelativePathKey(normalized), cancellationToken)
+        var normalized = CatalogRelativePaths.NormalizeRelativePath(relativePath);
+        var existing = await repository.FindAsync(rootId, CatalogRelativePaths.RelativePathKey(normalized), cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null && existing.AssetId != assetId)
             return new(MediaAssetOperationStatus.AlreadyExists, Diagnostic: "Another asset already owns the destination location.");

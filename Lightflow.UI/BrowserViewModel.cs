@@ -129,9 +129,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             if (retainAssetId is { } selected && Assets.Any(asset => asset.AssetId == selected)) await SelectAsync(selected);
             else { _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
             if (generation != _generation || token.IsCancellationRequested) return;
-            Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) :
-                Assets.Count==0 ? "No supported media in this folder." :
-                $"{Assets.Count} Catalog asset{(Assets.Count==1 ? "" : "s")} · {(Recursive ? "Includes subfolders" : "This folder")} · Source availability is checked on selection.";
+            Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) : "";
             if (content.Diagnostic is { Length: > 0 } diagnostic)
             {
                 Console.Error.WriteLine($"Browser scan details: {diagnostic}");

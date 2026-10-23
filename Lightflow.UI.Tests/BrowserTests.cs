@@ -157,6 +157,43 @@ public sealed class BrowserTests
         Assert.Single(model.Assets);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task SuccessfulBrowseAndRefreshLeaveStatusQuiet(bool recursive, bool empty)
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/ordinary");
+        Assert.True(model.IsLoading); Assert.False(string.IsNullOrWhiteSpace(model.Message));
+        var content = new BrowserFolderSnapshot(service.RootId, "ordinary", recursive,
+            MediaFolderEnumerationStatus.Succeeded, [], empty ? [] : [Asset(service.RootId, "photo.jpg")]);
+        service.Discoveries["/task/ordinary"].SetResult(content);
+        await loading;
+        Assert.False(model.IsLoading); Assert.Empty(model.Message);
+        var refresh = model.RefreshAsync();
+        service.Discoveries["/task/ordinary"].SetResult(content);
+        await refresh;
+        Assert.Empty(model.Message);
+    }
+
+    [Fact]
+    public async Task QuietSuccessDoesNotSuppressCancellationOrRefusal()
+    {
+        var service = new FakeDiscovery(); var model = new BrowserViewModel(service);
+        await model.OpenAsync(service.CatalogId);
+        var loading = model.GoPathAsync("/task/canceled");
+        model.CancelNavigation(); await loading;
+        Assert.Contains("Loading stopped", model.Message);
+        var refused = model.GoPathAsync("/task/denied");
+        service.Discoveries["/task/denied"].SetResult(new(service.RootId, "denied", false,
+            MediaFolderEnumerationStatus.AccessDenied, [], []));
+        await refused;
+        Assert.Contains("permissions", model.Message);
+        Assert.False(model.IsLoading);
+    }
+
     private sealed class FakeDiscovery : FakeBrowser, IBrowserDiscoverySession
     {
         public Dictionary<string,TaskCompletionSource<BrowserFolderSnapshot>> Discoveries = [];

@@ -5,6 +5,23 @@ discovery/reconciliation slice. #462 owns resizing/layout/toolbar/right-panel/ic
 parity and remains unstarted. No current-candidate interactive GUI check was run:
 Jeremy prohibited agent desktop control. Earlier head207 GUI results are historical.
 
+## Final status correction
+
+Jeremy's renewed review confirms ordinary discovery and package handling improved.
+Successful navigation and Refresh now leave the normal Browser status blank,
+including empty folders and recursive scopes. Active scanning, cancellation,
+actionable failures and truthful incomplete-scan messages remain; full diagnostics
+still go to stderr. No status-bar/layout redesign is included. Final focused Release validation: 25 headless UI tests passed (lf027-status-final-ui.trx). Prior native/Catalog/Application evidence remains applicable; these production inputs did not change.
+
+Persistence in plain language: the automated fixture added media, closed the Catalog,
+and reopened it. Previously cataloged files kept their identities, authored rating
+and Collection membership. A newly discovered file kept the same identity after
+repeat discovery and reopening, without duplicate ingestion. Reading saved Catalog
+content did not scan the media folders. Explicit navigation/Refresh still checks
+for filesystem changes safely. This existing evidence remains applicable because
+this final correction changes status presentation only; no further personal-folder
+experiments or current-candidate GUI validation were performed.
+
 ## Corrected behavior
 
 Mac effects omit nonlinked application-package directories (case-insensitive .app

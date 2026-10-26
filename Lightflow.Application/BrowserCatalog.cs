@@ -48,3 +48,11 @@ public interface IBrowserFolderSession : IBrowserCatalogSession
     Task<BrowserFolderSnapshot> ReadBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default);
     Task<bool> IsBrowserSourceAvailableAsync(Guid rootId, Guid assetId, CancellationToken token = default);
 }
+
+/// <summary>Visited-folder discovery request; expanding Locations never invokes ingestion.</summary>
+public interface IBrowserDiscoverySession : IBrowserFolderSession
+{
+    Task SetBrowserRecursiveAsync(Guid rootId, string folder, bool enabled, CancellationToken token = default);
+    Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? absolutePath, Guid rootId,
+        string folder, CancellationToken token = default);
+}

@@ -1,54 +1,11 @@
 using Lightflow.Application;
-using System.IO;
-
 namespace LightflowStudio;
-
-internal enum CatalogReconciliationStatus
-{
-    Succeeded,
-    RootNotFound,
-    RootUnavailable,
-    FolderUnavailable,
-    InvalidRequest,
-    EnumerationFailed,
-    Canceled,
-    Failed
-}
-
-internal enum CatalogReconciliationItemStatus { New, Unchanged, Changed, Missing }
-
-internal sealed record CatalogReconciliationItem(
-    Guid AssetId,
-    string RelativePath,
-    CatalogReconciliationItemStatus Status);
-
-internal sealed record CatalogReconciliationResult(
-    CatalogReconciliationStatus Status,
-    Guid RootId,
-    string RelativeFolder,
-    IReadOnlyList<CatalogReconciliationItem> Items,
-    int UnsupportedCount = 0,
-    string? Diagnostic = null)
-{
-    public bool Succeeded => Status == CatalogReconciliationStatus.Succeeded;
-    public int NewCount => Items.Count(item => item.Status == CatalogReconciliationItemStatus.New);
-    public int UnchangedCount => Items.Count(item => item.Status == CatalogReconciliationItemStatus.Unchanged);
-    public int ChangedCount => Items.Count(item => item.Status == CatalogReconciliationItemStatus.Changed);
-    public int MissingCount => Items.Count(item => item.Status == CatalogReconciliationItemStatus.Missing);
-}
-
-internal interface ICatalogReconciliationService
-{
-    Task<CatalogReconciliationResult> ReconcileAsync(MediaFolderEnumerationRequest request,
-        CancellationToken cancellationToken = default);
-}
-
 /// <summary>
 /// Explicit, non-recursive Catalog refresh. Enumeration must finish authoritatively before any missing-state
 /// inference is allowed. Visible-file observations may be retained after a later cancellation, but unseen assets
 /// are never marked missing unless every enumerated supported source was reconciled successfully.
 /// </summary>
-internal sealed class CatalogReconciliationService(
+public sealed class CatalogReconciliationService(
     IMediaFolderEnumerator folders,
     IMediaAssetService assets) : ICatalogReconciliationService
 {

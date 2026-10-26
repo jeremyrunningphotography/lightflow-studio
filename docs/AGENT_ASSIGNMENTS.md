@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 027 | LF-MAC-DEV-027 | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), parent #366 | Functional correction review under revised #460 scope; #462 unstarted; noninteractive validation, exact-head bundle/CI and renewed Mac/Windows owner gates |
+| 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
@@ -418,3 +418,53 @@ and explicit owner acceptance remain distinct gates. No merge/release/next miles
 
 
 027 correction continuation — 2026-10-22: owner narrowed #460 to package traversal, concise truthful partial-scan status, disclosure targets and persistence/performance evidence. No Computer Use or interactive launch. #462 unstarted; broad layout/visual redesign excluded. #393/#394/#395/#366 remain open/incomplete. Current correction receipts, CI and Project-access limitations are recorded on #460/#461. Original failures remain retained.
+
+
+## Assignment 027 accepted implementation and Windows companion — 2026-10-26
+
+Jeremy accepted bounded #460 / PR #461 at exact head
+35592811005d8ef6b72146785ec260eb408617f2, tree
+fe237aebaf820e35f115109a9f3213e5e1b2af69, and explicitly authorized
+normal merge and bounded closeout. LF-WIN-DEV-027 is the Windows qualification
+companion under the existing global allocation 027, not a new allocation.
+Jeremy reports DARKMATTER PASS: 156 focused Windows Release tests, packaged
+startup, Catalog protection and dependency validation at the accepted source.
+This Mac does not claim Windows execution or invent Windows artifact hashes/paths;
+retain the owning Windows clone, accepted executable, original logs, fixtures and
+provenance in place. The owner report is recorded on #460/#461.
+
+PR #461 merged normally as d847d19e8a82b94a3ab2b94001cdb2a6544893ff.
+Both parents and the entire accepted tree were independently verified unchanged.
+Exact-head CI 39878804057 passed all required Windows unit/package, native Mac
+and neutral Windows/macOS jobs; release publication skipped. Implementation
+post-merge CI 40369025993 and registry/final-main CI outcomes are recorded on
+#460/#461 and the registry PR; no result is predeclared here.
+
+#460 is closed/Completed. Project #4 Done is required; direct Project verification
+or mutation is unavailable through current tools, so no successful field change is
+claimed. Native parent #366 is retained. #393/#394/#395/#366 stay open/incomplete,
+with broader Definition-of-Done and native dependencies unchanged. #462 remains
+the next unstarted Browser UI parity milestone, required Backlog / Browser and
+parent #366; its previously missing native parent/Project reconciliation remains
+an explicit tool-access gap unless later verified on the issues. No #462 work starts.
+
+The independent full Mac clone
+/Users/jeremyrunning/Git/agents/LF-MAC-DEV-027-BrowserDiscovery
+retains the accepted self-contained bundle and clean exact-head provenance in
+artifacts/mac-shell; all 290 bundle file hashes were reverified before cleanup.
+Acceptance media/Catalog fixtures and persistence/timing evidence remain in
+artifacts/lf027-corrections-final, earlier artifacts/lf027-owner-acceptance and
+native test fixture roots. Original failures, prior manifests/screenshots and
+qualification receipts remain in artifacts/lf027-evidence (including prior207),
+artifacts/lf027-status-final, project TestResults and task-owned logs.
+artifacts/lf027-closeout/lf027-preserved.bundle was verified complete before branch
+cleanup and preserves local development/published commits and original refs.
+Accepted packages, provenance, fixtures and evidence are not removed or rebuilt.
+
+This supersedes only 027's prior pending-acceptance checkpoints. Registry closeout
+changes no production/test/build inputs or accepted qualification source. Completed
+branch cleanup and final repository/CI outcomes are recorded durably on the issues.
+Chronicle candidate after acceptance: the owner-approved shared discovery extraction
+and native Mac automatic Catalog ingestion milestone, with explicit sole-writer,
+identity/safety and separate Windows qualification evidence (#460/#461). No history
+narrative is automatically rewritten. No release, tag or next milestone begins.

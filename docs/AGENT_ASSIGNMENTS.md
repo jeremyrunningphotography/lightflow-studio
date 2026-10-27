@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), parent #366 | Review preparation; bounded presentation implemented; focused headless/native validation; Project access limitation and owner/CI/Windows gates remain |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
@@ -468,3 +469,32 @@ Chronicle candidate after acceptance: the owner-approved shared discovery extrac
 and native Mac automatic Catalog ingestion milestone, with explicit sole-writer,
 identity/safety and separate Windows qualification evidence (#460/#461). No history
 narrative is automatically rewritten. No release, tag or next milestone begins.
+
+## Assignment 028 reservation — 2026-10-27
+
+Jeremy allocated LF-MAC-DEV-028 for bounded #462 Browser presentation parity.
+028 is absent from fetched main `eb95296c6b46422ad372652490bc437823991988`
+and the inspected open PR inventory (#457/#448/#360). Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-028-BrowserParity`; branch
+`codex/028-mac-browser-ui-parity`. No other allocation is changed.
+
+#460 is verified Closed/Completed; #366 and #395 remain open/incomplete. Current
+GitHub connector has no Project-field, native-parent or dependency access; terminal
+Git has no authenticated credential and gh is unavailable. Computer Use is forbidden.
+Consequently #460 Project Done, #462 Browser/existing Priority/Backlog then active
+status, missing native #366 parent, and current Project priorities/active Epic audit
+remain explicitly unverified/unreconciled. Historical dispositions are not asserted
+as current verification; no unrelated roadmap decision is changed. Owner kickoff
+allows continuation with tooling limitations reported; AGENTS.md requires recording
+these honestly. Preserve all wider R2/R3/R4 blockers/DoD and sole Catalog safety.
+No GUI launch, release/tag, merge or acceptance is authorized by this reservation.
+
+028 implementation checkpoint: existing shared Avalonia panes now stretch and resize,
+reuse WPF palette/brand/folder silhouette, compact controls and Selection foundation.
+Mac-only optional view preferences persist proportions/right visibility outside the
+Catalog. 31 headless UI and 41 native Release tests pass; no native GUI app launch.
+See [comparison and exact handoff](qualification/mac-browser-462.md). Project/native
+parent/current priority audit limitations remain explicit; no unrelated roadmap
+decisions, shared discovery/Catalog/schema or Windows shipping input changed.
+Draft PR/exact-head CI, fresh bundle provenance, separate DARKMATTER qualification
+and Jeremy's functional/visual acceptance remain separate gates. No merge/release.

@@ -13,16 +13,16 @@ using Xunit;
 namespace Lightflow.UI.Tests;
 public static class TestBootstrap
 {
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApp>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing=false });
 }
-public sealed class TestApp : Avalonia.Application { public override void Initialize() => Styles.Add(new FluentTheme()); }
+public sealed class TestApp : Avalonia.Application { public override void Initialize() { Styles.Add(new FluentTheme()); RequestedThemeVariant=Avalonia.Styling.ThemeVariant.Dark; } }
 public sealed class ShellTests
 {
     [AvaloniaFact]
     public async Task RealWindowNeverShowsWorkspaceUntilAuthoritativeReadyAndRevokesItOnLoss()
     {
         var service=new TestSession();var model=new ShellViewModel(service);var window=new ShellWindow(model);window.Show();
-        var workspace=window.GetVisualDescendants().OfType<StackPanel>().Single(c=>AutomationProperties.GetAutomationId(c)=="ReadyWorkspace");
+        var workspace=window.GetVisualDescendants().OfType<Grid>().Single(c=>AutomationProperties.GetAutomationId(c)=="ReadyWorkspace");
         Assert.False(workspace.IsVisible);Assert.True(model.IsBusy);
         service.Pending.SetResult(new(StorageStartupStatus.Ready,Directory:"/task/Catalog",CatalogId:Guid.NewGuid(),SchemaVersion:19));
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);

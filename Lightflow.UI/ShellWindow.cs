@@ -14,8 +14,9 @@ public sealed class ShellWindow : Window
 {
     private readonly ShellViewModel _model;
     private readonly StackPanel _gate = new() { Spacing = 20, MaxWidth = 660, Margin = new Thickness(36) };
-    private readonly StackPanel _workspace = new() { Spacing = 12, Margin = new Thickness(24, 8, 24, 8) };
-    private readonly TextBlock _title = Text("", 26), _message = Text("", 15), _context = Text("", 13), _status = Text("", 13);
+    private readonly Grid _workspace = new() { Margin = new Thickness(14,8,14,12) };
+    private readonly TextBlock _title = Text("", 26), _message = Text("", 15), _status = Text("", 13);
+    public BrowserPane? Browser { get; }
     private readonly TextBlock _selected = Text("", 14);
     private readonly Button _catalogButton = Action("Catalog…");
     private readonly Button _retry = Action("Retry"), _create = Action("Create New Catalog…", true), _open = Action("Open Existing Catalog…");
@@ -28,16 +29,22 @@ public sealed class ShellWindow : Window
     private bool _catalogPanel;
     private static IBrush Brush(string color) => new SolidColorBrush(Color.Parse(color));
 
-    public ShellWindow(ShellViewModel model)
+    public ShellWindow(ShellViewModel model, BrowserLayout? browserLayout = null)
     {
         _model = model;
-        Title = "Lightflow Studio"; Width = 1120; Height = 720; MinWidth = 900; MinHeight = 620;
+        Title = "Lightflow Studio"; Width = 1280; Height = 800; MinWidth = 900; MinHeight = 560;
+        if (Screens.Primary is { } screen)
+        {
+            var available=screen.WorkingArea.Size.ToSize(screen.Scaling);
+            MinWidth=Math.Min(MinWidth,available.Width); MinHeight=Math.Min(MinHeight,available.Height);
+            Width=Math.Min(Width,available.Width*.94); Height=Math.Min(Height,available.Height*.94);
+        }
         Background = Brush("#0B0D11"); Foreground = Brush("#F0F0F2"); FontFamily = new FontFamily(".AppleSystemUIFont, Helvetica Neue, sans-serif");
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         _brand = new Bitmap(AssetLoader.Open(new Uri("avares://Lightflow.UI/Assets/lightflow-header-lockup-480x96.png")));
         using (var icon = AssetLoader.Open(new Uri("avares://Lightflow.UI/Assets/lightflow-icon-256x256.png"))) Icon = new WindowIcon(icon);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("72,*,44") };
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 12) };
+        var layout = new Grid { RowDefinitions = new RowDefinitions("60,*,34") };
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(18, 6) };
         header.Children.Add(new Image { Source = _brand, Width = 240, Height = 48, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left });
         Grid.SetColumn(_catalogButton, 1); header.Children.Add(_catalogButton);
         _catalogButton.Click += (_, _) => { _catalogPanel = !_catalogPanel; Update(); };
@@ -55,16 +62,13 @@ public sealed class ShellWindow : Window
         var confirmActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 }; confirmActions.Children.Add(_confirm); confirmActions.Children.Add(_cancel); _confirmation.Children.Add(confirmActions); _gate.Children.Add(_confirmation);
         var bottom = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(24, 0) };
         _status.VerticalAlignment = VerticalAlignment.Center; bottom.Children.Add(_status);
-        var quit = Action("Quit Lightflow Studio"); Grid.SetColumn(quit, 1); bottom.Children.Add(quit); quit.Click += (_, _) => Close();
+        var quit = Action("Quit Lightflow Studio"); _actions.Children.Add(quit); quit.Click += (_, _) => Close();
         var footer = new Border { Background = Brush("#11141A"), BorderBrush = Brush("#2B303A"), BorderThickness = new Thickness(0,1,0,0), Child = bottom }; Grid.SetRow(footer,2);layout.Children.Add(footer);
         if (model.Browser is { } browser)
-            _workspace.Children.Add(new BrowserPane(browser) { Height = 480 });
-        _workspace.Children.Add(_context);
-        SizeChanged += (_, _) =>
         {
-            if (_workspace.Children.OfType<BrowserPane>().FirstOrDefault() is { } pane)
-                pane.Height = Math.Max(340, Bounds.Height - 200);
-        };
+            Browser=new BrowserPane(browser,browserLayout);
+            _workspace.Children.Add(Browser);
+        }
         Content = layout;
         _retry.Click += async (_, _) => await InvokeAsync(model.StartAsync);
         _open.Click += async (_, _) => { var folder = await PickFolderAsync("Open Existing Catalog"); if (folder is not null) { _preparedFolder = null; await InvokeAsync(() => model.OpenAsync(folder)); } };
@@ -96,7 +100,7 @@ public sealed class ShellWindow : Window
     {
         _title.Text = _model.Title; _message.Text = _model.Message;
         _status.Text = _model.WorkspaceAvailable ? "●  Catalog ready" : _model.Title;
-        _context.Text = $"{_model.Snapshot.Directory}\nCatalog {_model.Snapshot.CatalogId}";
+        ToolTip.SetTip(_status,_model.Snapshot.Directory);
         _workspace.IsVisible = _model.WorkspaceAvailable && !_catalogPanel;
         _gate.Parent!.SetValue(IsVisibleProperty, !_workspace.IsVisible);
         _catalogButton.IsEnabled = _model.WorkspaceAvailable;

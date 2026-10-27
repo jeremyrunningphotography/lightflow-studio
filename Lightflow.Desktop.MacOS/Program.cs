@@ -36,7 +36,8 @@ public sealed class MacApplication : Avalonia.Application
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var model = new ShellViewModel(new MacShellCatalogSession(Program.DataRoot), new MacBrowserLocationProvider());
-            var window = new ShellWindow(model);
+            var window = new ShellWindow(model, BrowserLayoutStore.Load(Program.DataRoot));
+            if (window.Browser is { } browser) browser.LayoutChanged += layout => BrowserLayoutStore.Save(Program.DataRoot, layout);
             bool drained = false;
             Task? shutdown = null;
             async Task CloseAsync()

@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -193,6 +195,87 @@ public sealed class BrowserTests
         Assert.Contains("permissions", model.Message);
         Assert.False(model.IsLoading);
     }
+
+    [AvaloniaFact]
+    public async Task SplittersResizeWithoutLosingSelectionAndPanelRestores()
+    {
+        var service=new FakeBrowser(); var model=new BrowserViewModel(service,new FakeLocations());
+        await model.OpenAsync(service.CatalogId);
+        var load=model.NavigateAsync(model.Roots.Single(n=>n.Name=="Media"));
+        var asset=Asset(service.RootId,"one.png");
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[asset])); await load;
+        service.Source.SetResult(true); await model.SelectAsync(asset.AssetId);
+        var pane=new BrowserPane(model); var window=new Window { Content=pane,Width=1100,Height=700 }; window.Show();
+        window.UpdateLayout();
+        var splitters=pane.GetVisualDescendants().OfType<GridSplitter>().ToArray(); Assert.Equal(2,splitters.Length);
+        var grid=(Grid)pane.Content!; var before=grid.ColumnDefinitions[0].ActualWidth;
+        splitters[0].Focus();
+        splitters[0].RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.Right });
+        window.UpdateLayout(); Assert.True(grid.ColumnDefinitions[0].ActualWidth>before);
+        Assert.Equal(asset.AssetId,model.SelectedAssetId);
+        var toggle=pane.GetVisualDescendants().OfType<Button>().Single(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Toggle Right Panel");
+        BrowserLayout? saved=null; pane.LayoutChanged+=value=>saved=value;
+        toggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); window.UpdateLayout();
+        Assert.False(splitters[1].IsVisible); Assert.Equal(0,grid.ColumnDefinitions[4].ActualWidth); Assert.False(saved!.RightOpen);
+        toggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); window.UpdateLayout();
+        Assert.True(splitters[1].IsVisible); Assert.True(grid.ColumnDefinitions[4].ActualWidth>=200);
+        window.Width=900; window.Height=560; window.UpdateLayout();
+        Assert.True(grid.ColumnDefinitions[0].ActualWidth>=180); Assert.True(grid.ColumnDefinitions[2].ActualWidth>=340);
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single(); Assert.True(address.Bounds.Width>=70);
+        Assert.Equal(asset.AssetId,model.SelectedAssetId);
+        window.Close(); model.Suspend();
+        var restored=new BrowserPane(model,saved); Assert.Equal(saved.Navigation,((Grid)restored.Content!).ColumnDefinitions[0].Width.Value,5);
+    }
+
+    [AvaloniaFact]
+    public async Task ShellBrowserFillsWindowAndOptionalHeadlessRender()
+    {
+        var service=new FakeShellBrowser();var shell=new ShellViewModel(service,new FakeLocations());
+        var window=new ShellWindow(shell); window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        var model=shell.Browser!;
+        var load=model.NavigateAsync(model.Roots.Single(n=>n.Name=="Media"));
+        var assets=new[] { Asset(service.RootId,"Alpine sunrise.jpg"),Asset(service.RootId,"Forest trail.mov"),Asset(service.RootId,"Quiet morning.wav") };
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],assets)); await load;
+        service.Source.SetResult(true); await model.SelectAsync(assets[0].AssetId);
+        window.UpdateLayout(); var pane=window.Browser!;
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        var list=pane.GetVisualDescendants().OfType<ListBox>().Single();
+        Assert.True(list.Bounds.Height>pane.Bounds.Height-180);
+        Assert.True(address.TranslatePoint(default,list)!.Value.Y<0);
+        var before=pane.Bounds.Height;
+        window.Height+=100;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        window.UpdateLayout(); Assert.True(pane.Bounds.Height>before+90,$"Browser height {before} -> {pane.Bounds.Height}; window {window.Bounds}");
+        Assert.Equal(assets[0].AssetId,model.SelectedAssetId);
+        if(Environment.GetEnvironmentVariable("LIGHTFLOW_UI_EVIDENCE") is { } evidence)
+        {
+            System.IO.Directory.CreateDirectory(evidence);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            window.CaptureRenderedFrame()!.Save(System.IO.Path.Combine(evidence,"browser-1280.png"));
+            window.Width=900;window.Height=560;window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            window.CaptureRenderedFrame()!.Save(System.IO.Path.Combine(evidence,"browser-900.png"));
+        }
+        window.Close(); await shell.CloseAsync();
+    }
+
+    private sealed class FakeShellBrowser : FakeBrowser, IShellCatalogSession
+    {
+        public string DataRoot=>"/task";
+        public Task<ShellCatalogSnapshot> StartAsync()=>Task.FromResult(new ShellCatalogSnapshot(StorageStartupStatus.Ready,Directory:"/task/Catalog",CatalogId:CatalogId));
+        public Task<ShellCatalogSnapshot> OpenAsync(string directory)=>StartAsync();
+        public Task<ShellCatalogSnapshot> CreateAsync(string directory)=>StartAsync();
+        public Task<ShellCatalogSnapshot> VerifyAsync()=>StartAsync();
+        public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
+    }
+
+    [Theory]
+    [InlineData(double.NaN,.5,.25)]
+    [InlineData(.9,.05,.05)]
+    [InlineData(-1,1,1)]
+    public void InvalidSavedProportionsFallBackToUsableDefaults(double left,double assets,double right)
+        => Assert.Equal(new BrowserLayout(),new BrowserLayout(left,assets,right).Validated());
 
     private sealed class FakeDiscovery : FakeBrowser, IBrowserDiscoverySession
     {

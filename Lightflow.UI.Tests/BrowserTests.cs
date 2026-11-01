@@ -93,12 +93,21 @@ public sealed class BrowserTests
         var service=new FakeBrowser(); var provider=new FakeLocations { Delayed=true }; var model=new BrowserViewModel(service,provider);
         await model.OpenAsync(service.CatalogId);
         var pane=new BrowserPane(model); var window=new Window {Content=pane,Width=1100,Height=700}; window.Show();
-        await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
         var expand=pane.GetVisualDescendants().OfType<Button>().Single(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Home");
         Assert.True(expand.IsVisible);
         Assert.True(expand.Bounds.Width >= 32 && expand.Bounds.Height >= 32);
         expand.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        // Loading is asynchronous: qualify the completed leaf state, not a30ms timer race.
+        var deadline=DateTime.UtcNow+TimeSpan.FromSeconds(5);
+        while (true)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var ready=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
+            if(ready.Length==2 && ready.All(leaf=>!leaf.IsVisible))break;
+            Assert.True(DateTime.UtcNow<deadline,"Folder leaf loading did not complete within5seconds.");
+            await Task.Delay(10);
+        }
         var leaves=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
         Assert.NotEmpty(leaves); Assert.All(leaves, leaf=>Assert.False(leaf.IsVisible));
         await model.RefreshAsync(); await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();

@@ -22,7 +22,10 @@ The current staging manifest and CI evidence identify the final published head/t
 Inspection covers accepted P1–3 source and actual P3 captures/outcomes, WPF
 Themes/LightflowShell.xaml, App.xaml, Browser navigation/toolbar/right-panel/footer
 source and DESIGN-SYSTEM. No confirmed regression or narrow polish defect requiring
-production changes was found. Phase4 changes qualification documentation only;
+production changes was found. Initial Phase4 qualification documentation was followed
+by a bounded test-only correction after Windows CI exposed the existing30ms folder
+loading race: wait up to5seconds for observable completed leaf state, retaining the
+original nonempty/hidden-disclosure/reference assertions. No production UI redesign;
 accepted production source remains byte-identical to P3. No speculative redesign.
 
 | Surface | Finding and classification | Final evidence/gate |

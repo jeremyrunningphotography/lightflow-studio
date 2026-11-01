@@ -13,7 +13,7 @@ public sealed class BrowserLayoutStoreTests
         try
         {
             Assert.Equal(new BrowserLayout(),BrowserLayoutStore.Load(root));
-            var expected=new BrowserLayout(.3,.5,.2,false);
+            var expected=new BrowserLayout(310,390,true,new ShellWindowGeometry(1500,950,80,100,2),Zoomed:true);
             BrowserLayoutStore.Save(root,expected);
             Assert.Equal(expected,BrowserLayoutStore.Load(root));
             Assert.Single(Directory.GetFiles(root));
@@ -21,6 +21,9 @@ public sealed class BrowserLayoutStoreTests
             Assert.Equal(new BrowserLayout(),BrowserLayoutStore.Load(root));
             File.WriteAllText(Path.Combine(root,"browser-layout.json"),"{\"Navigation\":-4}");
             Assert.Equal(new BrowserLayout(),BrowserLayoutStore.Load(root));
+            File.WriteAllText(Path.Combine(root,"browser-layout.json"),"{\"Navigation\":0.3,\"Assets\":0.5,\"Right\":0.2,\"RightOpen\":true}");
+            var migrated=BrowserLayoutStore.Load(root);
+            Assert.Equal(370.8,migrated.NavigationWidth,3); Assert.Equal(247.2,migrated.RightWidth,3); Assert.True(migrated.RightOpen);
         }
         finally { if(Directory.Exists(root)) Directory.Delete(root,true); }
     }

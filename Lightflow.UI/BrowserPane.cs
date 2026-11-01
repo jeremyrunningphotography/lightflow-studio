@@ -23,17 +23,22 @@ public sealed class BrowserPane : UserControl
     private readonly Control _right;
     private readonly GridSplitter _rightSplitter;
     private readonly Button _panelToggle = Action("Right Panel");
-    private readonly TextBlock _count = Text("",12);
-    private readonly ProgressBar _progress = new() { IsIndeterminate=true, Height=2 };
-    private double _rightWeight = .24;
+    private readonly TextBlock _count = Text("","status");
+    private readonly ProgressBar _progress = new() { IsIndeterminate=true, Height=2, Classes={ "lf-progress" } };
+    private BrowserLayout _preferred;
+    private bool _applyingLayout;
+    public Button RightPanelToggle => _panelToggle;
+    public Control StatusView { get; }
+    public bool RightPanelOpen => _preferred.RightOpen;
     public event Action<BrowserLayout>? LayoutChanged;
-    private readonly ListBox _assets = new() { SelectionMode = SelectionMode.Single, Background=Brush("#11141A"), BorderThickness=new Thickness(0) };
-    private readonly TextBlock _location=Text("Choose a location",14), _message=Text("",13), _summary=Text("",13), _source=Text("",13);
+    private readonly ListBox _assets = new() { SelectionMode = SelectionMode.Single, Classes={ "lf-assets" } };
+    private readonly TextBlock _location=Text("Choose a location","location-heading"), _message=Text("","status"), _summary=Text(""), _source=Text("");
     private readonly Button _back=Action("←"), _forward=Action("→"), _up=Action("↑"), _refresh=Action("↻"), _go=Action("Go"), _cancel=Action("Cancel"), _recursive=Action("Include Subfolders");
     private readonly TextBox _address = new() { Watermark="Folder path", MinWidth=100, VerticalAlignment=VerticalAlignment.Center };
     private IReadOnlyList<BrowserFolderNode>? _shownRoots;
     private IReadOnlyList<MediaAsset>? _shownAssets;
     private bool _updating;
+    private string? _displayedLocation;
     private sealed class FolderRow(string treeKey, BrowserFolderNode node, StackPanel group, StackPanel children, Button choose, Button toggle)
     {
         public string TreeKey = treeKey;
@@ -51,15 +56,9 @@ public sealed class BrowserPane : UserControl
     {
         _model=model;
         var saved=(savedLayout ?? new()).Validated();
-        _rightWeight=saved.Right;
-        var layout=_layout=new Grid { ColumnDefinitions=new("*,8,*,8,*"), RowDefinitions=new("*,Auto") };
-        layout.ColumnDefinitions[0].Width=new GridLength(saved.Navigation,GridUnitType.Star);
-        layout.ColumnDefinitions[0].MinWidth=180; layout.ColumnDefinitions[0].MaxWidth=520;
-        layout.ColumnDefinitions[2].Width=new GridLength(saved.Assets,GridUnitType.Star);
-        layout.ColumnDefinitions[2].MinWidth=340;
-        layout.ColumnDefinitions[4].Width=new GridLength(saved.Right,GridUnitType.Star);
-        layout.ColumnDefinitions[4].MinWidth=200; layout.ColumnDefinitions[4].MaxWidth=480;
-        var side=new StackPanel { Spacing=6, Children={Text("Locations",14), _roots} };
+        _preferred=saved;
+        var layout=_layout=new Grid { ColumnDefinitions=new("280,8,*,0,0") };
+        var side=new StackPanel { Spacing=6, Children={Text("Locations","panel-heading"), _roots} };
         _sideScroll=new ScrollViewer { Content=side, HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
         var left=Panel(_sideScroll); layout.Children.Add(left);
         var navigationSplitter=Splitter("Resize folder navigation"); Grid.SetColumn(navigationSplitter,1); layout.Children.Add(navigationSplitter);
@@ -68,84 +67,84 @@ public sealed class BrowserPane : UserControl
         var controls = new Control[] { _back, _forward, _up, _address, _go, _refresh };
         for (var i=0; i<controls.Length; i++) { Grid.SetColumn(controls[i],i); controls[i].Margin=new Thickness(1,0); toolbar.Children.Add(controls[i]); }
         foreach (var (button, icon, label) in new[] { (_back,"back","Back"), (_forward,"forward","Forward"), (_up,"up","Up one folder"), (_refresh,"refresh","Refresh current folder"), (_recursive,"scope","Include Subfolders"), (_cancel,"cancel","Stop loading"), (_panelToggle,"panel","Toggle Right Panel") })
-        { button.Content=BrowserPresentation.Icon(icon); button.Width=32; button.Padding=new Thickness(7); ToolTip.SetTip(button,label); AutomationProperties.SetName(button,label); }
+        { button.Content=BrowserPresentation.Icon(icon); button.Width=32; button.Classes.Add("quiet"); ToolTip.SetTip(button,label); AutomationProperties.SetName(button,label); }
         ToolTip.SetTip(_go,"Open folder path"); AutomationProperties.SetName(_go,"Open folder path");
-        _address.MinWidth=70; _address.Height=32; _address.Padding=new Thickness(6,4);
-        _address.Background=Brush(BrowserPresentation.Surface); _address.BorderBrush=Brush(BrowserPresentation.Divider);
+        _address.MinWidth=70; _address.Height=32; _address.Classes.Add("lf-input");
         AutomationProperties.SetName(_address,"Current folder path");
-        var scope=new Grid { ColumnDefinitions=new("*,Auto,Auto,Auto") };
+        var scope=new Grid { ColumnDefinitions=new("*,Auto") };
         _location.TextTrimming=TextTrimming.CharacterEllipsis; _location.TextWrapping=TextWrapping.NoWrap;
         _location.VerticalAlignment=VerticalAlignment.Center; scope.Children.Add(_location);
         Grid.SetColumn(_recursive,1); scope.Children.Add(_recursive);
-        Grid.SetColumn(_cancel,2); scope.Children.Add(_cancel);
-        Grid.SetColumn(_panelToggle,3); scope.Children.Add(_panelToggle);
+
         var toolbarContent=new StackPanel { Children={toolbar,scope} };
-        center.Children.Add(Panel(toolbarContent));
+        var toolbarPanel=Panel(toolbarContent);toolbarPanel.Classes.Add("toolbar");center.Children.Add(toolbarPanel);
         var media=new Grid { RowDefinitions=new("28,*") };
         var columns=new Grid { ColumnDefinitions=new("*,74,90"), Margin=new Thickness(12,0) };
         foreach(var (label,index) in new[] { ("Name",0), ("Kind",1), ("Size",2) })
-        { var text=Text(label,12); text.VerticalAlignment=VerticalAlignment.Center; text.Foreground=Brush("#9DA5B3"); Grid.SetColumn(text,index); columns.Children.Add(text); }
+        { var text=Text(label,"muted"); text.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(text,index); columns.Children.Add(text); }
         media.Children.Add(columns);
         _assets.ItemTemplate=new FuncDataTemplate<MediaAsset>((asset,_)=>
         {
             if(asset is null)return new TextBlock();
             var row=new Grid { ColumnDefinitions=new("*,74,90"), Margin=new Thickness(8,2), MinHeight=26 };
-            var name=Text(asset.RelativePath.Split('/')[^1],13); name.TextWrapping=TextWrapping.NoWrap; name.TextTrimming=TextTrimming.CharacterEllipsis;
+            var name=Text(asset.RelativePath.Split('/')[^1]); name.TextWrapping=TextWrapping.NoWrap; name.TextTrimming=TextTrimming.CharacterEllipsis;
             row.Children.Add(name);
-            var kind=Text(asset.MediaType,12); kind.Foreground=Brush("#B9BEC8"); Grid.SetColumn(kind,1); row.Children.Add(kind);
-            var size=Text($"{asset.FileSizeBytes:N0} bytes",12); size.Foreground=Brush("#B9BEC8"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,2); row.Children.Add(size);
+            var kind=Text(asset.MediaType,"muted"); Grid.SetColumn(kind,1); row.Children.Add(kind);
+            var size=Text($"{asset.FileSizeBytes:N0} bytes","muted"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,2); row.Children.Add(size);
             ToolTip.SetTip(row,asset.RelativePath);
-            AutomationProperties.SetName(row,$"{asset.RelativePath}, {asset.MediaType}, Catalog asset {asset.AssetId}");
+            AutomationProperties.SetName(row,$"{asset.RelativePath}, {asset.MediaType}, {asset.FileSizeBytes:N0} bytes");
             return row;
         });
-        _assets.Styles.Add(new Style(selector=>selector.OfType<ListBoxItem>()) { Setters={new Setter(PaddingProperty,new Thickness(4,0)),new Setter(MinHeightProperty,30.0),new Setter(HorizontalContentAlignmentProperty,HorizontalAlignment.Stretch)} });
-        _assets.Styles.Add(new Style(selector=>selector.OfType<ListBoxItem>().Class(":selected").Template().OfType<ContentPresenter>().Name("PART_ContentPresenter")) { Setters={new Setter(BackgroundProperty,Brush(BrowserPresentation.Selection))} });
-        _assets.Styles.Add(new Style(selector=>selector.OfType<ListBoxItem>().Class(":selected")) { Setters={new Setter(BackgroundProperty,Brush(BrowserPresentation.Selection)),new Setter(BorderBrushProperty,Brush(BrowserPresentation.Accent)),new Setter(BorderThicknessProperty,new Thickness(1))} });
-        _assets.Styles.Add(new Style(selector=>selector.OfType<ListBoxItem>().Class(":selected").Class(":pointerover").Template().OfType<ContentPresenter>().Name("PART_ContentPresenter")) { Setters={new Setter(BackgroundProperty,Brush(BrowserPresentation.Selection))} });
         _assets.ContainerPrepared += (_, e) =>
         {
             if (e.Index >= 0 && e.Index < model.Assets.Count)
             {
                 var asset = model.Assets[e.Index];
-                AutomationProperties.SetName(e.Container, $"{asset.RelativePath}, {asset.MediaType}, Catalog asset {asset.AssetId}");
+                AutomationProperties.SetName(e.Container, $"{asset.RelativePath}, {asset.MediaType}, {asset.FileSizeBytes:N0} bytes");
             }
         };
         _assets.SelectionChanged+=async (_,_)=> { if(!_updating)await model.SelectAsync((_assets.SelectedItem as MediaAsset)?.AssetId); };
         AutomationProperties.SetAutomationId(_assets,"CatalogAssets");
+        AutomationProperties.SetName(_assets,"Media in current folder");
+        AutomationProperties.SetHelpText(_address,"Enter or Go opens the edited path. Escape restores the current path. Navigation replaces the draft.");
         Grid.SetRow(_assets,1);media.Children.Add(_assets);
         var mediaPanel=Panel(media,false); Grid.SetRow(mediaPanel,2); center.Children.Add(mediaPanel); Grid.SetColumn(center,2);layout.Children.Add(center);
         var details=new StackPanel { Spacing=12, Children={_source,_summary} };
         var rightContent=new Grid { RowDefinitions=new("32,*") };
-        var rightTitle=Text("Selection",13); rightTitle.FontWeight=FontWeight.SemiBold;
+        var rightTitle=Text("Selection","panel-heading");
         rightTitle.VerticalAlignment=VerticalAlignment.Center; rightContent.Children.Add(rightTitle);
         var detailsScroll=new ScrollViewer { Content=details, HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
         Grid.SetRow(detailsScroll,1); rightContent.Children.Add(detailsScroll);
         _right=Panel(rightContent); Grid.SetColumn(_right,4);layout.Children.Add(_right);
         _rightSplitter=Splitter("Resize Right Panel"); Grid.SetColumn(_rightSplitter,3);layout.Children.Add(_rightSplitter);
-        _panelToggle.Click+=(_,_)=> { SetRightOpen(!_right.IsVisible); SaveLayout(); };
-        SetRightOpen(saved.RightOpen);
-        var status=new Grid { ColumnDefinitions=new("*,Auto"), RowDefinitions=new("2,Auto"), Margin=new Thickness(0,4,0,0) };
-        AutomationProperties.SetName(_progress,"Loading folder");
-        Grid.SetColumnSpan(_progress,2); status.Children.Add(_progress);
-        _message.Margin=new Thickness(0,4,8,0); _message.Foreground=Brush("#B9BEC8"); Grid.SetRow(_message,1);status.Children.Add(_message);
-        _count.Margin=new Thickness(0,4,0,0); Grid.SetRow(_count,1); Grid.SetColumn(_count,1); status.Children.Add(_count);
-        Grid.SetRow(status,1);Grid.SetColumnSpan(status,5);layout.Children.Add(status);
+        _panelToggle.Click+=(_,_)=>ToggleRightPanel();
+        _right.IsVisible=_rightSplitter.IsVisible=saved.RightOpen;
+        var status=new Grid { ColumnDefinitions=new("Auto,*,Auto,Auto"), VerticalAlignment=VerticalAlignment.Center };
+        _progress.Width=28; _progress.VerticalAlignment=VerticalAlignment.Center;
+        AutomationProperties.SetName(_progress,"Loading folder"); status.Children.Add(_progress);
+        _message.Margin=new Thickness(8,0);
+        _message.TextWrapping=TextWrapping.NoWrap; _message.TextTrimming=TextTrimming.CharacterEllipsis;
+        Grid.SetColumn(_message,1);status.Children.Add(_message);
+        _cancel.Margin=new Thickness(4,0); _cancel.Height=26; Grid.SetColumn(_cancel,2);status.Children.Add(_cancel);
+        _count.Margin=new Thickness(8,0,0,0); _count.VerticalAlignment=VerticalAlignment.Center;
+        Grid.SetColumn(_count,3); status.Children.Add(_count);
+        StatusView=status;
         _cancel.Click+=(_,_)=>model.CancelNavigation();
-        _back.Click+=async(_,_)=>await model.BackAsync(); _forward.Click+=async(_,_)=>await model.ForwardAsync();
-        _go.Click+=async(_,_)=>await model.GoPathAsync(_address.Text ?? "");
-        _address.KeyDown+=async(_,e)=> { if(e.Key==Avalonia.Input.Key.Enter) { e.Handled=true; await model.GoPathAsync(_address.Text ?? ""); } };
-        _recursive.Click+=async(_,_)=>await model.ToggleRecursiveAsync();
-        KeyDown+=async(_,e)=> {
-            var primary=(e.KeyModifiers & (Avalonia.Input.KeyModifiers.Meta | Avalonia.Input.KeyModifiers.Control)) != 0;
-            if(e.Key==Avalonia.Input.Key.F5 || primary && e.Key==Avalonia.Input.Key.R) { e.Handled=true; await model.RefreshAsync(); }
-            else if(primary && e.Key==Avalonia.Input.Key.I) { e.Handled=true; SetRightOpen(!_right.IsVisible); SaveLayout(); }
-            else if(primary && e.Key==Avalonia.Input.Key.L) { e.Handled=true; _address.Focus(); _address.SelectAll(); }
-            else if((e.KeyModifiers & Avalonia.Input.KeyModifiers.Alt)!=0 && e.Key==Avalonia.Input.Key.Left) { e.Handled=true; await model.BackAsync(); }
-            else if((e.KeyModifiers & Avalonia.Input.KeyModifiers.Alt)!=0 && e.Key==Avalonia.Input.Key.Right) { e.Handled=true; await model.ForwardAsync(); }
+        _back.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.BackAsync);
+        _forward.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.ForwardAsync);
+        _go.Click+=async(_,_)=>await SubmitAddressAsync();
+        _address.KeyDown+=async(_,e)=>
+        {
+            if(e.KeyModifiers!=KeyModifiers.None)return;
+            if(e.Key==Key.Enter) { e.Handled=true; await SubmitAddressAsync(); }
+            else if(e.Key==Key.Escape) { e.Handled=true; RestoreAddress(); _address.SelectAll(); }
         };
-        _up.Click+=async(_,_)=>await model.UpAsync(); _refresh.Click+=async(_,_)=>await model.RefreshAsync();
+        _recursive.Click+=async(_,_)=>await model.ToggleRecursiveAsync();
+        _up.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.UpAsync);
+        _refresh.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.RefreshAsync);
         model.PropertyChanged+=(_,_)=> { if(Dispatcher.UIThread.CheckAccess())Update();else Dispatcher.UIThread.Post(Update); };
-        Content=layout; Update();
+        layout.SizeChanged+=(_,_)=>ApplyPaneLayout();
+        Content=layout; ApplyPaneLayout(); Update();
     }
     private FolderRow Folder(BrowserFolderNode node, string ancestry = "")
     {
@@ -154,9 +153,9 @@ public sealed class BrowserPane : UserControl
         var children=new StackPanel { Margin=new Thickness(12,2,0,2), Spacing=0, IsVisible=false };
         var choose=Action(node.Name);
         choose.HorizontalAlignment=HorizontalAlignment.Stretch; choose.HorizontalContentAlignment=HorizontalAlignment.Left;
-        choose.Padding=new Thickness(4,0); choose.MinHeight=32; choose.BorderThickness=new Thickness(0); choose.Background=Brush("#171A20");
-        var toggle=Action(""); toggle.Content=BrowserPresentation.Icon("right"); toggle.Padding=new Thickness(0); toggle.BorderThickness=new Thickness(0);
-        toggle.Background=Brush("#171A20"); toggle.FontSize=18; toggle.IsVisible=true;
+        choose.Classes.Add("quiet");choose.Classes.Add("navigation");
+        var toggle=Action(""); toggle.Content=BrowserPresentation.Icon("right"); toggle.Classes.Add("quiet");toggle.Classes.Add("disclosure");
+        toggle.IsVisible=true;
         toggle.MinWidth=32; toggle.MinHeight=32; toggle.HorizontalContentAlignment=HorizontalAlignment.Center;
         var row=new Grid { ColumnDefinitions=new("32,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);
         AutomationProperties.SetName(toggle,$"Expand {node.Name}");
@@ -190,7 +189,7 @@ public sealed class BrowserPane : UserControl
         row.Children.Children.Clear(); row.Children.IsVisible=row.Expanded;
         if(!row.Expanded)return;
         foreach(var folder in folders)
-            row.Children.Children.Add(folder.Availability=="unavailable" ? Text(folder.Name,12) : Folder(folder,row.TreeKey).Group);
+            row.Children.Children.Add(folder.Availability=="unavailable" ? Text(folder.Name,"muted") : Folder(folder,row.TreeKey).Group);
     }
     private async Task RefreshTreeAsync()
     {
@@ -206,18 +205,22 @@ public sealed class BrowserPane : UserControl
     }
     private void Update()
     {
+        if (!_model.IsLoading && _cancel.IsKeyboardFocusWithin) _refresh.Focus(NavigationMethod.Tab);
         _cancel.IsVisible=_model.IsLoading;
         _back.IsEnabled=_model.CanGoBack; _forward.IsEnabled=_model.CanGoForward;
         _recursive.IsEnabled=_model.CanChangeRecursive; _recursive.Content=BrowserPresentation.Icon("scope",_model.Recursive);
-        _recursive.Background=Brush(_model.Recursive ? BrowserPresentation.Selection : BrowserPresentation.Raised);
+        LightflowTheme.State(_recursive,"active",_model.Recursive);
         AutomationProperties.SetHelpText(_recursive,_model.Recursive ? "Include Subfolders on" : "Include Subfolders off");
         _progress.IsVisible=_model.IsLoading;
-        _count.Text=$"{_model.Assets.Count:N0} items";
-        if (!_address.IsFocused) _address.Text=_model.Location?.AbsolutePath ?? "";
+        _count.Text=$"{_model.Assets.Count:N0} {(_model.Assets.Count==1 ? "item" : "items")}"+(_model.SelectedAsset is null ? "" : " · 1 selected");
+        var currentPath=_model.Location?.AbsolutePath ?? "";
+        // Focus is not evidence of an edit. Only navigation replaces an uncommitted draft;
+        // selection/progress publications must leave intentional text alone.
+        if (_displayedLocation!=currentPath) RestoreAddress();
         _up.IsEnabled=_model.CanGoUp; _refresh.IsEnabled=_model.CanRefresh;
         _location.Text=_model.Location?.Name ?? "Choose a location";
         ToolTip.SetTip(_location,_model.Location?.AbsolutePath);
-        _message.Text=_model.Message;
+        _message.Text=_model.Message; _message.IsVisible=!string.IsNullOrEmpty(_model.Message); ToolTip.SetTip(_message,_model.Message);
         if(!ReferenceEquals(_shownRoots,_model.Roots))
         {
             _shownRoots=_model.Roots;
@@ -226,7 +229,7 @@ public sealed class BrowserPane : UserControl
         }
         foreach (var row in _rows.Values)
         {
-            row.Choose.Background = _model.Location?.Key == row.Node.Key ? Brush(BrowserPresentation.Selection) : Brushes.Transparent;
+            LightflowTheme.State(row.Choose,"active",_model.Location?.Key==row.Node.Key);
             SetFolderContent(row);
         }
         _updating=true;
@@ -249,7 +252,7 @@ public sealed class BrowserPane : UserControl
     }
     private void SetFolderContent(FolderRow row)
     {
-        var label=Text(row.Node.Name+(row.Node.Availability.Length==0 ? "" : $" · {row.Node.Availability}"),13);
+        var label=Text(row.Node.Name+(row.Node.Availability.Length==0 ? "" : $" · {row.Node.Availability}"),"navigation");
         label.TextWrapping=TextWrapping.NoWrap; label.TextTrimming=TextTrimming.CharacterEllipsis;
         label.VerticalAlignment=VerticalAlignment.Center;
         var content=new Grid { ColumnDefinitions=new("18,*") };
@@ -257,60 +260,105 @@ public sealed class BrowserPane : UserControl
         icon.VerticalAlignment=VerticalAlignment.Center; content.Children.Add(icon);
         Grid.SetColumn(label,1); label.Margin=new Thickness(8,0,0,0); content.Children.Add(label);
         row.Choose.Content=content; AutomationProperties.SetName(row.Choose,row.Node.Name);
+        AutomationProperties.SetHelpText(row.Choose,
+            (_model.Location?.Key==row.Node.Key ? "Current folder. " : "")+
+            (row.Node.AbsolutePath ?? row.Node.RelativeFolder)+
+            (row.Node.Availability.Length==0 ? "" : $". {row.Node.Availability}"));
     }
     private GridSplitter Splitter(string label)
     {
         var splitter=new GridSplitter { Width=8, HorizontalAlignment=HorizontalAlignment.Stretch,
             VerticalAlignment=VerticalAlignment.Stretch, ResizeDirection=GridResizeDirection.Columns,
-            ResizeBehavior=GridResizeBehavior.PreviousAndNext, Background=Brush(BrowserPresentation.Canvas),
+            ResizeBehavior=GridResizeBehavior.PreviousAndNext, Classes={ "lf-splitter" },
             Focusable=true, KeyboardIncrement=16, DragIncrement=1 };
         AutomationProperties.SetName(splitter,label); AutomationProperties.SetHelpText(splitter,"Drag or use Left and Right arrow keys to resize");
-        ToolTip.SetTip(splitter,label); splitter.DragCompleted+=(_,_)=>SaveLayout();
-        splitter.KeyUp+=(_,e)=> { if(e.Key is Key.Left or Key.Right) SaveLayout(); };
-        splitter.DoubleTapped+=(_,_)=> { ResetLayout(); SaveLayout(); };
+        ToolTip.SetTip(splitter,label); splitter.DragCompleted+=(_,_)=>CommitPaneWidth(splitter);
+        splitter.KeyUp+=(_,e)=> { if(e.Key is Key.Left or Key.Right) CommitPaneWidth(splitter); };
+        splitter.DoubleTapped+=(_,_)=> { ResetLayout(); };
         return splitter;
     }
-    private void SetRightOpen(bool open)
+    public void ToggleRightPanel()
     {
-        if (!open && _right.IsVisible) NormalizeLayout();
-        if (!open && _right.IsKeyboardFocusWithin) _panelToggle.Focus();
-        _right.IsVisible=_rightSplitter.IsVisible=open;
-        _layout.ColumnDefinitions[3].Width=new GridLength(open ? 8 : 0);
-        _layout.ColumnDefinitions[4].MinWidth=open ? 200 : 0;
-        _layout.ColumnDefinitions[4].Width=new GridLength(open ? _rightWeight : 0,GridUnitType.Star);
-        _panelToggle.Content=BrowserPresentation.Icon("panel",open);
-        AutomationProperties.SetHelpText(_panelToggle,open ? "Right Panel shown" : "Right Panel hidden");
+        var open=!_preferred.RightOpen;
+        if (!open && (_right.IsKeyboardFocusWithin || _rightSplitter.IsKeyboardFocusWithin))
+            _panelToggle.Focus(NavigationMethod.Tab);
+        _preferred=_preferred with { RightOpen=open };
+        ApplyPaneLayout(); LayoutChanged?.Invoke(_preferred);
+    }
+    internal async Task HandleShellKeyAsync(KeyEventArgs e)
+    {
+        if(e.Handled)return;
+        var primary=OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        if(e.KeyModifiers==primary && e.Key==Key.I)
+        { e.Handled=true; ToggleRightPanel(); }
+        else if(e.KeyModifiers==primary && e.Key==Key.L)
+        { e.Handled=true; FocusAddress(); }
+        else if((e.KeyModifiers==primary && e.Key==Key.R) ||
+                (e.KeyModifiers==KeyModifiers.None && e.Key==Key.F5))
+        { e.Handled=true; await NavigateFromToolbarAsync(_model.RefreshAsync); }
+        // Option-arrow belongs to the native text editor (word movement), not history.
+        else if(!_address.IsKeyboardFocusWithin && e.KeyModifiers==KeyModifiers.Alt && e.Key==Key.Left)
+        { e.Handled=true; await NavigateFromToolbarAsync(_model.BackAsync); }
+        else if(!_address.IsKeyboardFocusWithin && e.KeyModifiers==KeyModifiers.Alt && e.Key==Key.Right)
+        { e.Handled=true; await NavigateFromToolbarAsync(_model.ForwardAsync); }
+    }
+    internal void FocusAddress() { _address.Focus(NavigationMethod.Tab); _address.SelectAll(); }
+    private void RestoreAddress()
+    {
+        _displayedLocation=_model.Location?.AbsolutePath ?? "";
+        _address.Text=_displayedLocation;
+    }
+    private Task NavigateFromToolbarAsync(Func<Task> navigate)
+    {
+        // Explicit navigation abandons the editor draft, including refresh of the same path.
+        RestoreAddress();
+        return navigate();
+    }
+    private Task SubmitAddressAsync()
+    {
+        var draft=_address.Text;
+        return string.IsNullOrWhiteSpace(draft) ? Task.CompletedTask : _model.GoPathAsync(draft);
+    }
+    private void ApplyPaneLayout()
+    {
+        if (_applyingLayout) return;
+        _applyingLayout=true;
+        try
+        {
+            var available=_layout.Bounds.Width>0 ? _layout.Bounds.Width : 1412;
+            var fitted=BrowserPaneWidths.Fit(available,_preferred);
+            var open=_preferred.RightOpen;
+            _right.IsVisible=_rightSplitter.IsVisible=open;
+            var left=_layout.ColumnDefinitions[0]; var center=_layout.ColumnDefinitions[2]; var right=_layout.ColumnDefinitions[4];
+            left.MinWidth=Math.Min(180,fitted.Navigation); left.MaxWidth=Math.Max(left.MinWidth,Math.Min(520,available-(open ? 16 : 8)-fitted.CenterMinimum-fitted.Right));
+            left.Width=new GridLength(fitted.Navigation);
+            center.MinWidth=fitted.CenterMinimum; center.Width=new GridLength(1,GridUnitType.Star);
+            right.MinWidth=open ? Math.Min(200,fitted.Right) : 0;
+            right.MaxWidth=open ? Math.Max(right.MinWidth,Math.Min(600,available-16-fitted.CenterMinimum-fitted.Navigation)) : 0;
+            right.Width=new GridLength(fitted.Right);
+            _layout.ColumnDefinitions[3].Width=new GridLength(open ? 8 : 0);
+            _panelToggle.Content=BrowserPresentation.Icon("panel",open);
+            LightflowTheme.State(_panelToggle,"active",open);
+            AutomationProperties.SetHelpText(_panelToggle,open ? "Right Panel shown" : "Right Panel hidden");
+        }
+        finally { _applyingLayout=false; }
+    }
+    private void CommitPaneWidth(GridSplitter splitter)
+    {
+        if(_applyingLayout)return;
+        _preferred=(Grid.GetColumn(splitter)==1
+            ? _preferred with { NavigationWidth=_layout.ColumnDefinitions[0].Width.Value }
+            : _preferred with { RightWidth=_layout.ColumnDefinitions[4].Width.Value }).Validated();
+        ApplyPaneLayout(); LayoutChanged?.Invoke(_preferred);
     }
     private void ResetLayout()
     {
-        _layout.ColumnDefinitions[0].Width=new GridLength(.24,GridUnitType.Star);
-        _layout.ColumnDefinitions[2].Width=new GridLength(.52,GridUnitType.Star);
-        _rightWeight=.24;
-        if (_right.IsVisible) _layout.ColumnDefinitions[4].Width=new GridLength(.24,GridUnitType.Star);
+        _preferred=_preferred with { NavigationWidth=280, RightWidth=360 };
+        ApplyPaneLayout(); LayoutChanged?.Invoke(_preferred);
     }
-    private BrowserLayout NormalizeLayout()
-    {
-        var left=_layout.ColumnDefinitions[0].Width.Value;
-        var center=_layout.ColumnDefinitions[2].Width.Value;
-        var right=_right.IsVisible ? _layout.ColumnDefinitions[4].Width.Value : _rightWeight;
-        if (!_right.IsVisible)
-        {
-            var remaining=left+center;
-            left=left/remaining*(1-right); center=center/remaining*(1-right);
-        }
-        var total=left+center+right;
-        var result=new BrowserLayout(left/total,center/total,right/total,_right.IsVisible).Validated();
-        _layout.ColumnDefinitions[0].Width=new GridLength(result.Navigation,GridUnitType.Star);
-        _layout.ColumnDefinitions[2].Width=new GridLength(result.Assets,GridUnitType.Star);
-        _rightWeight=result.Right;
-        if (_right.IsVisible) _layout.ColumnDefinitions[4].Width=new GridLength(result.Right,GridUnitType.Star);
-        return result;
-    }
-    private void SaveLayout() => LayoutChanged?.Invoke(NormalizeLayout());
     private static string Modified(long ticks) => ticks >= DateTime.MinValue.Ticks && ticks <= DateTime.MaxValue.Ticks
         ? new DateTime(ticks,DateTimeKind.Utc).ToString("yyyy-MM-dd HH:mm:ss") : "Not available";
-    private static IBrush Brush(string color)=>new SolidColorBrush(Color.Parse(color));
-    private static TextBlock Text(string text,double size)=>new(){Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap};
-    private static Button Action(string text)=>new(){Content=text,Padding=new Thickness(8,4),Background=Brush("#1D2129"),Foreground=Brush("#F0F0F2"),BorderBrush=Brush("#3B404A"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(4)};
-    private static Border Panel(Control child,bool padding=true)=>new(){Child=child,Padding=new Thickness(padding ? 9 : 0),Background=Brush("#171A20"),BorderBrush=Brush("#2B303A"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(8)};
+    private static TextBlock Text(string text,string role="body")=>LightflowTheme.Text(text,role);
+    private static Button Action(string text)=>LightflowTheme.Button(text);
+    private static Border Panel(Control child,bool padding=true)=>LightflowTheme.Panel(child,padding);
 }

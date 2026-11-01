@@ -9,8 +9,21 @@ internal static class BrowserLayoutStore
 {
     public static BrowserLayout Load(string root)
     {
-        try { return (JsonSerializer.Deserialize<BrowserLayout>(File.ReadAllText(Path.Combine(root,"browser-layout.json"))) ?? new()).Validated(); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { return new(); }
+        try
+        {
+            var json=File.ReadAllText(Path.Combine(root,"browser-layout.json"));
+            using var document=JsonDocument.Parse(json);
+            // Migrate the initial draft's ratios against its 1280-point reference window.
+            if(document.RootElement.TryGetProperty("Navigation",out var navigation))
+            {
+                var left=navigation.GetDouble(); var right=document.RootElement.GetProperty("Right").GetDouble();
+                var center=document.RootElement.GetProperty("Assets").GetDouble();
+                if(!double.IsFinite(left+right+center) || left<=0 || right<=0 || center<=0 || Math.Abs(left+right+center-1)>.01) return new();
+                return new BrowserLayout(left*1236,right*1236,document.RootElement.GetProperty("RightOpen").GetBoolean()).Validated();
+            }
+            return (JsonSerializer.Deserialize<BrowserLayout>(json) ?? new()).Validated();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException) { return new(); }
     }
     public static void Save(string root, BrowserLayout layout)
     {

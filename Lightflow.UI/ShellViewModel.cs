@@ -43,7 +43,7 @@ public sealed class ShellViewModel(IShellCatalogSession catalog, IBrowserLocatio
             CatalogRecoveryReason.PendingRecovery => "A previous Catalog operation needs attention. Your Catalog files have been preserved. Quit and retain this data folder for recovery.",
             CatalogRecoveryReason.UnsupportedStorage => "Choose a Catalog on supported local APFS storage.",
             CatalogRecoveryReason.LocationUnavailable => "Lightflow Studio couldn't find your last Catalog. Reconnect its drive, then retry, or choose another Catalog.",
-            CatalogRecoveryReason.OutsideWorkspace => "Choose a Catalog inside the isolated data folder shown below.",
+            CatalogRecoveryReason.OutsideWorkspace => "Choose a Catalog inside this test profile.",
             CatalogRecoveryReason.CatalogDirectoryRequired => "Choose the Catalog folder itself, rather than its parent folder.",
             _ => "Lightflow Studio couldn't open this Catalog. Retry or choose a supported Catalog. Existing files have been preserved."
         }

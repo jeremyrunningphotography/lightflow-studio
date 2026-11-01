@@ -1,0 +1,98 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Shared presentation only. WPF references: Themes/LightflowShell.xaml and App.xaml. -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="LightflowCanvas">#0B0D11</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowSurface">#11141A</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowPanel">#171A20</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowRaised">#1D2129</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowDivider">#2B303A</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowBrandSurround">#08080A</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowText">#F5F7FA</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowMuted">#AAB2BF</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowNavigation">#D8D8DC</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowAccent">#FF713D</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowFocus">#FF9A66</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowSelection">#282129</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowFolder">#E4B85A</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowSuccess">#45D09E</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowWarning">#F2C94C</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowDanger">#3A1E25</SolidColorBrush>
+    <SolidColorBrush x:Key="LightflowDangerBorder">#7A3444</SolidColorBrush>
+    <FontFamily x:Key="LightflowFont">$Default</FontFamily>
+    <Thickness x:Key="LightflowControlPadding">7,4</Thickness>
+    <Thickness x:Key="LightflowPanelPadding">9</Thickness>
+    <CornerRadius x:Key="LightflowControlRadius">6</CornerRadius>
+    <CornerRadius x:Key="LightflowPanelRadius">8</CornerRadius>
+    <ControlTheme x:Key="LightflowButtonTheme" TargetType="Button">
+      <Setter Property="Background" Value="{DynamicResource LightflowRaised}"/>
+      <Setter Property="Foreground" Value="{DynamicResource LightflowText}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource LightflowDivider}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="{StaticResource LightflowControlRadius}"/>
+      <Setter Property="Padding" Value="{StaticResource LightflowControlPadding}"/>
+      <Setter Property="FocusAdorner" Value="{x:Null}"/>
+      <Setter Property="MinHeight" Value="32"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"/>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:pointerover /template/ Border#Chrome"><Setter Property="Opacity" Value="0.88"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowMuted}"/></Style>
+      <Style Selector="^:pressed /template/ Border#Chrome"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/></Style>
+      <Style Selector="^:focus-visible /template/ Border#Chrome"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="2"/></Style>
+      <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.4"/></Style>
+    </ControlTheme>
+  </Styles.Resources>
+  <Style Selector="Window.lightflow">
+    <Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/>
+    <Setter Property="FontFamily" Value="{StaticResource LightflowFont}"/><Setter Property="FontSize" Value="13"/>
+  </Style>
+  <Style Selector="TextBlock.lf-text"><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/><Setter Property="FontSize" Value="13"/></Style>
+  <Style Selector="TextBlock.lf-text.muted"><Setter Property="Foreground" Value="{DynamicResource LightflowMuted}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style Selector="TextBlock.lf-text.status"><Setter Property="Foreground" Value="{DynamicResource LightflowMuted}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style Selector="TextBlock.lf-text.heading"><Setter Property="FontSize" Value="26"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="TextBlock.lf-text.panel-heading"><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="TextBlock.lf-text.location-heading"><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="TextBlock.lf-text.navigation"><Setter Property="Foreground" Value="{DynamicResource LightflowNavigation}"/></Style>
+  <Style Selector="Button.lf-button"><Setter Property="Theme" Value="{StaticResource LightflowButtonTheme}"/></Style>
+  <Style Selector="Button.lf-button.primary"><Setter Property="Foreground" Value="{DynamicResource LightflowCanvas}"/><Setter Property="Background" Value="{DynamicResource LightflowAccent}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+  <Style Selector="Button.lf-button.danger"><Setter Property="Background" Value="{DynamicResource LightflowDanger}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDangerBorder}"/></Style>
+  <Style Selector="Button.lf-button.quiet"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/></Style>
+  <Style Selector="Button.lf-button.quiet:pointerover /template/ Border#Chrome"><Setter Property="Background" Value="{DynamicResource LightflowRaised}"/></Style>
+  <Style Selector="Button.lf-button.active"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Button.lf-button.navigation"><Setter Property="Padding" Value="4,0"/><Setter Property="HorizontalContentAlignment" Value="Left"/></Style>
+  <Style Selector="Button.lf-button.navigation.active TextBlock.lf-text.navigation"><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/></Style>
+  <Style Selector="Button.lf-button.disclosure"><Setter Property="Padding" Value="0"/><Setter Property="MinWidth" Value="32"/></Style>
+  <Style Selector="Border.lf-panel"><Setter Property="Background" Value="{DynamicResource LightflowPanel}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDivider}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="{StaticResource LightflowPanelRadius}"/><Setter Property="Padding" Value="{StaticResource LightflowPanelPadding}"/></Style>
+  <Style Selector="Border.lf-panel.toolbar"><Setter Property="Background" Value="{DynamicResource LightflowSurface}"/></Style>
+  <Style Selector="Border.lf-panel.flush"><Setter Property="Padding" Value="0"/></Style>
+  <Style Selector="Border.lf-header"><Setter Property="Background" Value="{DynamicResource LightflowBrandSurround}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDivider}"/><Setter Property="BorderThickness" Value="0,0,0,1"/></Style>
+  <Style Selector="Border.lf-footer"><Setter Property="Background" Value="{DynamicResource LightflowSurface}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDivider}"/><Setter Property="BorderThickness" Value="0,1,0,0"/></Style>
+  <Style Selector="Border.lf-divider"><Setter Property="Background" Value="{DynamicResource LightflowDivider}"/></Style>
+  <Style Selector="TextBox.lf-input"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDivider}"/><Setter Property="CornerRadius" Value="{StaticResource LightflowControlRadius}"/><Setter Property="FontSize" Value="13"/><Setter Property="Padding" Value="6,4"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="CaretBrush" Value="{DynamicResource LightflowAccent}"/><Setter Property="SelectionBrush" Value="{DynamicResource LightflowSelection}"/></Style>
+  <Style Selector="TextBox.lf-input:focus /template/ Border#PART_BorderElement"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="ListBox.lf-assets"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/><Setter Property="BorderThickness" Value="0"/></Style>
+  <Style Selector="ListBox.lf-assets ListBoxItem"><Setter Property="Padding" Value="4,0"/><Setter Property="MinHeight" Value="30"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/></Style>
+  <Style Selector="ListBox.lf-assets ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{DynamicResource LightflowRaised}"/></Style>
+  <Style Selector="ListBox.lf-assets ListBoxItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="1"/></Style>
+  <Style Selector="ListBox.lf-assets ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/></Style>
+  <Style Selector="ListBox.lf-assets ListBoxItem:focus-visible"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="2"/></Style>
+  <Style Selector="ProgressBar.lf-progress"><Setter Property="Foreground" Value="{DynamicResource LightflowAccent}"/></Style>
+  <Style Selector="GridSplitter.lf-splitter"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/></Style>
+  <Style Selector="GridSplitter.lf-splitter:focus-visible"><Setter Property="Background" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Path.lf-icon"><Setter Property="Stroke" Value="{DynamicResource LightflowNavigation}"/><Setter Property="StrokeThickness" Value="1.5"/><Setter Property="Fill" Value="Transparent"/></Style>
+  <Style Selector="Path.lf-icon.folder"><Setter Property="Stroke" Value="{DynamicResource LightflowFolder}"/></Style>
+  <Style Selector="Path.lf-icon.active"><Setter Property="Stroke" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Path.lf-icon.folder.active"><Setter Property="Fill" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Ellipse.lf-health"><Setter Property="Fill" Value="{DynamicResource LightflowMuted}"/></Style>
+  <Style Selector="Ellipse.lf-health.ready"><Setter Property="Fill" Value="{DynamicResource LightflowSuccess}"/></Style>
+  <Style Selector="Ellipse.lf-health.busy"><Setter Property="Fill" Value="{DynamicResource LightflowWarning}"/></Style>
+</Styles>

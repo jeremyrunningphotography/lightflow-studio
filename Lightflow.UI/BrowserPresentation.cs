@@ -8,9 +8,6 @@ namespace Lightflow.UI;
 /// <summary>Presentation values aligned with WPF Themes/LightflowShell.xaml. No Browser state owner.</summary>
 public static class BrowserPresentation
 {
-    public const string Canvas = "#0B0D11", Surface = "#11141A", Panel = "#171A20", Raised = "#1D2129",
-        Divider = "#2B303A", Accent = "#FF9A66", Selection = "#282129", Text = "#D8D8DC";
-    public static IBrush Brush(string color) => new SolidColorBrush(Color.Parse(color));
     // WPF's filled-folder silhouette, and font-independent equivalents of its Segoe controls.
     public static Avalonia.Controls.Shapes.Path Icon(string kind, bool active = false) => new()
     {
@@ -28,15 +25,19 @@ public static class BrowserPresentation
             "panel" => "M1,1 L15,1 L15,15 L1,15 Z M10,1 L10,15",
             _ => "M2,2 L14,14 M14,2 L2,14"
         }),
-        Stroke = Brush(active ? Accent : kind == "folder" ? "#E4B85A" : Text), StrokeThickness = 1.5,
-        Fill = kind == "folder" && active ? Brush(Accent) : Brushes.Transparent
+        Classes={ "lf-icon",kind=="folder" ? "folder" : "navigation",active ? "active" : "inactive" }
     };
 }
 
-/// <summary>Only view proportions, independent of Catalog and navigation persistence.</summary>
-public sealed record BrowserLayout(double Navigation = .24, double Assets = .52, double Right = .24, bool RightOpen = true)
+/// <summary>Optional view preferences only, independent of Catalog and navigation persistence.</summary>
+public sealed record BrowserLayout(double NavigationWidth = 280, double RightWidth = 360, bool RightOpen = false,
+    ShellWindowGeometry? Window = null, int Version = 3, bool Zoomed = false)
 {
-    public BrowserLayout Validated() => double.IsFinite(Navigation) && double.IsFinite(Assets) && double.IsFinite(Right)
-        && Navigation >= .02 && Assets >= .1 && Right >= .02 && Navigation + Assets + Right is > .99 and < 1.01
-        ? this : new();
+    public BrowserLayout Validated() => this with
+    {
+        NavigationWidth=double.IsFinite(NavigationWidth) ? Math.Clamp(NavigationWidth,180,520) : 280,
+        RightWidth=double.IsFinite(RightWidth) ? Math.Clamp(RightWidth,200,600) : 360,
+        Window=Window is { IsValid:true } ? Window : null,
+        Version=3
+    };
 }

@@ -11,6 +11,19 @@ namespace Lightflow.UI.Tests;
 
 public sealed class BrowserTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExpectedCloudAvailabilityIsNotReportedAsIncompleteDiscovery(bool recursive)
+    {
+        var service=new FakeDiscovery();var model=new BrowserViewModel(service);await model.OpenAsync(service.CatalogId);
+        var load=model.GoPathAsync("/task/cloud");var asset=Asset(service.RootId,"resident.jpg");
+        service.Discoveries["/task/cloud"].SetResult(new(service.RootId,"cloud",recursive,MediaFolderEnumerationStatus.Succeeded,[],[asset],UnavailableSourceCount:2));
+        await load;Assert.Single(model.Assets);Assert.DoesNotContain("Scan incomplete",model.Message);Assert.Contains("2 sources unavailable locally",model.Message);Assert.Contains("no automatic download",model.Message);
+        var empty=model.GoPathAsync("/task/cloud-only");service.Discoveries["/task/cloud-only"].SetResult(new(service.RootId,"cloud-only",recursive,MediaFolderEnumerationStatus.Succeeded,[],[],UnavailableSourceCount:1));
+        await empty;Assert.Empty(model.Assets);Assert.StartsWith("0 supported media shown",model.Message);Assert.DoesNotContain("Scan incomplete",model.Message);
+    }
+
     [Fact]
     public async Task SourceRefusalShowsActionAndCompletesWithoutLosingNavigationIdentity()
     {

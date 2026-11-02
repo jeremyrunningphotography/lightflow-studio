@@ -103,7 +103,7 @@ public sealed record MediaFolderFileSystemEntry(
     bool IsDirectory,
     long? FileSizeBytes,
     DateTimeOffset LastWriteUtc,
-    bool IsReparsePoint = false, bool IsAvailable = true);
+    bool IsReparsePoint = false, bool IsAvailable = true, string? UnavailableDiagnostic = null);
 
 public sealed class MediaFolderLinkException(string diagnostic) : IOException(diagnostic);
 
@@ -179,7 +179,7 @@ public sealed record MediaFolderEntry(
     DateTimeOffset LastWriteUtc,
     string? StableKey = null,
     Guid? AssetId = null,
-    bool IsAvailable = true);
+    bool IsAvailable = true, string? UnavailableDiagnostic = null);
 
 public enum MediaFolderEnumerationStatus
 {
@@ -309,7 +309,7 @@ public class CatalogMediaFolderEnumerator(
                     ? MediaTypeClassification.Unknown
                     : mediaTypes.Classify(new(source.Name));
                 entries.Add(new(root.RootId, relative, CatalogRelativePaths.RelativePathKey(relative), source.Name,
-                    source.IsDirectory, type, source.FileSizeBytes, source.LastWriteUtc, IsAvailable: source.IsAvailable));
+                    source.IsDirectory, type, source.FileSizeBytes, source.LastWriteUtc, IsAvailable: source.IsAvailable, UnavailableDiagnostic: source.UnavailableDiagnostic));
             }
         }
         catch (OperationCanceledException) { throw; }

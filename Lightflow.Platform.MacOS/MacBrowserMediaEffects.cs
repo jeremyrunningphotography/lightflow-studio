@@ -62,9 +62,15 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (IsProtected(entry.FullPath) || (entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))) continue;
-            var available = entry.IsDirectory || entry.IsReparsePoint || !types.Classify(new(entry.Name)).IsKnown ||
-                await Task.Run(() => assessor.IsResidentMedia(entry.FullPath,cancellationToken),cancellationToken).ConfigureAwait(false);
-            resident.Add(entry with {IsAvailable=available});
+            var available = true;
+            string? diagnostic = null;
+            if (!entry.IsDirectory && !entry.IsReparsePoint && types.Classify(new(entry.Name)).IsKnown)
+            {
+                try { available = await Task.Run(() => assessor.IsResidentMedia(entry.FullPath,cancellationToken),cancellationToken).ConfigureAwait(false); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                { available = false; diagnostic = $"Source '{entry.Name}' was refused: {error.Message}"; }
+            }
+            resident.Add(entry with {IsAvailable=available, UnavailableDiagnostic=diagnostic});
         }
         result = resident.Where(entry => !IsProtected(entry.FullPath) &&
             !(entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))).ToArray();

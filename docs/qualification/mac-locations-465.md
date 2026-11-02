@@ -1,3 +1,66 @@
+# LF-MAC-DEV-030 — I05 cloud availability / current qualification
+
+I04 owner acceptance passed sidebar/navigation, cloud-only protection, unsupported
+folders, unrelated offline mappings, Catalog preservation and mount lifecycle.
+Desktop/Documents warnings prompted the bounded I05 investigation/correction.
+
+## Verified diagnosis at I04 source
+
+- One bounded non-recursive check returned Documents: zero assets, one unavailable
+  source; Desktop: eight assets with expected cloud exclusions; Downloads: 36 assets.
+  Native metadata established the Documents top-level supported source was dataless,
+  not downloaded and had zero allocated blocks. Desktop resident files were actually
+  fingerprinted and returned. No evidence justified hydrating sources or loosening
+  identity/storage checks. This does not establish that every owner-reported missing
+  file was reproduced; a specific missing resident source remains an owner follow-up.
+- Expected exclusions were encoded as a generic reconciliation Diagnostic, causing
+  the Browser to say Scan incomplete even when direct discovery completed safely.
+- A separate bounded recursive Documents run exposed a genuine rejected filesystem
+  link in an application-presets descendant. That refusal must remain visible.
+  The misleading direct warning does not require recursive traversal to reproduce.
+
+## I05 correction
+
+- Typed UnavailableSourceCount travels through reconciliation, recursive aggregation
+  and Browser snapshots. Expected cloud-only/unknown-residency exclusions receive an
+  availability/action notice, not an incomplete-scan label. True refusals still carry
+  detailed diagnostics and show a concise Scan incomplete warning.
+- Mac metadata refusal of one source is recorded for that entry, leaving unrelated
+  safely identified resident siblings available. Mac composition explicitly opts into
+  partial source reconciliation; other callers retain strict linked-entry refusal.
+  Refused/link scopes disable missing-state inference. Unsafe sources are never
+  opened or merged, and existing identities/authored data are preserved.
+- Recursive aggregation retains genuine reconciliation diagnostics and availability
+  counts. The Mac projection includes only successfully reconciled eligible sources,
+  excluding unsafe and stale records while preserving them in the Catalog.
+- Native no-materialization reads, cloud residency rules, storage admission, I04
+  offline-root handling, I03 mount lifecycle and accepted visuals are retained.
+  No timeouts, progress, concurrency or spinner changes.
+
+## I05 validation
+
+Release Application 141, Catalog 52, shared UI 59 and Mac native 59 pass. Regression
+coverage includes mixed resident/cloud sources, direct and recursive paths, alias/link
+refusals alongside safe siblings, zero-resident availability, strict default behavior,
+missing-state protection, authored ratings/collections and identity across reopen.
+Two old native tests expected whole-folder exceptions for links; updated assertions
+verify explicit partial warnings, rejected links and preserved records instead.
+
+A final bounded real-folder check returned Documents 0 resident/1 unavailable,
+Desktop 8 resident/9 unavailable, Downloads 36 resident/0 unavailable; all direct
+operations completed with no genuine Diagnostic. No automatic cloud download or
+personal-file change occurred. Private filenames/native metadata evidence stays local.
+Native test cloud metadata is simulated only for registered task fixtures.
+
+Fresh isolated I05 packaging, real owner acceptance, independent Windows local
+qualification, exact-head CI and explicit merge authorization remain gates. No
+routine Computer Use/screenshots/ZIP. No Chronicle entry warranted. Project/native
+parent/dependency tools remain unavailable; no roadmap state is invented.
+
+---
+
+## Historical I04 qualification
+
 # LF-MAC-DEV-030 — I04 acceptance corrections / current qualification
 
 I01/I02 visuals and I03 automatic mount lifecycle are owner-accepted baselines.

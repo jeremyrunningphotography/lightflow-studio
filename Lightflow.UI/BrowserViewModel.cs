@@ -145,8 +145,10 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             if (content.Diagnostic is { Length: > 0 } diagnostic)
             {
                 Console.Error.WriteLine($"Browser scan details: {diagnostic}");
-                Message = $"Scan incomplete · {Assets.Count} supported media shown. " + (diagnostic.StartsWith("Some sources are unavailable locally.",StringComparison.Ordinal) ? diagnostic + " Catalog records are preserved." : "Some folders could not be reconciled; Catalog records are preserved. Retry or check folder access.");
+                Message = $"Scan incomplete · {Assets.Count} supported media shown. Some sources or folders could not be reconciled; Catalog records are preserved. Retry or check folder access.";
             }
+            else if (content.UnavailableSourceCount > 0)
+                Message = $"{Assets.Count} supported media shown · {content.UnavailableSourceCount} sources unavailable locally. Make them available outside Lightflow, then retry; no automatic download was requested.";
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message=error is IOException ? $"{error.Message} Catalog records are preserved. Retry after resolving the source location." : "This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }

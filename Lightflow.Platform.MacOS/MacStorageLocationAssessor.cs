@@ -183,6 +183,7 @@ public sealed class MacStorageLocationAssessor : IStorageLocationAssessor, IDisp
                     throw new IOException(error.GetString());
                 }
                 if(facts.RootElement.GetProperty("ambiguous").GetBoolean())throw new IOException("Unsafe media identity (alias, link or unresolved spelling). Review the source path, then retry.");
+                if(!facts.RootElement.GetProperty("read").GetBoolean())throw new UnauthorizedAccessException("Media is not readable. Check source permissions outside Lightflow, then retry.");
                 return true;
             }
             finally {NativeFree(pointer);}

@@ -142,7 +142,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         var folders = new CatalogMediaFolderEnumerator(roots, mediaTypes, effects, effects, excludedPath: effects.IsProtected);
         var assets = new CatalogMediaAssetRepository(() => owner.Session);
         var observations = new MediaAssetService(assets, roots, new NativeFingerprints(effects));
-        var reconciliation = new CatalogReconciliationService(folders, observations);
+        var reconciliation = new CatalogReconciliationService(folders, observations, allowPartialSources: true);
         var discovery = new MediaDiscoveryRefreshService(reconciliation, () => null);
         var recursiveRoots = new CatalogBrowserRecursiveRootRepository(() => owner.Session);
         var recursive = BrowserRecursiveRootLogic.IsEffectivelyRecursive(await recursiveRoots.ListAsync(token), rootId, folder);
@@ -168,8 +168,10 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         token.ThrowIfCancellationRequested();
         // Windows' authoritative view comes from successfully scanned filesystem candidates.
         // Missing records and failed recursive descendants remain in Catalog, outside this visible set.
+        var reconciled = result.Items.Where(item => item.Status is CatalogReconciliationItemStatus.New or CatalogReconciliationItemStatus.Unchanged or CatalogReconciliationItemStatus.Changed)
+            .Select(item => CatalogRelativePaths.RelativePathKey(item.RelativePath)).ToHashSet(StringComparer.Ordinal);
         var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown && entry.IsAvailable)
-            .Select(entry => entry.RelativePathKey).ToHashSet(StringComparer.Ordinal);
+            .Select(entry => entry.RelativePathKey).Where(reconciled.Contains).ToHashSet(StringComparer.Ordinal);
         using var projectionTiming = BrowserPerformance.Measure("mac.catalog.projection");
         // Reuse the post-reconciliation listing for the tree projection. The old reader repeated
         // that same native enumeration once more; Catalog scope reads need no filesystem traversal.
@@ -178,7 +180,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
             listing.Entries.Where(entry => entry.IsDirectory).ToArray(),
             content.Where(asset => asset.SourceStatus != MediaAssetSourceStatus.Missing &&
                 visiblePaths.Contains(asset.RelativePathKey) && mediaTypes.Classify(new(asset.RelativePath)).IsKnown).ToArray(),
-            result.Diagnostic);
+            result.Diagnostic, result.UnavailableSourceCount);
 
     }, token);
 

@@ -13,7 +13,7 @@ public interface IBrowserCatalogSession
 
 public sealed record BrowserFolderSnapshot(Guid RootId, string RelativeFolder, bool Recursive,
     MediaFolderEnumerationStatus Status, IReadOnlyList<MediaFolderEntry> Folders,
-    IReadOnlyList<MediaAsset> Assets, string? Diagnostic = null);
+    IReadOnlyList<MediaAsset> Assets, string? Diagnostic = null, int UnavailableSourceCount = 0);
 
 public interface IBrowserSourceAvailability
 {

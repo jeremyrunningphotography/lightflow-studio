@@ -42,12 +42,46 @@ public sealed class MediaAcceptanceCorrectionTests
             Assert.Empty((await shell.DiscoverBrowserFolderAsync(unsupported,Guid.Empty,"")).Assets);
             Cloud(file,2);
             await File.WriteAllTextAsync(Path.Combine(media,"local.jpg"),"another resident source");
-            var unavailable=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");Assert.EndsWith("local.jpg",Assert.Single(unavailable.Assets).RelativePath);Assert.Contains("unavailable locally",unavailable.Diagnostic);
+            var unavailable=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");Assert.EndsWith("local.jpg",Assert.Single(unavailable.Assets).RelativePath);Assert.Null(unavailable.Diagnostic);Assert.Equal(1,unavailable.UnavailableSourceCount);Assert.False(unavailable.Recursive);
             var preserved=(await shell.ReadBrowserCatalogAsync(first.RootId,first.RelativeFolder)).Assets.Single(a=>a.AssetId==asset.AssetId);
             Assert.Equal(asset.AssetId,preserved.AssetId);Assert.Equal(MediaAssetSourceStatus.Available,preserved.SourceStatus);
             Cloud(file,1);Assert.Contains((await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"")).Assets,a=>a.AssetId==asset.AssetId);
         }
         finally {Cloud(file,0);Cloud(media,0);}
+    }
+
+    [Fact]
+    public async Task CloudExclusionsAndRealRefusalsRemainDistinctInDirectAndRecursiveDiscovery()
+    {
+        var data=Fixture();var catalog=Directory.CreateDirectory(Path.Combine(data,"Catalog")).FullName;
+        var media=Directory.CreateDirectory(Path.Combine(data,"Documents")).FullName;
+        var resident=Path.Combine(media,"resident.jpg");var placeholder=Path.Combine(media,"placeholder.jpg");var alias=Path.Combine(media,"alias.jpg");
+        await File.WriteAllTextAsync(resident,"resident source");await File.WriteAllTextAsync(placeholder,"test-only cloud metadata");await File.WriteAllTextAsync(alias,"alias fixture");
+        Cloud(media,1);Cloud(resident,1);Cloud(placeholder,2);Cloud(alias,3);
+        try
+        {
+            await using var shell=new MacShellCatalogSession(data);Assert.True((await shell.CreateAsync(catalog)).IsReady);
+            var first=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");var asset=Assert.Single(first.Assets);
+            Assert.False(first.Recursive);Assert.Equal(1,first.UnavailableSourceCount);Assert.Contains("alias.jpg",first.Diagnostic);Assert.DoesNotContain("placeholder.jpg",first.Diagnostic);
+            File.CreateSymbolicLink(Path.Combine(media,"linked.jpg"),resident);
+            var partial=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");Assert.Equal(asset.AssetId,Assert.Single(partial.Assets).AssetId);Assert.Contains("link",partial.Diagnostic);
+            var nested=Directory.CreateDirectory(Path.Combine(media,"Nested")).FullName;await File.WriteAllTextAsync(Path.Combine(nested,"local.jpg"),"nested resident");
+            await shell.SetBrowserRecursiveAsync(first.RootId,first.RelativeFolder,true);
+            var recursive=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");Assert.True(recursive.Recursive);Assert.Equal(2,recursive.Assets.Count);Assert.Equal(1,recursive.UnavailableSourceCount);Assert.Contains("alias.jpg",recursive.Diagnostic);Assert.Contains(recursive.Assets,a=>a.AssetId==asset.AssetId);
+            await shell.SetBrowserRecursiveAsync(first.RootId,first.RelativeFolder,false);
+            var direct=await shell.DiscoverBrowserFolderAsync(media,Guid.Empty,"");Assert.False(direct.Recursive);Assert.Equal(asset.AssetId,Assert.Single(direct.Assets).AssetId);
+            Assert.Equal("test-only cloud metadata",await File.ReadAllTextAsync(placeholder));
+            await shell.DisposeAsync();
+            var started=await new CatalogLifecycle(new MacCatalogLifecycleEffects(data)).StartAsync(allowFirstCreation:false);
+            await using(var owner=started.Coordinator!)
+            {await new CatalogAssetClassificationStore(()=>owner.Session).UpdateAsync(asset.AssetId,p=>p with {Rating=4});await new CatalogCollectionOrganizationStore(()=>owner.Session).CreateCollectionAsync("I05 retained authored state");}
+            await using(var reopened=new MacShellCatalogSession(data))
+            {Assert.True((await reopened.StartAsync()).IsReady);Assert.Equal(asset.AssetId,Assert.Single((await reopened.DiscoverBrowserFolderAsync(media,Guid.Empty,"")).Assets).AssetId);}
+            var checkedState=await new CatalogLifecycle(new MacCatalogLifecycleEffects(data)).StartAsync(allowFirstCreation:false);
+            await using(var owner=checkedState.Coordinator!)
+            {Assert.Equal(4,(await new CatalogAssetClassificationStore(()=>owner.Session).GetAsync([asset.AssetId]))[asset.AssetId].Rating);Assert.Single(await new CatalogCollectionOrganizationStore(()=>owner.Session).ListCollectionsAsync());}
+        }
+        finally {Cloud(alias,0);Cloud(placeholder,0);Cloud(resident,0);Cloud(media,0);}
     }
 
     [Theory]

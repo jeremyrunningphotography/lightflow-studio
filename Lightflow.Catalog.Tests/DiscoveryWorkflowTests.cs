@@ -6,6 +6,20 @@ namespace Lightflow.Catalog.Tests;
 public sealed class DiscoveryWorkflowTests
 {
     [Fact]
+    public async Task OptInPartialSourcesPreserveUnseenRecordsAndDefaultLinkRefusalRemains()
+    {
+        var id=Guid.NewGuid();var assets=new Assets(id);var prior=assets.Rows[0];
+        var refused=Entry(id,"alias.jpg") with {IsAvailable=false,UnavailableDiagnostic="alias refused"};
+        var listing=new MediaFolderEnumerationResult(MediaFolderEnumerationStatus.Succeeded,"",[refused,Entry(id,"resident.jpg")],SkippedLinkedEntries:1);
+        var folders=new Folders(listing);
+        var strict=await new CatalogReconciliationService(folders,assets).ReconcileAsync(new(id));
+        Assert.False(strict.Succeeded);Assert.Single(assets.Rows);Assert.Equal(0,assets.MissingCalls);
+        var partial=await new CatalogReconciliationService(folders,assets,allowPartialSources:true).ReconcileAsync(new(id));
+        Assert.True(partial.Succeeded);Assert.Contains("alias refused",partial.Diagnostic);Assert.Contains("link",partial.Diagnostic);
+        Assert.Equal(prior,assets.Rows.Single(a=>a.AssetId==prior.AssetId));Assert.Empty(assets.MissingIds);Assert.Equal(new[]{"resident.jpg"},assets.CreatedPaths);Assert.Equal(0,partial.UnavailableSourceCount);
+    }
+
+    [Fact]
     public async Task UnavailableSourcesAreNotOpenedOrMarkedMissingWhileResidentSourcesReconcile()
     {
         var id=Guid.NewGuid();var assets=new Assets(id);var prior=assets.Rows[0];
@@ -13,7 +27,7 @@ public sealed class DiscoveryWorkflowTests
         var placeholder=Entry(id,"cloud-only.jpg") with {IsAvailable=false};
         var resident=Entry(id,"resident.jpg");
         var result=await new CatalogReconciliationService(new Folders(new(MediaFolderEnumerationStatus.Succeeded,"",[unavailable,placeholder,resident])),assets).ReconcileAsync(new(id));
-        Assert.True(result.Succeeded);Assert.Contains("unavailable locally",result.Diagnostic);
+        Assert.True(result.Succeeded);Assert.Null(result.Diagnostic);Assert.Equal(2,result.UnavailableSourceCount);
         Assert.Equal(prior,assets.Rows.Single(a=>a.AssetId==prior.AssetId));
         Assert.Equal(new[]{"resident.jpg"},assets.CreatedPaths);Assert.Empty(assets.ObservedIds);Assert.Empty(assets.MissingIds);
         Assert.DoesNotContain(assets.Rows,a=>a.RelativePath=="cloud-only.jpg");

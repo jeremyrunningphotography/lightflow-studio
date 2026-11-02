@@ -1,3 +1,64 @@
+# LF-MAC-DEV-030 — I06 recursive-scope UI parity / current qualification
+
+Jeremy accepted I05 hands-on; the prior sidebar, navigation, cloud/media safety,
+offline mapping and automatic mount behavior remain the baseline.
+
+## Verified Windows reference
+
+- `LightflowStudio/BrowserTree.cs`: `IsFilledFolderIcon = IsSelected || IsRecursiveScope`.
+- `MainWindow.xaml.cs/SyncBrowserTreeRecursiveIcon`: effective scope is computed from
+  stored Catalog roots with shared `BrowserRecursiveRootLogic` for materialized rows
+  only. A governing root and its descendants are covered; ancestors outside scope
+  and unrelated branches are not. Row selection is independent of recursive coverage.
+- `MainWindow.xaml/BrowserScopeToggleButtonStyle`: visible **Subfolders** label,
+  outline/filled folder silhouette, active shared focus accent and selected chrome;
+  automation name **Include Subfolders** and descriptive tooltip.
+- `SyncBrowserSubfoldersCapability`: an off-state known leaf is disabled with
+  **No subfolders**; an inherited on-state leaf remains enabled to remove its
+  governing ancestor scope. EffectiveScopeDetermined publishes scope before media
+  discovery finishes. Windows tree interaction/startup-restoration live tests and
+  recursive-scope regression tests cover these rules. Windows files were not edited.
+
+## I06 implementation
+
+- Read-only recursive-root presentation metadata travels with existing Catalog and
+  folder snapshots. A narrow optional scope reader supplies the persisted roots
+  immediately after a toggle; no recursive model, discovery or Catalog mutation
+  semantics change. Existing native mapping metadata also updates the presentation
+  cache when a new anchor was established during an explicit visit.
+- Browser presentation caches stored roots, computes coverage using the shared rule
+  and updates immediately after persistence and at navigation start/Refresh. Newly
+  expanded rows inherit the current cache; no scope indicator forces expansion,
+  scans media, or reads storage per row. Epoch/generation guards reject stale state.
+- Retained ordinary folder icons use selected OR recursive filled-state semantics;
+  Favorites under recursive scope use the same filled folder silhouette. Device and
+  server semantic icons are retained with scope accent. Row controls, columns,
+  chevrons and labels remain stable; accessibility identifies current/recursive state.
+- Toolbar uses a true ToggleButton with the visible Subfolders label, existing folder
+  glyph, on/off checked and shared accent feedback, keyboard focus and automation.
+  Known direct leaves disable it; inherited recursive leaves can turn scope off.
+  Existing two-row compact toolbar placement/resizing remains.
+
+## I06 validation
+
+Release Application 141, Catalog 52, shared UI 61 and Mac native 60 pass with zero
+failures/skips. New headless tests cover restored roots, ancestor/current/descendant
+and other-root scope, aliases of filesystem paths, selection OR scope, stale results,
+immediate changes while discovery is pending, expansion/Refresh, retained controls,
+label/checked state, Space activation, focus and 720px layout. Native regression
+checks persisted root snapshots/read-only access and identity across reopen.
+
+Initial test-helper name compilation error was corrected. Final suites pass;
+pre-existing obsolete headless-key/analyzer warnings remain. No native observer,
+cloud residency, reconciliation, storage policy, Windows UI, spinner or #468 changes.
+Fresh I06 isolated package, owner hands-on, independent Windows local qualification,
+exact-head CI and explicit merge remain required. No routine Computer Use, screenshots
+or ZIP. No Chronicle entry warranted; Project/native-parent tool gap remains.
+
+---
+
+## Historical I05 qualification
+
 # LF-MAC-DEV-030 — I05 cloud availability / current qualification
 
 I04 owner acceptance passed sidebar/navigation, cloud-only protection, unsupported

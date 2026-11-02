@@ -3,7 +3,7 @@ namespace Lightflow.Application;
 
 /// <summary>Read-only application projection over the active lifecycle's existing repositories.</summary>
 public sealed record BrowserCatalogSnapshot(Guid CatalogId, IReadOnlyList<MediaRootInfo> Roots,
-    IReadOnlyList<MediaAsset> Assets);
+    IReadOnlyList<MediaAsset> Assets, IReadOnlyList<BrowserRecursiveRoot>? RecursiveRoots = null);
 
 public interface IBrowserCatalogSession
 {
@@ -13,7 +13,14 @@ public interface IBrowserCatalogSession
 
 public sealed record BrowserFolderSnapshot(Guid RootId, string RelativeFolder, bool Recursive,
     MediaFolderEnumerationStatus Status, IReadOnlyList<MediaFolderEntry> Folders,
-    IReadOnlyList<MediaAsset> Assets, string? Diagnostic = null, int UnavailableSourceCount = 0);
+    IReadOnlyList<MediaAsset> Assets, string? Diagnostic = null, int UnavailableSourceCount = 0, IReadOnlyList<BrowserRecursiveRoot>? RecursiveRoots = null,
+    IReadOnlyList<MediaRootInfo>? CatalogRoots = null);
+
+/// <summary>Optional read-only Catalog scope metadata for immediate presentation after a toggle.</summary>
+public interface IBrowserRecursiveScopeSession
+{
+    Task<IReadOnlyList<BrowserRecursiveRoot>> ReadBrowserRecursiveRootsAsync(CancellationToken token = default);
+}
 
 public interface IBrowserSourceAvailability
 {

@@ -20,6 +20,27 @@ public sealed class MediaAcceptanceCorrectionTests
     private static extern int Policy();
 
     [Fact]
+    public async Task RecursivePresentationSnapshotsReadDurableScopeWithoutDiscoveringMedia()
+    {
+        var data=Fixture();var catalog=Directory.CreateDirectory(Path.Combine(data,"Catalog")).FullName;
+        var media=Directory.CreateDirectory(Path.Combine(data,"Scope")).FullName;var child=Directory.CreateDirectory(Path.Combine(media,"Child")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(child,"photo.jpg"),"scope fixture");
+        Guid root,asset;string folder;
+        await using(var shell=new MacShellCatalogSession(data))
+        {
+            Assert.True((await shell.CreateAsync(catalog)).IsReady);var first=await shell.DiscoverBrowserFolderAsync(child,Guid.Empty,"");root=first.RootId;asset=Assert.Single(first.Assets).AssetId;folder=first.RelativeFolder;
+            var parent=first.RelativeFolder[..first.RelativeFolder.LastIndexOf('/')];await shell.SetBrowserRecursiveAsync(root,parent,true);
+            var scopes=await shell.ReadBrowserRecursiveRootsAsync();Assert.True(BrowserRecursiveRootLogic.IsEffectivelyRecursive(scopes,root,first.RelativeFolder));
+            var read=await shell.ReadBrowserCatalogAsync(root,first.RelativeFolder);Assert.Equal(asset,Assert.Single(read.Assets).AssetId);Assert.Equal(scopes,read.RecursiveRoots);
+            var inherited=await shell.DiscoverBrowserFolderAsync(child,Guid.Empty,"");Assert.True(inherited.Recursive);Assert.Equal(scopes,inherited.RecursiveRoots);Assert.Contains(inherited.CatalogRoots!,r=>r.RootId==root);
+            await shell.SetBrowserRecursiveAsync(root,first.RelativeFolder,false);Assert.Empty(await shell.ReadBrowserRecursiveRootsAsync());
+            Assert.False((await shell.DiscoverBrowserFolderAsync(child,Guid.Empty,"")).Recursive);
+        }
+        await using(var reopened=new MacShellCatalogSession(data))
+        {Assert.True((await reopened.StartAsync()).IsReady);Assert.Empty((await reopened.ReadBrowserCatalogAsync()).RecursiveRoots!);Assert.Equal(asset,Assert.Single((await reopened.ReadBrowserCatalogAsync(root,folder)).Assets).AssetId);}
+    }
+
+    [Fact]
     public async Task ResidentCloudMediaAndUnsupportedFoldersPreserveIdentityAndCatalogAdmission()
     {
         var data=Fixture();var media=Directory.CreateDirectory(Path.Combine(data,"Desktop")).FullName;

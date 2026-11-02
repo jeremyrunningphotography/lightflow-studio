@@ -20,6 +20,8 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     private long _epoch, _generation, _selectionGeneration;
     private Guid? _catalogId;
     private IReadOnlyList<MediaRootInfo> _catalogRoots = [];
+    private IReadOnlyList<BrowserRecursiveRoot> _recursiveRoots = [];
+    private bool? _hasSubfolders;
     private long _refreshGeneration;
     private HashSet<string> _liveVolumeMounts = new(StringComparer.Ordinal);
     private string? _unavailableVolume;
@@ -28,8 +30,9 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     private readonly List<BrowserFolderNode> _back = [], _forward = [];
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
-    public bool CanChangeRecursive => session is IBrowserDiscoverySession && Location?.RootId != Guid.Empty && Location is not null && !IsLoading;
+    public bool CanChangeRecursive => session is IBrowserDiscoverySession && Location?.RootId != Guid.Empty && Location is not null && !IsLoading && (Recursive || _hasSubfolders != false);
     public bool CanRefresh => _catalogId is not null;
+    public bool HasNoSubfolders => _hasSubfolders == false && !Recursive;
     private readonly BrowserGridSelection _selection = new();
     public IReadOnlyList<BrowserFolderNode> Roots { get; private set; } = [];
     public IReadOnlyList<MediaAsset> Assets { get; private set; } = [];
@@ -44,6 +47,13 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     public bool CanGoUp => Location is { AbsolutePath: not null } file ? file.AbsolutePath != "/" : Location is { RelativeFolder.Length: > 0 };
     public long Epoch => _epoch;
 
+    public bool IsRecursiveScope(BrowserFolderNode node)
+    {
+        var mapped = node.AbsolutePath is { } path ? BrowserLocationMapping.Find(path,_catalogRoots,StringComparison.Ordinal) : null;
+        return BrowserRecursiveRootLogic.IsEffectivelyRecursive(_recursiveRoots,mapped?.RootId ?? node.RootId,mapped?.RelativeFolder ?? node.RelativeFolder);
+    }
+    public bool IsFolderIconFilled(BrowserFolderNode node) => Location?.Key == node.Key || IsRecursiveScope(node);
+
     public void Suspend()
     {
         _epoch++; _generation++; _selectionGeneration++; _refreshGeneration++; FolderRefreshRevision++;
@@ -51,6 +61,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         _lifetime.Cancel(); _lifetime.Dispose(); _lifetime = new();
         _navigation?.Cancel(); _selectionRead?.Cancel();
         _back.Clear(); _forward.Clear(); _observedVolumeMounts.Clear();
+        _recursiveRoots=[]; _hasSubfolders=null; Recursive=false;
         _catalogId = null; IsAvailable = false; IsLoading = false; Roots = []; Assets = []; Location = null;
         _selection.Clear(); SourceMessage = "Select an asset to see its Catalog details."; Notify();
     }
@@ -64,7 +75,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         {
             var content = await session.ReadBrowserCatalogAsync(cancellationToken:token).WaitAsync(token);
             if (epoch != _epoch || token.IsCancellationRequested || content.CatalogId != catalogId) return;
-            _catalogRoots = content.Roots;
+            _catalogRoots = content.Roots; _recursiveRoots = content.RecursiveRoots ?? [];
             var catalogNodes = content.Roots.Select(root => new BrowserFolderNode(root.RootId,"",root.DisplayName,
                 root.Availability == MediaRootAvailability.Online ? "" : root.Availability == MediaRootAvailability.Unmapped ? "Not mapped" : "Unavailable", locations is null ? null : root.PhysicalPath)).ToArray();
             if (locations is not null)
@@ -112,7 +123,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
         if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
         _unavailableVolume=null;
-        Location=PresentedNode(node); IsLoading=true; Recursive=false;
+        Location=PresentedNode(node); IsLoading=true; Recursive=IsRecursiveScope(node); _hasSubfolders=null;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
         Message="Checking folder…"; Notify();
         try
@@ -137,7 +148,9 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             if (generation == _generation && !token.IsCancellationRequested) Location = PresentedNode(node);
             if(generation!=_generation || token.IsCancellationRequested) return;
             var retainAssetId = refreshing ? SelectedAssetId : null;
-            Assets=content.Assets; Recursive=content.Recursive;
+            if(content.CatalogRoots is { } catalogRoots)_catalogRoots=catalogRoots;
+            if(content.RecursiveRoots is { } scopeRoots)_recursiveRoots=scopeRoots;
+            Assets=content.Assets; Recursive=content.Recursive; _hasSubfolders=content.Folders.Count>0;
             if (retainAssetId is { } selected && Assets.Any(asset => asset.AssetId == selected)) await SelectAsync(selected);
             else { _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
             if (generation != _generation || token.IsCancellationRequested) return;
@@ -177,6 +190,13 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         try
         {
             await discovery.SetBrowserRecursiveAsync(node.RootId, node.RelativeFolder, !Recursive, _lifetime.Token);
+            if (generation != _generation) return;
+            if (session is IBrowserRecursiveScopeSession scopes)
+            {
+                var roots=await scopes.ReadBrowserRecursiveRootsAsync(_lifetime.Token);
+                if(generation!=_generation)return;
+                _recursiveRoots=roots; Recursive=IsRecursiveScope(node); Notify();
+            }
             if (generation == _generation) await NavigateAsync(node, refreshing: true);
         }
         catch (OperationCanceledException) { }
@@ -226,7 +246,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             var content = await session.ReadBrowserCatalogAsync(cancellationToken: token).WaitAsync(token);
             var discovered = locations is null ? null : await locations.GetLocationsAsync(token).WaitAsync(token);
             if (refresh != _refreshGeneration || epoch != _epoch || navigation != _generation || content.CatalogId != id) return;
-            _catalogRoots = content.Roots;
+            _catalogRoots = content.Roots; _recursiveRoots = content.RecursiveRoots ?? [];
             var catalogNodes = content.Roots.Select(root => new BrowserFolderNode(root.RootId,"",root.DisplayName,
                 root.Availability == MediaRootAvailability.Online ? "" : "Unavailable", locations is null ? null : root.PhysicalPath));
             Roots = discovered is null ? catalogNodes.ToArray() : MergeRoots(discovered,catalogNodes);

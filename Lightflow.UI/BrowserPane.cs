@@ -34,7 +34,9 @@ public sealed class BrowserPane : UserControl
     public event Action<BrowserLayout>? LayoutChanged;
     private readonly ListBox _assets = new() { SelectionMode = SelectionMode.Single, Classes={ "lf-assets" } };
     private readonly TextBlock _location=Text("Choose a location","location-heading"), _message=Text("","status"), _summary=Text(""), _source=Text("");
-    private readonly Button _back=Action("←"), _forward=Action("→"), _up=Action("↑"), _refresh=Action("↻"), _go=Action("Go"), _cancel=Action("Cancel"), _recursive=Action("Include Subfolders");
+    private readonly ToggleButton _recursive=new() {Classes={"lf-button","scope"}};
+    private readonly Avalonia.Controls.Shapes.Path _scopeIcon=BrowserPresentation.Icon("folder");
+    private readonly Button _back=Action("←"), _forward=Action("→"), _up=Action("↑"), _refresh=Action("↻"), _go=Action("Go"), _cancel=Action("Cancel");
     private readonly TextBox _address = new() { Watermark="Folder path", MinWidth=100, VerticalAlignment=VerticalAlignment.Center };
     private IReadOnlyList<BrowserFolderNode>? _shownRoots;
     private IReadOnlyList<MediaAsset>? _shownAssets;
@@ -127,8 +129,11 @@ public sealed class BrowserPane : UserControl
         var toolbar=new Grid { ColumnDefinitions=new("Auto,Auto,Auto,*,Auto,Auto"), Margin=new Thickness(0,0,0,4) };
         var controls = new Control[] { _back, _forward, _up, _address, _go, _refresh };
         for (var i=0; i<controls.Length; i++) { Grid.SetColumn(controls[i],i); controls[i].Margin=new Thickness(1,0); toolbar.Children.Add(controls[i]); }
-        foreach (var (button, icon, label) in new[] { (_back,"back","Back"), (_forward,"forward","Forward"), (_up,"up","Up one folder"), (_refresh,"refresh","Refresh current folder"), (_recursive,"scope","Include Subfolders"), (_cancel,"cancel","Stop loading"), (_panelToggle,"panel","Toggle Right Panel") })
+        foreach (var (button, icon, label) in new[] { (_back,"back","Back"), (_forward,"forward","Forward"), (_up,"up","Up one folder"), (_refresh,"refresh","Refresh current folder"), (_cancel,"cancel","Stop loading"), (_panelToggle,"panel","Toggle Right Panel") })
         { button.Content=BrowserPresentation.Icon(icon); button.Width=32; button.Classes.Add("quiet"); ToolTip.SetTip(button,label); AutomationProperties.SetName(button,label); }
+        _recursive.Content=new StackPanel {Orientation=Orientation.Horizontal,Spacing=6,Children={_scopeIcon,Text("Subfolders","scope")}};
+        _recursive.Padding=new Thickness(5,4); _recursive.FontSize=12;
+        AutomationProperties.SetName(_recursive,"Include Subfolders");
         ToolTip.SetTip(_go,"Open folder path"); AutomationProperties.SetName(_go,"Open folder path");
         _address.MinWidth=70; _address.Height=32; _address.Classes.Add("lf-input");
         AutomationProperties.SetName(_address,"Current folder path");
@@ -307,7 +312,10 @@ public sealed class BrowserPane : UserControl
         if (!_model.IsLoading && _cancel.IsKeyboardFocusWithin) _refresh.Focus(NavigationMethod.Tab);
         _cancel.IsVisible=_model.IsLoading;
         _back.IsEnabled=_model.CanGoBack; _forward.IsEnabled=_model.CanGoForward;
-        _recursive.IsEnabled=_model.CanChangeRecursive; _recursive.Content=BrowserPresentation.Icon("scope",_model.Recursive);
+        _recursive.IsEnabled=_model.CanChangeRecursive; _recursive.IsChecked=_model.Recursive;
+        LightflowTheme.State(_scopeIcon,"active",_model.Recursive);
+        ToolTip.SetTip(_recursive,_model.HasNoSubfolders && !_model.IsLoading
+            ? "No subfolders" : "Include Subfolders — browse this folder and every descendant folder as one media set");
         LightflowTheme.State(_recursive,"active",_model.Recursive);
         AutomationProperties.SetHelpText(_recursive,_model.Recursive ? "Include Subfolders on" : "Include Subfolders off");
         _progress.IsVisible=_model.IsLoading;
@@ -360,6 +368,9 @@ public sealed class BrowserPane : UserControl
             BrowserLocationKind.SystemVolume or BrowserLocationKind.LocalVolume=>"disk",
             BrowserLocationKind.ExternalVolume=>"external", BrowserLocationKind.NetworkShare=>"share", _=>"folder"
         };
+        var recursive=_model.IsRecursiveScope(row.Node);
+        // Scope uses Windows' filled folder silhouette; native device/server glyphs remain semantic.
+        if(recursive && row.Node.Kind is BrowserLocationKind.Home or BrowserLocationKind.Desktop or BrowserLocationKind.Documents or BrowserLocationKind.Downloads)kind="folder";
         if(row.Label is null)
         {
             row.Label=Text("","navigation"); row.Label.TextWrapping=TextWrapping.NoWrap;
@@ -378,10 +389,11 @@ public sealed class BrowserPane : UserControl
             row.IconKind=kind;
         }
         row.Label.Text=row.Node.Name+(row.Node.Availability.Length==0 ? "" : $" · {row.Node.Availability}");
-        LightflowTheme.State(row.Icon,"active",_model.Location?.Key==row.Node.Key);
+        LightflowTheme.State(row.Icon,"active",_model.IsFolderIconFilled(row.Node));
         AutomationProperties.SetName(row.Choose,row.Node.Name);
         AutomationProperties.SetHelpText(row.Choose,
             (_model.Location?.Key==row.Node.Key ? "Current folder. " : "")+
+            (recursive ? "Include Subfolders on (recursive scope). " : "")+
             (row.Node.AbsolutePath ?? row.Node.RelativeFolder)+
             (row.Node.Availability.Length==0 ? "" : $". {row.Node.Availability}"));
     }

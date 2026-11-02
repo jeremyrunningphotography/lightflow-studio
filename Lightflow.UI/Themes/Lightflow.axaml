@@ -65,6 +65,10 @@
   <Style Selector="TextBlock.lf-text.location-heading"><Setter Property="FontSize" Value="14"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
   <Style Selector="TextBlock.lf-text.navigation"><Setter Property="Foreground" Value="{DynamicResource LightflowNavigation}"/></Style>
   <Style Selector="Button.lf-button"><Setter Property="Theme" Value="{StaticResource LightflowButtonTheme}"/></Style>
+  <Style Selector="ToggleButton.lf-button.scope"><Setter Property="Theme" Value="{StaticResource LightflowButtonTheme}"/><Setter Property="Foreground" Value="{DynamicResource LightflowMuted}"/></Style>
+  <Style Selector="ToggleButton.lf-button.scope.active"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/></Style>
+  <Style Selector="ToggleButton.scope TextBlock.lf-text.scope"><Setter Property="Foreground" Value="{DynamicResource LightflowMuted}"/><Setter Property="FontSize" Value="12"/></Style>
+  <Style Selector="ToggleButton.scope.active TextBlock.lf-text.scope"><Setter Property="Foreground" Value="{DynamicResource LightflowText}"/></Style>
   <Style Selector="Button.lf-button.primary"><Setter Property="Foreground" Value="{DynamicResource LightflowCanvas}"/><Setter Property="Background" Value="{DynamicResource LightflowAccent}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
   <Style Selector="Button.lf-button.danger"><Setter Property="Background" Value="{DynamicResource LightflowDanger}"/><Setter Property="BorderBrush" Value="{DynamicResource LightflowDangerBorder}"/></Style>
   <Style Selector="Button.lf-button.quiet"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderBrush" Value="Transparent"/></Style>

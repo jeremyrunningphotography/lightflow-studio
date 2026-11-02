@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | I04 sidebar/cloud-only/offline-root/Catalog/mount checks accepted; I05 typed availability and truthful partial discovery implemented; owner/Windows/exact-head CI/merge gated |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | I05 hands-on accepted; I06 Windows-equivalent recursive tree indicators and labeled Subfolders toggle implemented; owner/Windows/exact-head CI/merge gated |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -624,3 +624,13 @@ and preserve identities/authored data. Application 141, Catalog 52, UI 59 and na
 59 Release tests pass. Fresh I05 isolated package/Markdown handoff, owner hands-on,
 Windows, exact-head CI and explicit merge remain gated. No spinner policy changes,
 Computer Use, screenshot, ZIP, new assignment or separate branch.
+
+
+030 continuation — 2026-11-02 I06: owner accepted I05 and requires recursive tree
+indication and toolbar parity before merge. Verified Windows selected-OR-effective
+scope filled icons, inherited root/descendant rules, labeled Subfolders toggle and
+leaf capability. Mac read-only presentation metadata/cache and retained row styling
+now reflect those rules immediately; Windows UI and discovery semantics unchanged.
+Application 141, Catalog 52, shared UI 61 and native 60 Release tests pass. Fresh I06
+isolated package/Markdown handoff, owner, independent Windows, exact-head CI and
+explicit merge remain gates. Same assignment/branch/Draft PR; no spinner or #468 work.

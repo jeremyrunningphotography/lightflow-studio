@@ -112,7 +112,7 @@ public sealed class BrowserPane : UserControl
         }
     }
     private readonly ScrollViewer _sideScroll;
-    private long _treeGeneration;
+    private long _treeGeneration, _rootGeneration, _shownFolderRefreshRevision;
     public BrowserPane(BrowserViewModel model, BrowserLayout? savedLayout = null)
     {
         _model=model;
@@ -265,9 +265,11 @@ public sealed class BrowserPane : UserControl
         AutomationProperties.SetName(row.Toggle,$"{(row.Expanded ? "Collapse" : "Expand")} {row.Node.Name}");
         AutomationProperties.SetHelpText(row.Toggle,row.Expanded ? "Expanded" : "Collapsed");
     }
-    private async Task RefreshTreeAsync()
+    private async Task RefreshTreeAsync(bool refreshFolders)
     {
-        var tree=++_treeGeneration; var offset=_sideScroll.Offset;
+        var rootRevision=++_rootGeneration;
+        if(refreshFolders)_treeGeneration++;
+        var offset=_sideScroll.Offset;
         var previousRows=_rows.Values.ToArray();
         var rootRows=_model.Roots.Select(node => Folder(node)).ToArray();
         var desired=rootRows.Where(row=>row.Node.Section==BrowserLocationSection.None).Select(row=>(Control)row.Group).ToList();
@@ -295,9 +297,10 @@ public sealed class BrowserPane : UserControl
         // Disconnected roots and their old asynchronous rows cannot publish back into the live list.
         bool Live(FolderRow row) => rootRows.Any(root=>row.TreeKey==root.TreeKey || row.TreeKey.StartsWith(root.TreeKey+">",StringComparison.Ordinal));
         foreach(var row in previousRows.Where(row=>!Live(row))) { row.Generation++; _rows.Remove(row.TreeKey); }
-        await Task.WhenAll(previousRows.Where(row=>Live(row) && _rows.ContainsKey(row.TreeKey)).Select(row=>LoadRowAsync(row)));
-        if (tree == _treeGeneration)
-            Dispatcher.UIThread.Post(()=> { if(tree==_treeGeneration) _sideScroll.Offset=offset; },DispatcherPriority.Loaded);
+        if(refreshFolders)
+            await Task.WhenAll(previousRows.Where(row=>Live(row) && _rows.ContainsKey(row.TreeKey)).Select(row=>LoadRowAsync(row)));
+        if (rootRevision == _rootGeneration)
+            Dispatcher.UIThread.Post(()=> { if(rootRevision==_rootGeneration) _sideScroll.Offset=offset; },DispatcherPriority.Loaded);
     }
     private void Update()
     {
@@ -319,9 +322,11 @@ public sealed class BrowserPane : UserControl
         _message.Text=_model.Message; _message.IsVisible=!string.IsNullOrEmpty(_model.Message); ToolTip.SetTip(_message,_model.Message);
         if(!ReferenceEquals(_shownRoots,_model.Roots))
         {
+            var refreshFolders=_shownFolderRefreshRevision!=_model.FolderRefreshRevision;
+            _shownFolderRefreshRevision=_model.FolderRefreshRevision;
             _shownRoots=_model.Roots;
             if (!_model.IsAvailable) { _treeGeneration++; _rows.Clear(); _groups.Clear(); _roots.Children.Clear(); }
-            else _ = RefreshTreeAsync();
+            else _ = RefreshTreeAsync(refreshFolders);
         }
         foreach (var row in _rows.Values)
         {

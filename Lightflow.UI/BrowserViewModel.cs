@@ -16,12 +16,15 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
 {
     public event PropertyChangedEventHandler? PropertyChanged;
     private CancellationTokenSource _lifetime = new();
-    private CancellationTokenSource? _navigation, _selectionRead;
+    private CancellationTokenSource? _navigation, _selectionRead, _locationUpdate;
     private long _epoch, _generation, _selectionGeneration;
     private Guid? _catalogId;
     private IReadOnlyList<MediaRootInfo> _catalogRoots = [];
     private long _refreshGeneration;
-    private readonly HashSet<string> _observedNetworkMounts = new(StringComparer.Ordinal);
+    private HashSet<string> _liveVolumeMounts = new(StringComparer.Ordinal);
+    private string? _unavailableVolume;
+    public long FolderRefreshRevision { get; private set; }
+    private readonly HashSet<string> _observedVolumeMounts = new(StringComparer.Ordinal);
     private readonly List<BrowserFolderNode> _back = [], _forward = [];
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
@@ -43,10 +46,11 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
 
     public void Suspend()
     {
-        _epoch++; _generation++; _selectionGeneration++;
+        _epoch++; _generation++; _selectionGeneration++; _refreshGeneration++; FolderRefreshRevision++;
+        _locationUpdate?.Cancel(); _unavailableVolume=null; _liveVolumeMounts.Clear();
         _lifetime.Cancel(); _lifetime.Dispose(); _lifetime = new();
         _navigation?.Cancel(); _selectionRead?.Cancel();
-        _back.Clear(); _forward.Clear(); _observedNetworkMounts.Clear();
+        _back.Clear(); _forward.Clear(); _observedVolumeMounts.Clear();
         _catalogId = null; IsAvailable = false; IsLoading = false; Roots = []; Assets = []; Location = null;
         _selection.Clear(); SourceMessage = "Select an asset to see its Catalog details."; Notify();
     }
@@ -80,6 +84,8 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false)
     {
         if(!IsAvailable) return [];
+        if(node.AbsolutePath is { } unavailable && IsKnownUnmountedPath(unavailable))
+            return [new(node.RootId,node.RelativeFolder,VolumeUnavailableMessage,"unavailable",unavailable)];
         var epoch=_epoch; using var demand=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); demand.CancelAfter(TimeSpan.FromSeconds(15)); var token=demand.Token;
         try
         {
@@ -105,11 +111,14 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         _navigation?.Cancel(); _navigation?.Dispose(); _navigation=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
         if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
+        _unavailableVolume=null;
         Location=node; IsLoading=true; Recursive=false;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
         Message="Checking folder…"; Notify();
         try
         {
+            if(node.AbsolutePath is { } missingMount && IsKnownUnmountedPath(missingMount))
+            { _unavailableVolume=missingMount; Message=VolumeUnavailableMessage; return; }
             if (locations is not null && node.AbsolutePath is { } path)
             {
                 var listing = await locations.GetFoldersAsync(path, token, userInitiated: true).WaitAsync(token);
@@ -205,6 +214,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     public async Task RefreshAsync()
     {
         if (_catalogId is not { } id) return;
+        _locationUpdate?.Cancel();
         var refresh = ++_refreshGeneration; var epoch = _epoch; var navigation = _generation;
         var location = Location;
         using var demand = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -218,7 +228,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             var catalogNodes = content.Roots.Select(root => new BrowserFolderNode(root.RootId,"",root.DisplayName,
                 root.Availability == MediaRootAvailability.Online ? "" : "Unavailable", locations is null ? null : root.PhysicalPath));
             Roots = discovered is null ? catalogNodes.ToArray() : MergeRoots(discovered,catalogNodes);
-            IsAvailable = true;
+            IsAvailable = true; FolderRefreshRevision++;
             Notify();
             if (location is not null) await NavigateAsync(location, refreshing: true);
         }
@@ -230,16 +240,77 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             { Message = "Locations couldn't be refreshed. Current context is preserved; retry."; Notify(); }
         }
     }
+    public void ReportLocationUpdatesUnavailable()
+    {
+        Message="Automatic volume updates are unavailable. Use Refresh to update Locations."; Notify();
+    }
+    private const string VolumeUnavailableMessage = "This volume is no longer mounted. Reconnect it, then retry or Refresh. Catalog records are preserved.";
+    private bool IsKnownUnmountedPath(string path)
+    {
+        var mount=_observedVolumeMounts.Where(mount=>Under(path,mount)).OrderByDescending(mount=>mount.Length).FirstOrDefault();
+        return mount is not null && !_liveVolumeMounts.Contains(mount);
+    }
+    private static bool Under(string path,string mount) => path==mount || path.StartsWith(mount=="/" ? "/" : mount+"/",StringComparison.Ordinal);
+
+    /// <summary>UI-thread entry for native hints. Snapshot/read-only presentation only: never RefreshAsync/Discover/Navigate.</summary>
+    public async Task ReconcileLocationsAsync(CancellationToken cancellationToken = default)
+    {
+        if(!IsAvailable || locations is null)return;
+        _locationUpdate?.Cancel(); _locationUpdate?.Dispose();
+        using var update=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token,cancellationToken);
+        _locationUpdate=update; update.CancelAfter(TimeSpan.FromSeconds(15));
+        var token=update.Token; var revision=++_refreshGeneration; var epoch=_epoch;
+        try
+        {
+            var discovered=await locations.GetLocationsAsync(token).WaitAsync(token);
+            if(epoch!=_epoch || revision!=_refreshGeneration || token.IsCancellationRequested)return;
+            var catalogNodes=_catalogRoots.Select(root=>new BrowserFolderNode(root.RootId,"",root.DisplayName,
+                root.Availability==MediaRootAvailability.Online ? "" : "Unavailable",root.PhysicalPath));
+            var roots=MergeRoots(discovered,catalogNodes);
+            var changed=!roots.SequenceEqual(Roots);
+            if(changed)Roots=roots;
+            if(Location is { AbsolutePath: { } path } current)
+            {
+                if(IsKnownUnmountedPath(path))
+                {
+                    _navigation?.Cancel(); _generation++; _selectionRead?.Cancel(); _selectionGeneration++;
+                    IsLoading=false; _unavailableVolume=path; Message=VolumeUnavailableMessage;
+                    if(SelectedAssetId is not null)SourceMessage="Source unavailable. Reconnect its volume, then retry selection or Refresh. Catalog records are preserved.";
+                    changed=true;
+                }
+                else if(_unavailableVolume==path)
+                {
+                    _unavailableVolume=null;
+                    Message="The volume is available again. Retry navigation or Refresh to check its contents.";
+                    if(SelectedAssetId is not null)SourceMessage="Source availability needs rechecking. Retry selection or Refresh.";
+                    changed=true;
+                }
+                // A display rename never replaces filesystem/Catalog/navigation identity.
+                if(roots.FirstOrDefault(root=>root.Key==current.Key) is { } renamed && renamed.Name!=current.Name)
+                { Location=current with { Name=renamed.Name }; changed=true; }
+            }
+            if(changed)Notify();
+        }
+        catch(OperationCanceledException) { }
+        catch(Exception error)
+        {
+            Console.Error.WriteLine(error);
+            if(epoch==_epoch && revision==_refreshGeneration && !token.IsCancellationRequested)
+            { Message="Locations couldn't be updated automatically. Current context is preserved; use Refresh to retry."; Notify(); }
+        }
+        finally { if(ReferenceEquals(_locationUpdate,update))_locationUpdate=null; }
+    }
     private IReadOnlyList<BrowserFolderNode> MergeRoots(IReadOnlyList<BrowserFileLocation> discovered, IEnumerable<BrowserFolderNode> catalogNodes)
     {
-        foreach(var mount in discovered.Where(node=>node.Section==BrowserLocationSection.Network))
-            _observedNetworkMounts.Add(mount.Path);
-        // A Catalog mapping is not a live mounted-share bookmark. Keep its records and
-        // current/history identities, but never reinsert a disconnected native Network entry.
+        _liveVolumeMounts=discovered.Where(node=>node.Section is BrowserLocationSection.Devices or BrowserLocationSection.Network)
+            .Select(node=>node.Path).ToHashSet(StringComparer.Ordinal);
+        foreach(var path in _liveVolumeMounts)_observedVolumeMounts.Add(path);
+        // A Catalog mapping is not a live volume bookmark. Preserve records/history,
+        // but do not reinsert a known disconnected local/external/network mount.
         var live=discovered.Select(node=>node.Path).ToHashSet(StringComparer.Ordinal);
         return discovered.Select(FileNode).Concat(catalogNodes.Where(node=>node.AbsolutePath is not { } path ||
-            !_observedNetworkMounts.Any(mount=>!live.Contains(mount) &&
-                (path==mount || path.StartsWith(mount+"/",StringComparison.Ordinal)))))
+            !_observedVolumeMounts.Any(mount=>!live.Contains(mount) &&
+                Under(path,mount))))
             .DistinctBy(node=>node.Key).ToArray();
     }
     private BrowserFolderNode FileNode(BrowserFileLocation location)

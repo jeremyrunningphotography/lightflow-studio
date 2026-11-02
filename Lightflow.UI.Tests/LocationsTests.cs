@@ -113,7 +113,7 @@ public sealed class LocationsTests
             Assert.Equal(BrowserLocationKind.NetworkShare,model.Location!.Kind);
             await model.SelectAsync(service.Asset.AssetId);provider.Connected=false;await model.RefreshAsync();Dispatcher.UIThread.RunJobs();
             Assert.Equal("/Volumes/JRP",model.Location!.AbsolutePath);Assert.Equal(service.Asset.AssetId,model.SelectedAssetId);
-            Assert.Contains("missing",model.Message);Assert.True(model.CanGoBack);
+            Assert.Contains("no longer mounted",model.Message);Assert.True(model.CanGoBack);
             Assert.DoesNotContain(model.Roots,node=>node.AbsolutePath=="/Volumes/JRP");
             Assert.DoesNotContain(pane.GetVisualDescendants().OfType<Button>(),button=>AutomationProperties.GetName(button)=="Mounted share");
             provider.Connected=true;await model.RefreshAsync();Dispatcher.UIThread.RunJobs();

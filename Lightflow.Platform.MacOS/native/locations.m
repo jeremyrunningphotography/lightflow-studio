@@ -38,3 +38,50 @@ char *lf_browser_mounts(void) {
         return strdup([[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding].UTF8String);
     }
 }
+
+#import <AppKit/AppKit.h>
+typedef void (*LFVolumeCallback)(void);
+@interface LFVolumeObserver : NSObject
+@property(nonatomic, strong) NSArray *tokens;
+@property(nonatomic, strong) NSNotificationCenter *center;
+@property(nonatomic) LFVolumeCallback callback;
+@property(nonatomic) BOOL active;
+@end
+@implementation LFVolumeObserver
+@end
+
+void *lf_browser_observe_volumes(LFVolumeCallback callback) {
+    @autoreleasepool {
+        if (!callback) return NULL;
+        LFVolumeObserver *observer = [LFVolumeObserver new];
+        observer.center = NSWorkspace.sharedWorkspace.notificationCenter;
+        observer.callback = callback; observer.active = YES;
+        NSMutableArray *tokens = [NSMutableArray new];
+        __weak LFVolumeObserver *weakObserver = observer;
+        for (NSNotificationName name in @[NSWorkspaceDidMountNotification,
+            NSWorkspaceDidUnmountNotification, NSWorkspaceDidRenameVolumeNotification]) {
+            id token = [observer.center addObserverForName:name object:nil queue:nil usingBlock:^(__unused NSNotification *note) {
+                LFVolumeObserver *current = weakObserver;
+                if (!current) return;
+                @synchronized (current) {
+                    if (current.active) current.callback();
+                }
+            }];
+            [tokens addObject:token];
+        }
+        observer.tokens = tokens;
+        return (__bridge_retained void *)observer;
+    }
+}
+void lf_browser_stop_observing_volumes(void *handle) {
+    @autoreleasepool {
+        if (!handle) return;
+        LFVolumeObserver *observer = (__bridge_transfer LFVolumeObserver *)handle;
+        // Synchronize with in-flight callbacks before releasing the managed delegate.
+        @synchronized (observer) {
+            observer.active = NO;
+        }
+        for (id token in observer.tokens) [observer.center removeObserver:token];
+        observer.tokens = nil;
+    }
+}

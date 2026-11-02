@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | I01 owner baseline9/9 accepted; I02 permanent headings/smaller disclosures implementing; fresh capture/acceptance gated |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | I01 9/9 and I02 6/6 owner baselines accepted; I03 automatic volume lifecycle implementing; Markdown handoff, acceptance/Windows/CI/merge gated |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -590,3 +590,14 @@ I01 native/shared behavior and #460 discovery retained. I02 UI51/native50PASS; f
 package/staging without desktop control. Stop for new5–7minute capture permission,
 then owner I02 review; Windows/exact-headCI/explicit merge remain separate. I01
 CI41380067750SUCCESS carried as historical evidence only. Project access gap unchanged.
+
+030 continuation — 2026-11-02 I03: Jeremy accepted all six I02 checks and authorized
+automatic native mount/unmount/rename reconciliation for local/external and mounted
+network volumes. Same assignment, clone, branch and Draft PR #467. Native observer
+feeds debounced/cancellable UI-thread shared-model reconciliation without discovery
+or Catalog mutation; current unavailable path/history/selection retained. Application
+141 / UI 55 / native 52 tests pass; actual hardware events await owner hands-on.
+Separate narrow AGENTS.md workflow commit 50cb7a3 records Markdown-first routine
+handoffs, without mandatory screenshots/Computer Use/ZIP. No desktop control performed.
+Fresh I03 package/report, Windows local qualification, exact-head CI, owner acceptance
+and explicit merge remain gates. Project/native-parent tool gap unchanged; no release.

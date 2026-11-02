@@ -6,15 +6,25 @@ namespace Lightflow.Platform.MacOS;
 /// <summary>Native location discovery only. No Catalog, probe, mapping or ingestion effects.</summary>
 public sealed class MacBrowserLocationProvider : IBrowserLocationProvider
 {
-    private readonly SemaphoreSlim _enumeration = new(2, 2), _navigation = new(2, 2);
-    public Task<IReadOnlyList<BrowserFileLocation>> GetLocationsAsync(CancellationToken token) => Task.Run<IReadOnlyList<BrowserFileLocation>>(() =>
+    private readonly SemaphoreSlim _enumeration = new(2, 2), _navigation = new(2, 2), _mounts = new(1, 1);
+    public async Task<IReadOnlyList<BrowserFileLocation>> GetLocationsAsync(CancellationToken token)
     {
-        token.ThrowIfCancellationRequested();
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var mounts = MacBrowserMounts.Read();
-        token.ThrowIfCancellationRequested();
-        return MacBrowserMounts.Locations(home, mounts);
-    }, token);
+        await _mounts.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            // An OS metadata call cannot be forcibly interrupted. Keep at most one
+            // actual snapshot in flight; newer cancelled hints do not accumulate threads.
+            return await Task.Run<IReadOnlyList<BrowserFileLocation>>(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var mounts = MacBrowserMounts.Read();
+                token.ThrowIfCancellationRequested();
+                return MacBrowserMounts.Locations(home, mounts);
+            },token).ConfigureAwait(false);
+        }
+        finally { _mounts.Release(); }
+    }
 
     public async Task<BrowserLocationListing> GetFoldersAsync(string absolutePath, CancellationToken token, bool userInitiated = false)
     {

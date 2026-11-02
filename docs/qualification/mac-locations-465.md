@@ -1,3 +1,100 @@
+# LF-MAC-DEV-030 — I03 automatic volume lifecycle / current qualification
+
+Jeremy accepted I01 (9/9) and I02 (6/6) as the functional/visual baseline. I03 adds
+only automatic macOS volume lifecycle reconciliation; accepted layout is retained.
+The owner-approved I03 workflow revision removes the routine screenshot/ZIP gate.
+No Computer Use or actual mount/eject operation is performed by this implementation.
+
+## I03 implementation
+
+- `MacVolumeChangeSource` owns native NSWorkspace mount, unmount and volume-rename
+  subscriptions. It registers with the workspace notification center, not the default
+  center. Native callback/disposal synchronization keeps the managed delegate alive
+  until callbacks stop. No network scanning, mounting or credentials.
+- `BrowserLocationMonitor` owns the subscription, a 250 ms event debounce and cancellable
+  serial reconciliation. Notifications are hints; fresh native snapshots determine
+  the current list, so duplicate/out-of-order payloads cannot invent stale mounts.
+  There is no recurring timer or continuous polling. Late results are rejected.
+- The Mac host dispatches reconciliation through Avalonia's UI dispatcher. A ready
+  Catalog also requests reconciliation once per Browser epoch, closing the initial
+  open/subscription race without turning the existing Catalog readiness timer into
+  volume polling.
+  Shutdown unsubscribes and cancels/drains the monitor before closing the Catalog.
+  Failed native observer setup leaves manual Refresh and actionable feedback available.
+- `BrowserViewModel.ReconcileLocationsAsync` updates only transient location presentation
+  using cached Catalog mappings. It does not invoke navigation, discovery, source
+  probing, recursive media scans, Catalog readers or mutations. Existing rows/expanded
+  branches are reconciled without re-enumerating retained folder trees.
+- Known removed local/external/network mounts are excluded from the live list, including
+  Catalog shortcut fallbacks. Current path, RootId/AssetId, history, cached assets and
+  selection remain; ongoing navigation is cancelled and actionable unavailable text
+  replaces stale availability. Reconnection restores entries and offers explicit retry
+  or manual Refresh, without automatically rescanning media.
+- Native display-name changes update labels while preserving path/Catalog identity.
+  If macOS also changes the mount path, the new native path gets its own entry and the
+  old active path stays unavailable; no automatic Catalog mapping rewrite occurs.
+- Native metadata reads are limited to one actual snapshot per provider. Cancellation
+  cannot forcibly interrupt a blocked OS metadata call, but cancelled queued hints do
+  not accumulate native snapshot threads. The existing presentation timeout remains.
+
+Official notification contracts: [mount](https://developer.apple.com/documentation/appkit/nsworkspace/didmountnotification)
+and [volume rename](https://developer.apple.com/documentation/appkit/nsworkspace/didrenamevolumenotification).
+The notification center choice follows these contracts; actual mount delivery still
+requires owner hands-on qualification with real storage.
+
+## I03 validation
+
+- Application Release: 141 passed, including event burst coalescing, in-flight supersession,
+  cancellation/disposal and an uncooperative native read.
+- Shared UI Release: 55 passed, including local/external/network removal/reconnection,
+  duplicate snapshots, rename identity, current path/history/selected asset preservation,
+  manual Refresh, late/suspended snapshots and background-event UI dispatch. Counter
+  assertions verify automatic events do not call Catalog reads/discovery/source probes
+  or re-enumerate retained folder trees.
+- Mac native Release: 52 passed, including existing classification/Catalog safety tests
+  and real native subscription/disposal driven by synthetic process-local workspace
+  mount/unmount/rename notifications. No actual volumes were mounted or ejected.
+- Mac host Release compilation passed with zero errors. Final self-contained package,
+  exact source/build hashes and CI status are recorded in the I03 completion report.
+
+Original failures are retained in task logs: the old disconnected-share assertion
+expected generic missing-folder text; it now expects precise unmounted-volume feedback.
+An initial dispatcher overload compilation error was corrected. Final focused suites
+pass; existing obsolete headless-key and native platform-analysis warnings remain.
+No persistent Catalog schema, admission policy, writer or Windows WPF shipping change.
+Windows regression/local package qualification remains independent.
+
+## Workflow documentation and I03 handoff
+
+Separate narrow documentation commit `50cb7a3459cb947ea84a6eb299787cda52280bff`
+adds the owner-approved implementation handoff convention to root `AGENTS.md`.
+Routine implementations use a self-contained Markdown completion report; significant
+visual redesign/uncertainty warrants screenshots/evidence packaging. Explicit permission
+before desktop control and all acceptance/test/Windows/CI/merge gates remain unchanged.
+
+Task-relative paths in the existing clone:
+- Runnable bundle: `artifacts/lf030-i03-app/Lightflow Studio.app`.
+- New isolated data root: `artifacts/lf030-i03-acceptance`.
+- Disposable local media: `artifacts/lf030-i03-navigation`.
+- Report/provenance/test evidence: `artifacts/lf030-i03-handoff`.
+
+The final single fenced Markdown report supplies absolute executable/data-root paths,
+a complete Terminal launch command, exact provenance, validation and owner checklist.
+No routine screenshot/Computer Use/ZIP gate. Owner tests actual JRP and local/external
+mount/unmount, reconnection and supported rename. Never force-eject user storage as
+an agent test. General network outage/reachability, network scanning/automatic mounting,
+credential management and user-managed Favorites remain out of scope.
+
+Keep Draft PR #467 unmerged and #465 open. Required: Jeremy's I03 hands-on acceptance,
+independent Windows qualification, exact-head CI and explicit merge authorization.
+Project/native-parent/dependency tooling remains unavailable; no field changes claimed.
+No release/tag, broader Epic completion or historical rewrite. A new Chronicle entry
+is not warranted for this bounded correction; accepted milestone evidence is preserved.
+
+---
+
+The following I02/I01 material is historical and does not reinstate a screenshot gate.
+
 # LF-MAC-DEV-030 — I02 correction / current handoff
 
 Owner-approved I02 in #465 supersedes I01 section-collapse behavior. Jeremy passed

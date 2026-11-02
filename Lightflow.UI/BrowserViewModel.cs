@@ -4,7 +4,9 @@ using LightflowStudio;
 
 namespace Lightflow.UI;
 
-public sealed record BrowserFolderNode(Guid RootId, string RelativeFolder, string Name, string Availability = "", string? AbsolutePath = null, bool CanPrefetch = true)
+public sealed record BrowserFolderNode(Guid RootId, string RelativeFolder, string Name, string Availability = "", string? AbsolutePath = null, bool CanPrefetch = true,
+    BrowserLocationSection Section = BrowserLocationSection.None,
+    BrowserLocationKind Kind = BrowserLocationKind.Folder, string? Server = null)
 {
     public string Key => AbsolutePath ?? $"{RootId}/{RelativeFolder}";
 }
@@ -19,6 +21,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
     private Guid? _catalogId;
     private IReadOnlyList<MediaRootInfo> _catalogRoots = [];
     private long _refreshGeneration;
+    private readonly HashSet<string> _observedNetworkMounts = new(StringComparer.Ordinal);
     private readonly List<BrowserFolderNode> _back = [], _forward = [];
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
@@ -43,7 +46,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         _epoch++; _generation++; _selectionGeneration++;
         _lifetime.Cancel(); _lifetime.Dispose(); _lifetime = new();
         _navigation?.Cancel(); _selectionRead?.Cancel();
-        _back.Clear(); _forward.Clear();
+        _back.Clear(); _forward.Clear(); _observedNetworkMounts.Clear();
         _catalogId = null; IsAvailable = false; IsLoading = false; Roots = []; Assets = []; Location = null;
         _selection.Clear(); SourceMessage = "Select an asset to see its Catalog details."; Notify();
     }
@@ -64,7 +67,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             {
                 var discovered = await locations.GetLocationsAsync(token).WaitAsync(token);
                 if (epoch != _epoch || token.IsCancellationRequested) return;
-                Roots = discovered.Select(FileNode).Concat(catalogNodes).DistinctBy(node => node.Key).ToArray();
+                Roots = MergeRoots(discovered,catalogNodes);
             }
             else Roots = catalogNodes;
             IsAvailable = true;
@@ -112,8 +115,8 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
                 var listing = await locations.GetFoldersAsync(path, token, userInitiated: true).WaitAsync(token);
                 if (generation != _generation || token.IsCancellationRequested) return;
                 if (listing.Status != MediaFolderEnumerationStatus.Succeeded)
-                { Assets=[]; _selection.Clear(); Message = Unavailable(listing.Status); return; }
-                node = FileNode(new(path, node.Name));
+                { if (!refreshing) { Assets=[]; _selection.Clear(); } Message = Unavailable(listing.Status); return; }
+                node = FileNode(new(path, node.Name, node.CanPrefetch, node.Section, node.Kind, node.Server));
                 Location = node;
                 if (node.RootId == Guid.Empty && session is not IBrowserDiscoverySession)
                 { Assets=[]; _selection.Clear(); Message = "This folder is not cataloged. Folder navigation does not import files."; return; }
@@ -214,7 +217,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             _catalogRoots = content.Roots;
             var catalogNodes = content.Roots.Select(root => new BrowserFolderNode(root.RootId,"",root.DisplayName,
                 root.Availability == MediaRootAvailability.Online ? "" : "Unavailable", locations is null ? null : root.PhysicalPath));
-            Roots = (discovered is null ? catalogNodes : discovered.Select(FileNode).Concat(catalogNodes)).DistinctBy(node => node.Key).ToArray();
+            Roots = discovered is null ? catalogNodes.ToArray() : MergeRoots(discovered,catalogNodes);
             IsAvailable = true;
             Notify();
             if (location is not null) await NavigateAsync(location, refreshing: true);
@@ -227,10 +230,25 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             { Message = "Locations couldn't be refreshed. Current context is preserved; retry."; Notify(); }
         }
     }
+    private IReadOnlyList<BrowserFolderNode> MergeRoots(IReadOnlyList<BrowserFileLocation> discovered, IEnumerable<BrowserFolderNode> catalogNodes)
+    {
+        foreach(var mount in discovered.Where(node=>node.Section==BrowserLocationSection.Network))
+            _observedNetworkMounts.Add(mount.Path);
+        // A Catalog mapping is not a live mounted-share bookmark. Keep its records and
+        // current/history identities, but never reinsert a disconnected native Network entry.
+        var live=discovered.Select(node=>node.Path).ToHashSet(StringComparer.Ordinal);
+        return discovered.Select(FileNode).Concat(catalogNodes.Where(node=>node.AbsolutePath is not { } path ||
+            !_observedNetworkMounts.Any(mount=>!live.Contains(mount) &&
+                (path==mount || path.StartsWith(mount+"/",StringComparison.Ordinal)))))
+            .DistinctBy(node=>node.Key).ToArray();
+    }
     private BrowserFolderNode FileNode(BrowserFileLocation location)
     {
+        if(location.Section==BrowserLocationSection.None && Roots.FirstOrDefault(node=>node.AbsolutePath==location.Path && node.Section!=BrowserLocationSection.None) is { } known)
+            location=location with { Name=known.Name, Section=known.Section, Kind=known.Kind, Server=known.Server };
         var scope = BrowserLocationMapping.Find(location.Path, _catalogRoots, StringComparison.Ordinal);
-        return new(scope?.RootId ?? Guid.Empty, scope?.RelativeFolder ?? "", location.Name, AbsolutePath: location.Path, CanPrefetch: scope is not null || location.CanPrefetch);
+        return new(scope?.RootId ?? Guid.Empty, scope?.RelativeFolder ?? "", location.Name, AbsolutePath: location.Path, CanPrefetch: location.CanPrefetch || (scope is not null && location.Section==BrowserLocationSection.None),
+            Section: location.Section, Kind: location.Kind, Server: location.Server);
     }
     private static string Unavailable(MediaFolderEnumerationStatus status) => status switch
     {

@@ -9,29 +9,11 @@ public sealed class MacBrowserLocationProvider : IBrowserLocationProvider
     private readonly SemaphoreSlim _enumeration = new(2, 2), _navigation = new(2, 2);
     public Task<IReadOnlyList<BrowserFileLocation>> GetLocationsAsync(CancellationToken token) => Task.Run<IReadOnlyList<BrowserFileLocation>>(() =>
     {
+        token.ThrowIfCancellationRequested();
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var result = new List<BrowserFileLocation> { new(home, "Home") };
-        foreach (var name in new[] { "Desktop", "Documents", "Downloads" })
-            result.Add(new(Path.Combine(home, name), name, CanPrefetch: false));
-        // Read the actual mount table, including the startup volume and already-mounted
-        // authorized network shares. No network discovery, credentials or mounting.
-        foreach (var drive in DriveInfo.GetDrives())
-        {
-            token.ThrowIfCancellationRequested();
-            var path = Path.TrimEndingDirectorySeparator(drive.Name);
-            if (path != "/" && !path.StartsWith("/Volumes/",StringComparison.Ordinal)) continue;
-            try
-            {
-                var attributes = File.GetAttributes(path);
-                if ((attributes & (FileAttributes.ReparsePoint|FileAttributes.Hidden)) != 0 ||
-                    path.Split('/').Any(part=>part.StartsWith('.'))) continue;
-                var name = path == "/" ? drive.VolumeLabel : Path.GetFileName(path);
-                result.Add(new(path,string.IsNullOrWhiteSpace(name) ? path : name,CanPrefetch:false));
-            }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
-        return result.DistinctBy(location => location.Path, StringComparer.Ordinal).ToArray();
+        var mounts = MacBrowserMounts.Read();
+        token.ThrowIfCancellationRequested();
+        return MacBrowserMounts.Locations(home, mounts);
     }, token);
 
     public async Task<BrowserLocationListing> GetFoldersAsync(string absolutePath, CancellationToken token, bool userInitiated = false)

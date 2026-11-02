@@ -11,6 +11,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Controls.Presenters;
 using LightflowStudio;
+using Lightflow.Application;
 
 namespace Lightflow.UI;
 
@@ -45,11 +46,65 @@ public sealed class BrowserPane : UserControl
         public BrowserFolderNode Node = node;
         public StackPanel Group = group, Children = children;
         public Button Choose = choose, Toggle = toggle;
+        public TextBlock Label = null!;
+        public Avalonia.Controls.Shapes.Path Icon = null!;
+        public string IconKind = "";
         public bool Expanded;
         public long Generation;
         public IReadOnlyList<BrowserFolderNode> Folders = [];
     }
     private readonly Dictionary<string, FolderRow> _rows = [];
+    private sealed class LocationGroup(StackPanel view, StackPanel children, Button toggle)
+    {
+        public StackPanel View = view, Children = children;
+        public Button Toggle = toggle;
+        public bool Expanded = true;
+    }
+    private readonly Dictionary<string, LocationGroup> _groups = [];
+    private LocationGroup Group(string key, string name, bool server = false)
+    {
+        if (_groups.TryGetValue(key, out var retained)) return retained;
+        var children = new StackPanel { Spacing=0, Margin=new Thickness(server ? 12 : 0,0,0,4) };
+        var label=Text(name, server ? "navigation" : "muted");
+        label.TextWrapping=TextWrapping.NoWrap; label.TextTrimming=TextTrimming.CharacterEllipsis;
+        var header=new Grid { ColumnDefinitions=new(server ? "24,24,*" : "24,*"), MinHeight=32 };
+        var disclosure=BrowserPresentation.Icon("down"); disclosure.VerticalAlignment=VerticalAlignment.Center;
+        header.Children.Add(disclosure);
+        if(server) { var icon=BrowserPresentation.Icon("server"); icon.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(icon,1); header.Children.Add(icon); }
+        Grid.SetColumn(label,server ? 2 : 1); label.VerticalAlignment=VerticalAlignment.Center; header.Children.Add(label);
+        var button=Action(""); button.Content=header; button.Classes.Add("quiet");
+        button.HorizontalAlignment=HorizontalAlignment.Stretch; button.HorizontalContentAlignment=HorizontalAlignment.Stretch;
+        ToolTip.SetTip(button,name);
+        var view=new StackPanel { Spacing=0, Children={button,children} };
+        if(!server)
+        {
+            view.Margin=new Thickness(0,4,0,4);
+            if(key!="section:"+BrowserLocationSection.Favorites)
+                view.Children.Insert(0,new Border { Height=1, Margin=new Thickness(0,2,0,4), Classes={"lf-location-separator"} });
+        }
+        var group=new LocationGroup(view,children,button); _groups.Add(key,group);
+        void Describe() => AutomationProperties.SetName(button,$"{(group.Expanded ? "Collapse" : "Expand")} {name}");
+        Describe();
+        button.Click+=(_,_)=>
+        {
+            group.Expanded=!group.Expanded; children.IsVisible=group.Expanded;
+            disclosure.Data=BrowserPresentation.Icon(group.Expanded ? "down" : "right").Data;
+            AutomationProperties.SetHelpText(button,group.Expanded ? "Expanded" : "Collapsed"); Describe();
+        };
+        return group;
+    }
+    private static void Reconcile(StackPanel panel, IReadOnlyList<Control> desired)
+    {
+        // Retain visual children, focus and scroll anchors when their keys survive.
+        for(var i=panel.Children.Count-1;i>=0;i--)
+            if(!desired.Contains(panel.Children[i]))panel.Children.RemoveAt(i);
+        for(var i=0;i<desired.Count;i++)
+        {
+            if(i<panel.Children.Count && ReferenceEquals(panel.Children[i],desired[i]))continue;
+            if(desired[i].Parent is StackPanel previous && !ReferenceEquals(previous,panel)) previous.Children.Remove(desired[i]);
+            panel.Children.Remove(desired[i]); panel.Children.Insert(i,desired[i]);
+        }
+    }
     private readonly ScrollViewer _sideScroll;
     private long _treeGeneration;
     public BrowserPane(BrowserViewModel model, BrowserLayout? savedLayout = null)
@@ -149,7 +204,7 @@ public sealed class BrowserPane : UserControl
     private FolderRow Folder(BrowserFolderNode node, string ancestry = "")
     {
         var key = ancestry + ">" + node.Key;
-        if (_rows.TryGetValue(key, out var retained)) { retained.Node = node with { CanPrefetch=node.CanPrefetch || retained.Node.CanPrefetch }; return retained; }
+        if (_rows.TryGetValue(key, out var retained)) { retained.Node = node with { CanPrefetch=node.CanPrefetch || retained.Node.CanPrefetch }; SetFolderContent(retained); return retained; }
         var children=new StackPanel { Margin=new Thickness(12,2,0,2), Spacing=0, IsVisible=false };
         var choose=Action(node.Name);
         choose.HorizontalAlignment=HorizontalAlignment.Stretch; choose.HorizontalContentAlignment=HorizontalAlignment.Left;
@@ -162,11 +217,14 @@ public sealed class BrowserPane : UserControl
         ToolTip.SetTip(choose,node.AbsolutePath ?? node.Name);
         var state=new FolderRow(key,node,new StackPanel { Spacing=2, Children={row,children} },children,choose,toggle);
         _rows.Add(key,state);
+        SetFolderContent(state);
         choose.Click+=async(_,_)=> { await _model.NavigateAsync(state.Node); await LoadRowAsync(state, userInitiated: true); };
         toggle.Click+=async(_,_)=>
         {
             state.Expanded=!state.Expanded;
-            await LoadRowAsync(state, userInitiated: true);
+            state.Children.IsVisible=state.Expanded;
+            SetDisclosure(state);
+            if(state.Expanded) await LoadRowAsync(state, userInitiated: true);
         };
         _ = LoadRowAsync(state);
         return state;
@@ -184,22 +242,54 @@ public sealed class BrowserPane : UserControl
         ToolTip.SetTip(row.Choose,row.Node.AbsolutePath ?? $"{row.Node.Name} /{row.Node.RelativeFolder}");
         // Failure is retryable through disclosure; a known leaf has no affordance or filler text.
         row.Toggle.IsVisible=folders.Count>0;
-        row.Toggle.Content=BrowserPresentation.Icon(row.Expanded ? "down" : "right");
-        AutomationProperties.SetName(row.Toggle,$"{(row.Expanded ? "Collapse" : "Expand")} {row.Node.Name}");
-        row.Children.Children.Clear(); row.Children.IsVisible=row.Expanded;
+        SetDisclosure(row);
+        row.Children.IsVisible=row.Expanded;
         if(!row.Expanded)return;
-        foreach(var folder in folders)
-            row.Children.Children.Add(folder.Availability=="unavailable" ? Text(folder.Name,"muted") : Folder(folder,row.TreeKey).Group);
+        var desired=folders.Select(folder=>folder.Availability=="unavailable"
+            ? (Control)Text(folder.Name,"muted") : Folder(folder,row.TreeKey).Group).ToArray();
+        Reconcile(row.Children,desired);
+        var liveKeys=folders.Where(folder=>folder.Availability!="unavailable").Select(folder=>row.TreeKey+">"+folder.Key).ToArray();
+        foreach(var old in _rows.Values.Where(old=>old.TreeKey.StartsWith(row.TreeKey+">",StringComparison.Ordinal) &&
+            !liveKeys.Any(key=>old.TreeKey==key || old.TreeKey.StartsWith(key+">",StringComparison.Ordinal))).ToArray())
+        { old.Generation++; _rows.Remove(old.TreeKey); }
+    }
+    private static void SetDisclosure(FolderRow row)
+    {
+        ((Avalonia.Controls.Shapes.Path)row.Toggle.Content!).Data=BrowserPresentation.Icon(row.Expanded ? "down" : "right").Data;
+        AutomationProperties.SetName(row.Toggle,$"{(row.Expanded ? "Collapse" : "Expand")} {row.Node.Name}");
+        AutomationProperties.SetHelpText(row.Toggle,row.Expanded ? "Expanded" : "Collapsed");
     }
     private async Task RefreshTreeAsync()
     {
         var tree=++_treeGeneration; var offset=_sideScroll.Offset;
-        // Keep row instances and expanded flags, so ScrollViewer and keyboard focus remain stable.
         var previousRows=_rows.Values.ToArray();
         var rootRows=_model.Roots.Select(node => Folder(node)).ToArray();
-        _roots.Children.Clear();
-        foreach(var row in rootRows)_roots.Children.Add(row.Group);
-        await Task.WhenAll(previousRows.Select(row=>LoadRowAsync(row)));
+        var desired=rootRows.Where(row=>row.Node.Section==BrowserLocationSection.None).Select(row=>(Control)row.Group).ToList();
+        if(_model.Roots.Any(node=>node.Section!=BrowserLocationSection.None))
+        {
+            foreach(var (section,name) in new[] { (BrowserLocationSection.Favorites,"Favorites"),
+                (BrowserLocationSection.Devices,"Devices & Volumes"), (BrowserLocationSection.Network,"Network") })
+            {
+                var group=Group("section:"+section,name);
+                var entries=new List<Control>();
+                var sectionRows=rootRows.Where(row=>row.Node.Section==section).ToArray();
+                foreach(var row in sectionRows.Where(row=>row.Node.Server is null))entries.Add(row.Group);
+                foreach(var server in sectionRows.Where(row=>row.Node.Server is not null).GroupBy(row=>row.Node.Server!,StringComparer.OrdinalIgnoreCase))
+                {
+                    var parent=Group("server:"+server.Key,server.Key,true);
+                    Reconcile(parent.Children,server.Select(row=>(Control)row.Group).ToArray()); entries.Add(parent.View);
+                }
+                if(section==BrowserLocationSection.Network && entries.Count==0)
+                    entries.Add(Text("No mounted network shares","muted"));
+                Reconcile(group.Children,entries); desired.Add(group.View);
+            }
+        }
+
+        Reconcile(_roots,desired);
+        // Disconnected roots and their old asynchronous rows cannot publish back into the live list.
+        bool Live(FolderRow row) => rootRows.Any(root=>row.TreeKey==root.TreeKey || row.TreeKey.StartsWith(root.TreeKey+">",StringComparison.Ordinal));
+        foreach(var row in previousRows.Where(row=>!Live(row))) { row.Generation++; _rows.Remove(row.TreeKey); }
+        await Task.WhenAll(previousRows.Where(row=>Live(row) && _rows.ContainsKey(row.TreeKey)).Select(row=>LoadRowAsync(row)));
         if (tree == _treeGeneration)
             Dispatcher.UIThread.Post(()=> { if(tree==_treeGeneration) _sideScroll.Offset=offset; },DispatcherPriority.Loaded);
     }
@@ -224,7 +314,7 @@ public sealed class BrowserPane : UserControl
         if(!ReferenceEquals(_shownRoots,_model.Roots))
         {
             _shownRoots=_model.Roots;
-            if (!_model.IsAvailable) { _treeGeneration++; _rows.Clear(); _roots.Children.Clear(); }
+            if (!_model.IsAvailable) { _treeGeneration++; _rows.Clear(); _groups.Clear(); _roots.Children.Clear(); }
             else _ = RefreshTreeAsync();
         }
         foreach (var row in _rows.Values)
@@ -252,14 +342,33 @@ public sealed class BrowserPane : UserControl
     }
     private void SetFolderContent(FolderRow row)
     {
-        var label=Text(row.Node.Name+(row.Node.Availability.Length==0 ? "" : $" · {row.Node.Availability}"),"navigation");
-        label.TextWrapping=TextWrapping.NoWrap; label.TextTrimming=TextTrimming.CharacterEllipsis;
-        label.VerticalAlignment=VerticalAlignment.Center;
-        var content=new Grid { ColumnDefinitions=new("18,*") };
-        var icon=BrowserPresentation.Icon("folder",_model.Location?.Key==row.Node.Key);
-        icon.VerticalAlignment=VerticalAlignment.Center; content.Children.Add(icon);
-        Grid.SetColumn(label,1); label.Margin=new Thickness(8,0,0,0); content.Children.Add(label);
-        row.Choose.Content=content; AutomationProperties.SetName(row.Choose,row.Node.Name);
+        var kind=row.Node.Kind switch
+        {
+            BrowserLocationKind.Home=>"home", BrowserLocationKind.Desktop=>"desktop",
+            BrowserLocationKind.Documents=>"documents", BrowserLocationKind.Downloads=>"downloads",
+            BrowserLocationKind.SystemVolume or BrowserLocationKind.LocalVolume=>"disk",
+            BrowserLocationKind.ExternalVolume=>"external", BrowserLocationKind.NetworkShare=>"share", _=>"folder"
+        };
+        if(row.Label is null)
+        {
+            row.Label=Text("","navigation"); row.Label.TextWrapping=TextWrapping.NoWrap;
+            row.Label.TextTrimming=TextTrimming.CharacterEllipsis; row.Label.VerticalAlignment=VerticalAlignment.Center;
+            row.Label.Margin=new Thickness(8,0,0,0);
+            row.Icon=BrowserPresentation.Icon(kind); row.IconKind=kind; row.Icon.VerticalAlignment=VerticalAlignment.Center;
+            var content=new Grid { ColumnDefinitions=new("18,*") };
+            content.Children.Add(row.Icon); Grid.SetColumn(row.Label,1); content.Children.Add(row.Label);
+            row.Choose.Content=content;
+        }
+        if(row.IconKind!=kind)
+        {
+            var replacement=BrowserPresentation.Icon(kind);
+            row.Icon.Data=replacement.Data; row.Icon.Classes.Clear();
+            foreach(var value in replacement.Classes)row.Icon.Classes.Add(value);
+            row.IconKind=kind;
+        }
+        row.Label.Text=row.Node.Name+(row.Node.Availability.Length==0 ? "" : $" · {row.Node.Availability}");
+        LightflowTheme.State(row.Icon,"active",_model.Location?.Key==row.Node.Key);
+        AutomationProperties.SetName(row.Choose,row.Node.Name);
         AutomationProperties.SetHelpText(row.Choose,
             (_model.Location?.Key==row.Node.Key ? "Current folder. " : "")+
             (row.Node.AbsolutePath ?? row.Node.RelativeFolder)+

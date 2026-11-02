@@ -88,7 +88,9 @@
   <Style Selector="ProgressBar.lf-progress"><Setter Property="Foreground" Value="{DynamicResource LightflowAccent}"/></Style>
   <Style Selector="GridSplitter.lf-splitter"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/></Style>
   <Style Selector="GridSplitter.lf-splitter:focus-visible"><Setter Property="Background" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Border.lf-location-separator"><Setter Property="Background" Value="{DynamicResource LightflowDivider}"/></Style>
   <Style Selector="Path.lf-icon"><Setter Property="Stroke" Value="{DynamicResource LightflowNavigation}"/><Setter Property="StrokeThickness" Value="1.5"/><Setter Property="Fill" Value="Transparent"/></Style>
+  <Style Selector="Path.lf-icon.location"><Setter Property="Stroke" Value="{DynamicResource LightflowFolder}"/></Style>
   <Style Selector="Path.lf-icon.folder"><Setter Property="Stroke" Value="{DynamicResource LightflowFolder}"/></Style>
   <Style Selector="Path.lf-icon.active"><Setter Property="Stroke" Value="{DynamicResource LightflowFocus}"/></Style>
   <Style Selector="Path.lf-icon.folder.active"><Setter Property="Fill" Value="{DynamicResource LightflowFocus}"/></Style>

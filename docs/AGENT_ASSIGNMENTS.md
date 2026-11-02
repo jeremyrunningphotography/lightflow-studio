@@ -596,7 +596,7 @@ automatic native mount/unmount/rename reconciliation for local/external and moun
 network volumes. Same assignment, clone, branch and Draft PR #467. Native observer
 feeds debounced/cancellable UI-thread shared-model reconciliation without discovery
 or Catalog mutation; current unavailable path/history/selection retained. Application
-141 / UI 55 / native 52 tests pass; actual hardware events await owner hands-on.
+141 / UI 56 / native 52 tests pass; actual hardware events await owner hands-on.
 Separate narrow AGENTS.md workflow commit 50cb7a3 records Markdown-first routine
 handoffs, without mandatory screenshots/Computer Use/ZIP. No desktop control performed.
 Fresh I03 package/report, Windows local qualification, exact-head CI, owner acceptance

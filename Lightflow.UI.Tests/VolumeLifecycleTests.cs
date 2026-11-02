@@ -62,6 +62,15 @@ public sealed class VolumeLifecycleTests
         late=locations.Next=new(TaskCreationOptions.RunContinuationsAsynchronously);old=model.ReconcileLocationsAsync();model.Suspend();late.SetResult([System]);await old;
         Assert.Empty(model.Roots);Assert.False(model.IsAvailable);Assert.Equal(0,session.Discoveries);
     }
+    [Fact]
+    public async Task FailedOrStoppedSnapshotRetainsLocationsAndOffersManualRetryWithoutScanning()
+    {
+        var session=new Session();var locations=new Locations();var model=new BrowserViewModel(session,locations);await model.OpenAsync(session.Id);
+        var roots=model.Roots;locations.Failure=new OperationCanceledException();await model.ReconcileLocationsAsync();
+        Assert.Same(roots,model.Roots);Assert.Contains("Refresh",model.Message);Assert.Equal(0,session.Discoveries);
+        locations.Failure=new UnauthorizedAccessException();await model.ReconcileLocationsAsync();
+        Assert.Same(roots,model.Roots);Assert.Contains("Refresh",model.Message);Assert.Equal(0,session.Discoveries);model.Suspend();
+    }
     [AvaloniaFact]
     public async Task BackgroundNotificationsDispatchToSharedModelWithoutReloadingRetainedFolderTrees()
     {
@@ -92,8 +101,9 @@ public sealed class VolumeLifecycleTests
         public IReadOnlyList<BrowserFileLocation> Current=[System,Field,Share];
         public TaskCompletionSource<IReadOnlyList<BrowserFileLocation>>? Next;
         public int FolderReads;
+        public Exception? Failure;
         public Task<IReadOnlyList<BrowserFileLocation>> GetLocationsAsync(CancellationToken token)
-        {var pending=Next;Next=null;return pending?.Task ?? Task.FromResult(Current);}
+        {if(Failure is { } error)return Task.FromException<IReadOnlyList<BrowserFileLocation>>(error);var pending=Next;Next=null;return pending?.Task ?? Task.FromResult(Current);}
         public Task<BrowserLocationListing> GetFoldersAsync(string path,CancellationToken token,bool userInitiated=false)
         {FolderReads++;return Task.FromResult(new BrowserLocationListing(MediaFolderEnumerationStatus.Succeeded,path==Field.Path ? [new(Field.Path+"/Child","Child",false)] : []));}
     }

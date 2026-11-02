@@ -291,7 +291,12 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             }
             if(changed)Notify();
         }
-        catch(OperationCanceledException) { }
+        catch(OperationCanceledException)
+        {
+            // Supersession/teardown stays quiet; a native timeout keeps context but offers retry.
+            if(epoch==_epoch && revision==_refreshGeneration && !cancellationToken.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+            { Message="The automatic Locations check stopped or timed out. Current context is preserved; use Refresh to retry."; Notify(); }
+        }
         catch(Exception error)
         {
             Console.Error.WriteLine(error);

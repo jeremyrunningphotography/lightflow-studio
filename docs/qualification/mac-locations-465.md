@@ -46,7 +46,7 @@ requires owner hands-on qualification with real storage.
 
 - Application Release: 141 passed, including event burst coalescing, in-flight supersession,
   cancellation/disposal and an uncooperative native read.
-- Shared UI Release: 55 passed, including local/external/network removal/reconnection,
+- Shared UI Release: 56 passed, including local/external/network removal/reconnection,
   duplicate snapshots, rename identity, current path/history/selected asset preservation,
   manual Refresh, late/suspended snapshots and background-event UI dispatch. Counter
   assertions verify automatic events do not call Catalog reads/discovery/source probes

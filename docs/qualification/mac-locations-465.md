@@ -44,15 +44,14 @@ Its current path/history/selected Catalog asset remains, with existing actionabl
 unavailable text. Reconnection restores the live entry without deleting records.
 Display metadata is separate from path/RootId/AssetId identity.
 
-## Discovery wording requiring owner clarification
+## Owner-confirmed discovery boundary
 
 Accepted #460 invokes automatic supported-media discovery on visited folders through
 `IBrowserDiscoverySession`. #465 also says navigation must not silently ingest media.
 This patch preserves the accepted owner and behavior and adds no discovery/ingestion
-path, writer, schema or Catalog-storage eligibility change. The literal conflict was
-reported to Jeremy during Stage A; owner confirmation of this boundary is outstanding
-unless superseded by a subsequent issue comment. Do not change accepted discovery
-policy as an incidental sidebar implementation decision.
+path, writer, schema or Catalog-storage eligibility change. Jeremy explicitly confirmed during Stage A: **Preserve accepted #460 discovery;
+#465 adds no ingestion behavior.** This clarification is recorded on #465. No accepted
+discovery policy is changed by this sidebar implementation.
 
 ## Automated evidence and limitations
 
@@ -66,8 +65,8 @@ only, no visible application launch or Computer Use during Stage A.
 - Mac native: 50 passed, including classification, identity-only deduplication,
   duplicate names, SMB-source validation/fallback, real native snapshot/cancellation,
   existing permission/link rejection and real Catalog safety regressions.
-- Independent native Catalog process qualification runs separately; consult staged
-  test summary and original JSONL for actual results, never assume a pass here.
+- Independent native Catalog process qualification: 23 checks passed; original JSONL
+  and summary are retained in task-owned evidence.
 
 Initial sandbox MSBuild IPC failure, initial disconnect/prefetch failures and native
 JSON boolean failure are retained under `work/`; later passing runs supersede them
@@ -102,7 +101,7 @@ Equivalent ready-to-copy PowerShell on this Mac:
 & "/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i01-app/Lightflow Studio.app/Contents/MacOS/LightflowStudio.Mac" --data-root "/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i01-acceptance"
 ```
 
-Request 10–12 minutes of exclusive Computer Use after Stage A and owner clarification:
+Request 10–12 minutes of exclusive Computer Use after Stage A:
 actual initial sidebar, three collapsed/re-expanded sections, built-in Favorite and
 nested task folders, native volume/share labels and verified grouping/fallback,
 folder-row stability during expansion, selection/history/Refresh, narrow/long-label

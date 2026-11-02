@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Implementing Stage A; native mount metadata, grouped sidebar and retained rows; desktop/acceptance gated |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Implementing Stage A; native mount metadata, grouped sidebar and retained rows; desktop/acceptance gated |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -579,5 +579,6 @@ remains unverified, no Area/Priority/parentage invented.
 three session-only sections, expandable built-ins and retained complete folder controls.
 Focused UI51/native50/Application137/Catalog50 passing; actual visual/package/Windows/CI
 gates remain separate. See [qualification](qualification/mac-locations-465.md).
-Accepted #460 automatic discovery versus #465 no-silent-ingestion wording surfaced
-for owner clarification; discovery owner/behavior unchanged by this patch.
+Jeremy explicitly confirmed preserving accepted #460 discovery; #465 adds no ingestion
+behavior (recorded on #465). Draft PR #467 remains unmerged; 23 native process checks
+also passed. Stage B desktop permission/owner acceptance remain separate.

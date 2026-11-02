@@ -12,6 +12,16 @@ namespace Lightflow.UI.Tests;
 public sealed class BrowserTests
 {
     [Fact]
+    public async Task SourceRefusalShowsActionAndCompletesWithoutLosingNavigationIdentity()
+    {
+        var service=new FakeBrowser();var model=new BrowserViewModel(service);await model.OpenAsync(service.CatalogId);
+        var node=model.Roots[0];var load=model.NavigateAsync(node);
+        service.Folders[""].SetException(new IOException("Cloud-only media. Make it available locally in Finder, then retry; Lightflow will not download it."));
+        await load;
+        Assert.False(model.IsLoading);Assert.Equal(node.RootId,model.Location!.RootId);
+        Assert.Contains("Finder",model.Message);Assert.Contains("will not download",model.Message);Assert.Contains("preserved",model.Message);
+    }
+    [Fact]
     public async Task FolderSwitchRejectsLateResultsAndRetiresOldSelection()
     {
         var service=new FakeBrowser();var model=new BrowserViewModel(service);await model.OpenAsync(service.CatalogId);

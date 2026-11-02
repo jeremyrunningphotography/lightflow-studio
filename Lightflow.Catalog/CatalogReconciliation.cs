@@ -36,7 +36,7 @@ public sealed class CatalogReconciliationService(
                 "Filesystem links were skipped. Catalog refresh was refused before mutation or missing-state inference; review the linked paths.");
 
         var supported = enumeration.Entries
-            .Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
+            .Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown && entry.IsAvailable)
             .ToArray();
         var unsupportedCount = enumeration.Entries.Count(entry => !entry.IsDirectory && !entry.MediaType.IsKnown);
         IReadOnlyList<MediaAsset> existing;
@@ -122,7 +122,7 @@ public sealed class CatalogReconciliationService(
         }
 
         return new(CatalogReconciliationStatus.Succeeded, request.RootId, folder, changes,
-            unsupportedCount);
+            unsupportedCount, enumeration.Entries.Any(entry => !entry.IsAvailable) ? "Some sources are unavailable locally. Make them available outside Lightflow, then retry; no automatic download was requested." : null);
     }, cancellationToken);
     }
 

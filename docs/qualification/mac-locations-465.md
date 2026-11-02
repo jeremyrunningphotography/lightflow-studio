@@ -1,3 +1,58 @@
+# LF-MAC-DEV-030 — I04 acceptance corrections / current qualification
+
+I01/I02 visuals and I03 automatic mount lifecycle are owner-accepted baselines.
+I04 addresses only resident iCloud media and unrelated offline mapping conflicts;
+recursive-spinner timeouts/progress/concurrency remain explicitly deferred.
+
+## I04 implementation and boundaries
+
+- A MediaSource-read-only native probe accepts resolved cloud-managed directory
+  identity, retaining exact spelling, alias/symlink and protected-root containment
+  checks. The ordinary Catalog/cache probe and shared storage admission policy
+  retain their cloud restrictions.
+- Supported files receive metadata-only residency checks. Dataless, not-downloaded
+  or unknown cloud residency is not opened; resident media in the same folder can
+  still reconcile. Unavailable entries remain visible to reconciliation's seen-set,
+  preserving existing AssetId/source state instead of inferring missing records.
+  The current media projection omits unavailable sources with actionable feedback.
+- Native fingerprint sampling preserves the existing v1 algorithm. The entire
+  synchronous metadata/open/read operation disables dataless materialization using
+  Darwin's thread-scoped I/O policy, restored in finally. The source is opened with
+  no-symlink traversal and checked against native identity before/after sampling.
+  No cloud download API or automatic hydration is used. Failed policy setup refuses
+  reading. Cancellation is checked around the bounded native operation.
+- An unavailable root can be excluded from mapping-conflict checks only when native
+  evidence establishes an absent top-level /Volumes boundary and a distinct live
+  candidate mount, resolved containment/spelling and stable native object/mount
+  identity. Same-volume missing folders, overlap, aliases, ambiguous/unknown facts
+  and genuine conflicting identities remain refused. No offline mapping is removed
+  or rewritten; RootId/AssetId and authored data survive remount/revisit.
+- Shared changes add an optional source-availability fact (default true), skip
+  observation of unavailable files while retaining their seen identities, and show
+  actionable navigation refusals. Windows providers keep their existing defaults.
+
+## I04 validation
+
+Release tests: Application 141, Catalog 51, shared UI 57, Mac native 58; all pass.
+Native tests simulate cloud resource metadata only for registered task fixtures;
+no iCloud account, permissions, production media or cloud flags are changed.
+A disposable task-owned APFS disk image exercises actual mount/remount, offline
+mapping coexistence, genuine conflict rejection, identities and authored retention.
+The native test helper is excluded from the shipping bundle.
+
+Intermediate test compile/API mismatches were corrected. A subsequent full native
+run caught changed missing-folder classification; preserving the existing native
+ENOENT/access-denied statuses restored the full passing suite. Logs remain local.
+Existing analyzer/headless-key warnings remain. No routine Computer Use, screenshots
+or ZIP is required or performed. Actual owner iCloud/provider behavior and physical
+storage remain hands-on gates. A fresh isolated arm64 package, independent Windows
+qualification, exact-head CI and explicit merge authorization remain required.
+No Chronicle entry is warranted for these bounded corrections.
+
+---
+
+## Historical I03 qualification (superseded by I04 above)
+
 # LF-MAC-DEV-030 — I03 automatic volume lifecycle / current qualification
 
 Jeremy accepted I01 (9/9) and I02 (6/6) as the functional/visual baseline. I03 adds

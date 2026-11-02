@@ -53,8 +53,20 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
             throw new IOException("Browse this mounted volume through its own location. Catalog records are preserved.");
         using var timing = BrowserPerformance.Measure("mac.filesystem.enumeration");
         var first=await ValidateAsync(assessor,request,cancellationToken).ConfigureAwait(false);
+        if (!await Task.Run(() => assessor.IsResidentMedia(folderPath,cancellationToken),cancellationToken).ConfigureAwait(false))
+            throw new IOException("This cloud folder is unavailable locally. Make it available in Finder, then retry; no download was requested.");
         var result=await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath,folderPath,cancellationToken).ConfigureAwait(false);
-        result = result.Where(entry => !IsProtected(entry.FullPath) &&
+        var types = MediaTypeRegistry.CreateDefault();
+        var resident = new List<MediaFolderFileSystemEntry>(result.Count);
+        foreach(var entry in result)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsProtected(entry.FullPath) || (entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))) continue;
+            var available = entry.IsDirectory || entry.IsReparsePoint || !types.Classify(new(entry.Name)).IsKnown ||
+                await Task.Run(() => assessor.IsResidentMedia(entry.FullPath,cancellationToken),cancellationToken).ConfigureAwait(false);
+            resident.Add(entry with {IsAvailable=available});
+        }
+        result = resident.Where(entry => !IsProtected(entry.FullPath) &&
             !(entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))).ToArray();
         await ValidateAsync(assessor,request,cancellationToken,first).ConfigureAwait(false);
         return result;
@@ -76,7 +88,7 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
             if (!File.Exists(current) && !Directory.Exists(current)) return false;
             if ((File.GetAttributes(current)&FileAttributes.ReparsePoint)!=0) return false;
         }
-        var exists=File.Exists(path);
+        var exists=File.Exists(path) && await Task.Run(()=>assessor.IsResidentMedia(path,token),token).ConfigureAwait(false);
         await ValidateAsync(assessor,request,token,first).ConfigureAwait(false);
         return exists;
     }
@@ -136,7 +148,9 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         public string? ConflictingMapping(Guid existingRoot, Guid requestedRoot, string path, bool ignoreAncestorAnchor, CancellationToken token)
         {
             var request = new StorageAssessmentRequest(_request.OperationId, 0, StorageRole.MediaSource, StorageOperation.Read, path);
-            var other = MacBrowserMediaEffects.ValidateAsync(_assessor, request, token).GetAwaiter().GetResult();
+            StorageLocationAssessment other;
+            try { other = MacBrowserMediaEffects.ValidateAsync(_assessor, request, token).GetAwaiter().GetResult(); }
+            catch (IOException) when (_assessor.IsUnrelatedOfflineRoot(root, path, token)) { return null; }
             var candidate = _previous!.Identity!;
             var existing = other.Identity!;
             var check = PortablePathIdentityValidator.ValidateRootMapping(existingRoot, requestedRoot, existing.LocationIdentity, candidate.LocationIdentity, token);
@@ -157,7 +171,7 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         var before = await ValidateAsync(assessor, request, token);
         // Validate all source components; no alias traversal or ambiguous case/Unicode identity.
         ValidatePaths("/", [new(Guid.NewGuid(), Guid.Empty, path.TrimStart('/'))], token);
-        var fingerprint = await new SampledSourceFingerprintService().CreateAsync(path, token);
+        var fingerprint = await Task.Run(() => assessor.ResidentFingerprint(path, token), token).ConfigureAwait(false);
         await ValidateAsync(assessor, request, token, before);
         return fingerprint;
     }

@@ -9,6 +9,8 @@
 #include <fcntl.h>
 #include <stdatomic.h>
 #include <dirent.h>
+#include <sys/resource.h>
+#include <CommonCrypto/CommonDigest.h>
 
 static atomic_int activeDescriptors = 0;
 
@@ -35,7 +37,7 @@ static NSString *objectIdentity(struct stat s) {
         s.st_birthtimespec.tv_nsec];
 }
 
-static NSDictionary *probe(LFStorageContext *context, NSString *input, BOOL permitMissingLeaf) {
+static NSDictionary *probe(LFStorageContext *context, NSString *input, BOOL permitMissingLeaf, BOOL mediaRead) {
     if (![input isAbsolutePath])
         return @{@"error": @"An absolute NUL-free filesystem path is required."};
     const char *path = input.fileSystemRepresentation;
@@ -92,7 +94,20 @@ static NSDictionary *probe(LFStorageContext *context, NSString *input, BOOL perm
         NSNumber *alias = nil, *ubiquitous = nil;
         NSURL *url = [NSURL fileURLWithPath:prefix];
         if (![url getResourceValue:&alias forKey:NSURLIsAliasFileKey error:NULL] || alias.boolValue) ambiguous = YES;
-        if (![url getResourceValue:&ubiquitous forKey:NSURLIsUbiquitousItemKey error:NULL] || ubiquitous.boolValue) ambiguous = YES;
+        if (![url getResourceValue:&ubiquitous forKey:NSURLIsUbiquitousItemKey error:NULL]) ambiguous = YES;
+        // Media reads may traverse a cloud-managed directory with resolved identity.
+        // Catalog/cache roles retain the original conservative cloud restriction.
+        if (ubiquitous.boolValue && !mediaRead) ambiguous = YES;
+        if (mediaRead && (component.st_flags & SF_DATALESS) != 0)
+            return @{@"cloudUnavailable":@YES, @"error":@"Cloud-only media is not resident. Download it explicitly in Finder, then retry; Lightflow will not download it."};
+        if (mediaRead && S_ISREG(component.st_mode)) {
+            NSString *status = nil;
+            if (ubiquitous.boolValue &&
+                (![url getResourceValue:&status forKey:NSURLUbiquitousItemDownloadingStatusKey error:NULL] ||
+                 (![status isEqualToString:NSURLUbiquitousItemDownloadingStatusCurrent] &&
+                  ![status isEqualToString:NSURLUbiquitousItemDownloadingStatusDownloaded])))
+                return @{@"cloudUnavailable":@YES, @"error":@"Cloud media residency is unavailable. Make it available locally in Finder, then retry; Lightflow will not download it."};
+        }
     }
     struct attrlist attrs = {0};
     attrs.bitmapcount = ATTR_BIT_MAP_COUNT;
@@ -174,7 +189,7 @@ __attribute__((visibility("default"))) char *lf_storage_probe(void *value, const
         @try {
             NSString *input = [[NSString alloc] initWithUTF8String:path];
             LFStorageContext *context = (__bridge LFStorageContext *)value;
-            NSDictionary *facts = input && context ? probe(context, input, permitMissingLeaf != 0) : @{@"error":@"Invalid native context or UTF-8 path."};
+            NSDictionary *facts = input && context ? probe(context, input, permitMissingLeaf != 0, NO) : @{@"error":@"Invalid native context or UTF-8 path."};
             NSData *data = [NSJSONSerialization dataWithJSONObject:facts options:0 error:NULL];
             if (!data) return NULL;
             char *result = malloc(data.length + 1);
@@ -189,3 +204,106 @@ __attribute__((visibility("default"))) char *lf_storage_probe(void *value, const
 }
 __attribute__((visibility("default"))) void lf_storage_free(char *result) { free(result); }
 __attribute__((visibility("default"))) int lf_storage_active_descriptors(void) { return atomic_load(&activeDescriptors); }
+
+// The policy is thread-scoped, covers the entire synchronous native operation,
+// and is restored before returning to the managed thread pool, including errors.
+static char *mediaOperation(void *value, const char *path, NSString *other, int operation) {
+    @autoreleasepool {
+        int previous = getiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_THREAD);
+        if (previous < 0 || setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES,
+                IOPOL_SCOPE_THREAD, IOPOL_MATERIALIZE_DATALESS_FILES_OFF) != 0)
+            return strdup("{\"error\":\"Cannot prevent cloud downloads; media read refused.\"}");
+        NSDictionary *result = nil;
+        int fd = -1;
+        @try {
+            LFStorageContext *context = (__bridge LFStorageContext *)value;
+            NSString *input = path ? [[NSString alloc] initWithUTF8String:path] : nil;
+            result = input && context ? probe(context, input, NO, YES) : @{@"error":@"Invalid media context or path."};
+            if (!result[@"error"] && operation == 1) {
+                // Only an absent top-level volume boundary is excludable. A missing
+                // folder on a live volume, alias, denied path or unknown mount is not.
+                NSArray *parts = other.pathComponents;
+                NSString *boundary = parts.count >= 3 ? [@"/Volumes" stringByAppendingPathComponent:parts[2]] : @"";
+                BOOL unrelated = parts.count >= 3 && [parts[1] isEqualToString:@"Volumes"] &&
+                    ![parts containsObject:@".."] && ![parts containsObject:@"."] &&
+                    ![input isEqualToString:other] &&
+                    ![input hasPrefix:[other stringByAppendingString:@"/"]] &&
+                    ![other hasPrefix:[input stringByAppendingString:@"/"]];
+                struct stat missing;
+                unrelated = unrelated && lstat(boundary.fileSystemRepresentation, &missing) != 0 && errno == ENOENT;
+                NSDictionary *absent = unrelated ? probe(context, boundary, YES, YES) : nil;
+                NSString *mount = result[@"mount"];
+                unrelated = unrelated && absent && !absent[@"error"] && ![absent[@"ambiguous"] boolValue] &&
+                    ![result[@"ambiguous"] boolValue] && [absent[@"missingLeaf"] isEqualToString:parts[2]] &&
+                    [absent[@"canonical"] isEqualToString:boundary] && [mount hasPrefix:@"/Volumes/"] &&
+                    ![mount isEqualToString:boundary] && ![result[@"fsid"] isEqualToString:absent[@"fsid"]];
+                struct statfs *mounts = NULL;
+                int count = getmntinfo(&mounts, MNT_NOWAIT);
+                BOOL candidateMounted = NO;
+                if (count <= 0) unrelated = NO;
+                for (int i = 0; i < count; i++) {
+                    NSString *at = @(mounts[i].f_mntonname);
+                    if ([at isEqualToString:boundary]) unrelated = NO;
+                    if ([at isEqualToString:mount]) candidateMounted = YES;
+                }
+                NSDictionary *again = unrelated ? probe(context, input, NO, YES) : nil;
+                unrelated = unrelated && candidateMounted && again && !again[@"error"] &&
+                    [again[@"target"] isEqual:result[@"target"]] && [again[@"mountEpoch"] isEqual:result[@"mountEpoch"]] &&
+                    lstat(boundary.fileSystemRepresentation, &missing) != 0 && errno == ENOENT;
+                result = @{@"unrelated":@(unrelated)};
+            } else if (!result[@"error"] && operation == 2) {
+                if ([result[@"ambiguous"] boolValue]) result = @{@"error":@"Unsafe media identity (alias, link or unresolved spelling). Review the source path, then retry."};
+                else {
+                    fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW_ANY | O_NONBLOCK);
+                    struct stat before, after, entry;
+                    if (fd < 0 || fstat(fd, &before) != 0 || !S_ISREG(before.st_mode) ||
+                        (before.st_flags & SF_DATALESS) != 0 || ![objectIdentity(before) isEqual:result[@"target"]])
+                        result = @{@"error":@"Media is not safely available locally. Make it available in Finder and retry; no cloud download was requested."};
+                    else {
+                        const size_t sample = 64 * 1024;
+                        unsigned char bytes[128 * 1024 + 64];
+                        const char domain[] = "Lightflow.SourceFingerprint.v1";
+                        size_t used = sizeof(domain); memcpy(bytes, domain, used);
+                        uint64_t length = (uint64_t)before.st_size;
+                        for (int i = 0; i < 8; i++) bytes[used++] = (unsigned char)(length >> (8*i));
+                        BOOL ok = YES;
+                        for (int part = 0; part < (length > sample ? 2 : 1); part++) {
+                            off_t offset = part == 0 ? 0 : (off_t)MAX(sample, length - sample);
+                            size_t wanted = (size_t)MIN(sample, length - (uint64_t)offset), got = 0;
+                            while (got < wanted) {
+                                ssize_t n = pread(fd, bytes + used + got, wanted - got, offset + (off_t)got);
+                                if (n <= 0) { ok = NO; break; } got += (size_t)n;
+                            }
+                            used += got;
+                        }
+                        ok = ok && fstat(fd, &after) == 0 && lstat(path, &entry) == 0 &&
+                            [objectIdentity(before) isEqual:objectIdentity(after)] && [objectIdentity(before) isEqual:objectIdentity(entry)] &&
+                            before.st_size == after.st_size && before.st_mtimespec.tv_sec == after.st_mtimespec.tv_sec &&
+                            before.st_mtimespec.tv_nsec == after.st_mtimespec.tv_nsec;
+                        if (!ok) result = @{@"error":@"Source changed or could not be read locally. Retry; Catalog records are preserved."};
+                        else {
+                            unsigned char digest[CC_SHA256_DIGEST_LENGTH]; CC_SHA256(bytes, (CC_LONG)used, digest);
+                            NSMutableString *hash = [NSMutableString new];
+                            for (int i = 0; i < CC_SHA256_DIGEST_LENGTH; i++) [hash appendFormat:@"%02x", digest[i]];
+                            result = @{@"fingerprint":hash};
+                        }
+                    }
+                }
+            }
+        } @catch (NSException *exception) {
+            (void)exception; result = @{@"error":@"Native media identity unavailable; read refused."};
+        } @finally {
+            if (fd >= 0) close(fd);
+            if (setiopolicy_np(IOPOL_TYPE_VFS_MATERIALIZE_DATALESS_FILES, IOPOL_SCOPE_THREAD, previous) != 0)
+                result = @{@"error":@"Could not restore thread media policy; read refused."};
+        }
+        NSData *data = [NSJSONSerialization dataWithJSONObject:result options:0 error:NULL];
+        if (!data) return NULL;
+        char *output = malloc(data.length + 1);
+        if (!output) return NULL;
+        memcpy(output, data.bytes, data.length); output[data.length] = 0; return output;
+    }
+}
+__attribute__((visibility("default"))) char *lf_media_probe(void *context, const char *path) { return mediaOperation(context,path,nil,0); }
+__attribute__((visibility("default"))) char *lf_media_unrelated_offline(void *context, const char *path, const char *other) { return mediaOperation(context,path,@(other),1); }
+__attribute__((visibility("default"))) char *lf_media_fingerprint(void *context, const char *path) { return mediaOperation(context,path,nil,2); }

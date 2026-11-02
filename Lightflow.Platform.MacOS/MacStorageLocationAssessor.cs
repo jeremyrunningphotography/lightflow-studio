@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text;
 using Lightflow.Application;
 using Lightflow.Domain;
+using LightflowStudio;
 
 namespace Lightflow.Platform.MacOS;
 
@@ -64,7 +65,7 @@ public sealed class MacStorageLocationAssessor : IStorageLocationAssessor, IDisp
             if (_nativeContext.IsInvalid) return Failure("Native mount context unavailable.");
             var create = request.Operation is StorageOperation.Create or StorageOperation.Relocate
                 or StorageOperation.RestoreActivation or StorageOperation.Write;
-            using var probe = Probe(request.RequestedLocation, create);
+            using var probe = Probe(request.RequestedLocation, create, _allowMediaSourceAncestor && request.Role == StorageRole.MediaSource && request.Operation == StorageOperation.Read);
             var facts = probe.RootElement;
             if (facts.TryGetProperty("error", out var error))
             {
@@ -139,13 +140,84 @@ public sealed class MacStorageLocationAssessor : IStorageLocationAssessor, IDisp
         || b.StartsWith(a.TrimEnd('/') + "/", StringComparison.Ordinal);
     private static StorageCapability Capability(bool supported) => supported ? StorageCapability.Supported : StorageCapability.Unsupported;
 
-    private JsonDocument Probe(string path, bool permitMissingLeaf)
+    private JsonDocument Probe(string path, bool permitMissingLeaf, bool mediaRead = false)
     {
-        var pointer = NativeProbe(_nativeContext!, path, permitMissingLeaf ? 1 : 0);
+        var pointer = mediaRead ? NativeMediaProbe(_nativeContext!, path) : NativeProbe(_nativeContext!, path, permitMissingLeaf ? 1 : 0);
         if (pointer == IntPtr.Zero) throw new IOException("Native probe returned no facts.");
         try { return JsonDocument.Parse(Marshal.PtrToStringUTF8(pointer)!); }
         finally { NativeFree(pointer); }
     }
+
+    internal bool IsUnrelatedOfflineRoot(string candidate, string existing, CancellationToken token)
+    {
+        lock (_gate)
+        {
+            token.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _nativeContext ??= NativeCreate();
+            using var facts = MediaResult(NativeUnrelatedOffline(_nativeContext, candidate, existing));
+            token.ThrowIfCancellationRequested();
+            return facts.RootElement.TryGetProperty("unrelated", out var unrelated) && unrelated.GetBoolean();
+        }
+    }
+    internal bool IsResidentMedia(string path, CancellationToken token)
+    {
+        lock (_gate)
+        {
+            token.ThrowIfCancellationRequested(); ObjectDisposedException.ThrowIf(_disposed, this);
+            _nativeContext ??= NativeCreate();
+            var pointer=NativeMediaProbe(_nativeContext,path);
+            if(pointer==IntPtr.Zero)throw new IOException("Native media residency unavailable; retry without downloading sources.");
+            try
+            {
+                using var facts=JsonDocument.Parse(Marshal.PtrToStringUTF8(pointer)!);
+                token.ThrowIfCancellationRequested();
+                if(facts.RootElement.TryGetProperty("cloudUnavailable",out var cloud) && cloud.GetBoolean())return false;
+                if(facts.RootElement.TryGetProperty("error",out var error))
+                {
+                    if(facts.RootElement.TryGetProperty("errno",out var code))
+                    {
+                        if(code.GetInt32()==2)throw new DirectoryNotFoundException(error.GetString());
+                        if(code.GetInt32() is 1 or 13)throw new UnauthorizedAccessException(error.GetString());
+                    }
+                    throw new IOException(error.GetString());
+                }
+                if(facts.RootElement.GetProperty("ambiguous").GetBoolean())throw new IOException("Unsafe media identity (alias, link or unresolved spelling). Review the source path, then retry.");
+                return true;
+            }
+            finally {NativeFree(pointer);}
+        }
+    }
+    internal SourceFingerprint ResidentFingerprint(string path, CancellationToken token)
+    {
+        lock (_gate)
+        {
+            token.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _nativeContext ??= NativeCreate();
+            using var facts = MediaResult(NativeFingerprint(_nativeContext, path));
+            token.ThrowIfCancellationRequested();
+            return new(SampledSourceFingerprintService.CurrentVersion, facts.RootElement.GetProperty("fingerprint").GetString()!);
+        }
+    }
+    private static JsonDocument MediaResult(IntPtr pointer)
+    {
+        if (pointer == IntPtr.Zero) throw new IOException("Native media evidence unavailable; retry without changing Catalog records.");
+        try
+        {
+            var result = JsonDocument.Parse(Marshal.PtrToStringUTF8(pointer)!);
+            if (result.RootElement.TryGetProperty("error", out var error))
+            { var message = error.GetString(); result.Dispose(); throw new IOException(message); }
+            return result;
+        }
+        finally { NativeFree(pointer); }
+    }
+    [DllImport("libLightflowStorage.dylib", EntryPoint = "lf_media_probe")]
+    private static extern IntPtr NativeMediaProbe(StorageContextHandle context, [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
+    [DllImport("libLightflowStorage.dylib", EntryPoint = "lf_media_unrelated_offline")]
+    private static extern IntPtr NativeUnrelatedOffline(StorageContextHandle context, [MarshalAs(UnmanagedType.LPUTF8Str)] string candidate, [MarshalAs(UnmanagedType.LPUTF8Str)] string existing);
+    [DllImport("libLightflowStorage.dylib", EntryPoint = "lf_media_fingerprint")]
+    private static extern IntPtr NativeFingerprint(StorageContextHandle context, [MarshalAs(UnmanagedType.LPUTF8Str)] string path);
 
     [DllImport("libLightflowStorage.dylib", EntryPoint = "lf_storage_probe")]
     private static extern IntPtr NativeProbe(StorageContextHandle context, [MarshalAs(UnmanagedType.LPUTF8Str)] string path, int permitMissingLeaf);

@@ -103,7 +103,7 @@ public sealed record MediaFolderFileSystemEntry(
     bool IsDirectory,
     long? FileSizeBytes,
     DateTimeOffset LastWriteUtc,
-    bool IsReparsePoint = false);
+    bool IsReparsePoint = false, bool IsAvailable = true);
 
 public sealed class MediaFolderLinkException(string diagnostic) : IOException(diagnostic);
 
@@ -309,7 +309,7 @@ public class CatalogMediaFolderEnumerator(
                     ? MediaTypeClassification.Unknown
                     : mediaTypes.Classify(new(source.Name));
                 entries.Add(new(root.RootId, relative, CatalogRelativePaths.RelativePathKey(relative), source.Name,
-                    source.IsDirectory, type, source.FileSizeBytes, source.LastWriteUtc));
+                    source.IsDirectory, type, source.FileSizeBytes, source.LastWriteUtc, IsAvailable: source.IsAvailable));
             }
         }
         catch (OperationCanceledException) { throw; }

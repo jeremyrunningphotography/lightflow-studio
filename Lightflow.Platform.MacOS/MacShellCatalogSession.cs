@@ -168,7 +168,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         token.ThrowIfCancellationRequested();
         // Windows' authoritative view comes from successfully scanned filesystem candidates.
         // Missing records and failed recursive descendants remain in Catalog, outside this visible set.
-        var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
+        var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown && entry.IsAvailable)
             .Select(entry => entry.RelativePathKey).ToHashSet(StringComparer.Ordinal);
         using var projectionTiming = BrowserPerformance.Measure("mac.catalog.projection");
         // Reuse the post-reconciliation listing for the tree projection. The old reader repeated

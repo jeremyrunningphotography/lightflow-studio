@@ -17,7 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), parent #366 | Phases 1 I03, 2 I01 and 3 I01 owner-accepted; Phase 4 I01 final inspection, exact-head qualification/publication and DARKMATTER handoff; fresh capture permission required; Project access limitation remains |
+| 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
+| 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
@@ -541,3 +542,20 @@ final inspection/qualification. No production correction indicated by focused au
 preserve accepted source, publish equivalent tree and qualify fresh exact-head package/CI.
 Prepare separate DARKMATTER handoff without remote control or invented allocation.
 StageA only until new capture permission; no Phase4 acceptance, merge/close/release/tag.
+
+## Assignments 028/029 completed — 2026-11-01
+
+Jeremy accepted all four Mac phases and LF-WIN-TST-029 independent DARKMATTER
+Windows qualification at head `3fa23ee01a38e96afa918d26a3a9b9fe798a145c`, tree
+`b41a6b72ccdc432ef818cb5f4ab3fb6c20cb4ccd`; PR #464 normally merged as
+`49cb3c7a04bb8a498548aee583e28b9563065993` with that exact tree; #462 is Completed.
+[Post-merge CI 41369147121](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/41369147121)
+attempt 1 failed a Windows Player decoded-frame assertion and skipped packaging;
+attempt 2 passed all five required jobs without source changes, with tagged release
+publication intentionally skipped. Both outcomes and all phase/platform acceptance
+records remain preserved on #462 and in the original task evidence. Root cause of
+the initial failure is not established. 028 and 029 are Done; no new allocation.
+Project #4 membership/Done/Area/Priority and native parent/dependencies remain
+unverified because connector operations are unavailable. #366 and #395 remain
+open/incomplete; their remaining DoD and dependencies are unchanged. This registry-only
+closeout does not change production inputs or authorize further UI work or release.

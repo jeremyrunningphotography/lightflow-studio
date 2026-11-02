@@ -237,8 +237,10 @@ static char *mediaOperation(void *value, const char *path, NSString *other, int 
                     ![result[@"ambiguous"] boolValue] && [absent[@"missingLeaf"] isEqualToString:parts[2]] &&
                     [absent[@"canonical"] isEqualToString:boundary] && [mount hasPrefix:@"/Volumes/"] &&
                     ![mount isEqualToString:boundary] && ![result[@"fsid"] isEqualToString:absent[@"fsid"]];
-                struct statfs *mounts = NULL;
-                int count = getmntinfo(&mounts, MNT_NOWAIT);
+                int capacity = getfsstat(NULL, 0, MNT_NOWAIT);
+                struct statfs *mounts = capacity > 0 ? calloc((size_t)capacity, sizeof(struct statfs)) : NULL;
+                int count = mounts ? getfsstat(mounts, (int)(capacity * sizeof(struct statfs)), MNT_NOWAIT) : -1;
+                if (count > capacity) { count = -1; unrelated = NO; }
                 BOOL candidateMounted = NO;
                 if (count <= 0) unrelated = NO;
                 for (int i = 0; i < count; i++) {
@@ -246,6 +248,7 @@ static char *mediaOperation(void *value, const char *path, NSString *other, int 
                     if ([at isEqualToString:boundary]) unrelated = NO;
                     if ([at isEqualToString:mount]) candidateMounted = YES;
                 }
+                free(mounts);
                 NSDictionary *again = unrelated ? probe(context, input, NO, YES) : nil;
                 unrelated = unrelated && candidateMounted && again && !again[@"error"] &&
                     [again[@"target"] isEqual:result[@"target"]] && [again[@"mountEpoch"] isEqual:result[@"mountEpoch"]] &&

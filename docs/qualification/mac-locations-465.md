@@ -1,3 +1,75 @@
+# LF-MAC-DEV-030 — I02 correction / current handoff
+
+Owner-approved I02 in #465 supersedes I01 section-collapse behavior. Jeremy passed
+all nine I01 hands-on checks; that functionality is the accepted baseline, not final
+issue/merge acceptance. Continue `codex/030-mac-locations` and Draft PR #467 in the
+existing independent clone. No new assignment or implementation branch.
+
+## I02 bounded implementation
+
+- Favorites, Devices & Volumes and Network use static text headings in the existing
+  compact section layout. No section chevron, button, event handler or collapse state.
+  Existing separators, muted type and 32-point heading rhythm are retained.
+- Tree artwork uses shared theme resources:12 DIP and1.25 stroke. Folder/volume/share
+  targets and reserved disclosure columns remain32 DIP; icon and label columns remain
+  unchanged. Navigation toolbar icons remain16 DIP. Verified server organizational
+  parents still expand/collapse; section permanence does not change tree policy.
+- I01 complete row construction, retained icon/label controls, keyed reconciliation,
+  leaf geometry, focus and async generation checks are unchanged. Native mount adapters,
+  BrowserViewModel, Catalog/discovery and Windows shipping inputs are unchanged in I02.
+
+Changed implementation files: `Lightflow.UI/BrowserPane.cs`, `BrowserPresentation.cs`,
+`Themes/Lightflow.axaml`; focused tests in `Lightflow.UI.Tests/LocationsTests.cs`.
+
+## I02 Stage A evidence and exact paths
+
+Release locked-restore tests:51shared UI /50Mac native PASS. UI coverage replaces
+superseded section-collapse tests with permanent visible headings/top-level locations
+through address/history/Refresh. It verifies small artwork vs32-DIP targets, retained
+icon/label/disclosure objects and focus, fixed leaf/button-column alignment, and
+preserved verified-server collapse across Refresh. Two existing obsolete headless-key
+warnings remain. An initial test-only compilation error (StyledElement vs Visual)
+was corrected; its original log remains under `work/i02-ui.log`.
+
+Fresh acceptance fixture uses only public native console lifecycle/discovery, a new
+Catalog, one task PNG and authored collection `LF030 I02 acceptance notes`. No GUI
+launch or visible desktop control during I02 Stage A. Existing I01 artifacts stay intact.
+
+App: `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-app/Lightflow Studio.app`.
+Data root: `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-acceptance`.
+Task folders: `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-navigation`.
+Staging: `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/handoffs/LF-MAC-DEV-030-I02`.
+Proposed ZIP after permission/capture: `LF-MAC-DEV-030-I02-handoff.zip` in its parent.
+The staged manifest and fresh bundle provenance record exact published source/tree,
+build identity, every file hash, timestamp/dependency/icon checks and actual CI state.
+
+After separate explicit I02 desktop permission, Terminal launch:
+
+```sh
+"/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-app/Lightflow Studio.app/Contents/MacOS/LightflowStudio.Mac" --data-root "/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-acceptance"
+```
+
+Equivalent PowerShell on this Mac:
+
+```powershell
+& "/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-app/Lightflow Studio.app/Contents/MacOS/LightflowStudio.Mac" --data-root "/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations/artifacts/lf030-i02-acceptance"
+```
+
+Request5–7minutes of I02 Computer Use: capture all three permanent headings and
+12-DIP tree artwork; expand built-in/home and task Trip/Day2; inspect leaf/expandable
+alignment, navigate/select task media and Refresh; quit normally and release desktop.
+Owner-assisted exact-command launch may be needed because Computer Use blocks Terminal.
+No unrelated resize retest or user-volume unmount. No I02 visual acceptance from tests.
+
+I01 source `deae87b2c1582d04c2fa5b467bb35ac1c93d7d14` CI41380067750 is verified
+SUCCESS; it is historical evidence, not I02 exact-head CI. Fresh I02 CI, Jeremy's I02
+hands-on approval, independent Windows qualification and explicit merge remain required.
+Project/native-parent/dependency operations remain unavailable; no field changes claimed.
+Keep #467 Draft/unmerged and #465 open. No release/tag or broader Epic completion.
+This bounded correction needs no new Chronicle entry. The remainder is historical I01.
+
+---
+
 # LF-MAC-DEV-030 — Mac Locations Redesign
 
 Issue #465 is authoritative. Session: **LF-MAC-DEV-030 — Mac Locations Redesign**.

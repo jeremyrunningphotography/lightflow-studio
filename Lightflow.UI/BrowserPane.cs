@@ -54,12 +54,7 @@ public sealed class BrowserPane : UserControl
         public IReadOnlyList<BrowserFolderNode> Folders = [];
     }
     private readonly Dictionary<string, FolderRow> _rows = [];
-    private sealed class LocationGroup(StackPanel view, StackPanel children, Button toggle)
-    {
-        public StackPanel View = view, Children = children;
-        public Button Toggle = toggle;
-        public bool Expanded = true;
-    }
+    private sealed record LocationGroup(StackPanel View, StackPanel Children);
     private readonly Dictionary<string, LocationGroup> _groups = [];
     private LocationGroup Group(string key, string name, bool server = false)
     {
@@ -67,30 +62,41 @@ public sealed class BrowserPane : UserControl
         var children = new StackPanel { Spacing=0, Margin=new Thickness(server ? 12 : 0,0,0,4) };
         var label=Text(name, server ? "navigation" : "muted");
         label.TextWrapping=TextWrapping.NoWrap; label.TextTrimming=TextTrimming.CharacterEllipsis;
-        var header=new Grid { ColumnDefinitions=new(server ? "24,24,*" : "24,*"), MinHeight=32 };
-        var disclosure=BrowserPresentation.Icon("down"); disclosure.VerticalAlignment=VerticalAlignment.Center;
-        header.Children.Add(disclosure);
-        if(server) { var icon=BrowserPresentation.Icon("server"); icon.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(icon,1); header.Children.Add(icon); }
-        Grid.SetColumn(label,server ? 2 : 1); label.VerticalAlignment=VerticalAlignment.Center; header.Children.Add(label);
-        var button=Action(""); button.Content=header; button.Classes.Add("quiet");
-        button.HorizontalAlignment=HorizontalAlignment.Stretch; button.HorizontalContentAlignment=HorizontalAlignment.Stretch;
-        ToolTip.SetTip(button,name);
-        var view=new StackPanel { Spacing=0, Children={button,children} };
+        label.VerticalAlignment=VerticalAlignment.Center;
+        var view=new StackPanel { Spacing=0 };
         if(!server)
         {
+            // Permanent section headings have no disclosure, input handler or collapse state.
+            label.Classes.Add("location-section-heading");
+            AutomationProperties.SetName(label,name);
             view.Margin=new Thickness(0,4,0,4);
             if(key!="section:"+BrowserLocationSection.Favorites)
-                view.Children.Insert(0,new Border { Height=1, Margin=new Thickness(0,2,0,4), Classes={"lf-location-separator"} });
+                view.Children.Add(new Border { Height=1, Margin=new Thickness(0,2,0,4), Classes={"lf-location-separator"} });
+            view.Children.Add(new Border { Child=label, Classes={"lf-location-heading"} });
         }
-        var group=new LocationGroup(view,children,button); _groups.Add(key,group);
-        void Describe() => AutomationProperties.SetName(button,$"{(group.Expanded ? "Collapse" : "Expand")} {name}");
-        Describe();
-        button.Click+=(_,_)=>
+        else
         {
-            group.Expanded=!group.Expanded; children.IsVisible=group.Expanded;
-            disclosure.Data=BrowserPresentation.Icon(group.Expanded ? "down" : "right").Data;
-            AutomationProperties.SetHelpText(button,group.Expanded ? "Expanded" : "Collapsed"); Describe();
-        };
+            // A verified server remains an expandable organizational tree parent.
+            var header=new Grid { ColumnDefinitions=new("24,24,*"), MinHeight=32 };
+            var disclosure=BrowserPresentation.Disclosure(expanded:true);
+            disclosure.VerticalAlignment=VerticalAlignment.Center; header.Children.Add(disclosure);
+            var icon=BrowserPresentation.Icon("server"); icon.VerticalAlignment=VerticalAlignment.Center;
+            Grid.SetColumn(icon,1); header.Children.Add(icon); Grid.SetColumn(label,2); header.Children.Add(label);
+            var button=Action(""); button.Content=header; button.Classes.Add("quiet");
+            button.HorizontalAlignment=HorizontalAlignment.Stretch; button.HorizontalContentAlignment=HorizontalAlignment.Stretch;
+            ToolTip.SetTip(button,name); AutomationProperties.SetName(button,$"Collapse {name}");
+            var expanded=true;
+            button.Click+=(_,_)=>
+            {
+                expanded=!expanded; children.IsVisible=expanded;
+                disclosure.Data=BrowserPresentation.Icon(expanded ? "down" : "right").Data;
+                AutomationProperties.SetName(button,$"{(expanded ? "Collapse" : "Expand")} {name}");
+                AutomationProperties.SetHelpText(button,expanded ? "Expanded" : "Collapsed");
+            };
+            view.Children.Add(button);
+        }
+        view.Children.Add(children);
+        var group=new LocationGroup(view,children); _groups.Add(key,group);
         return group;
     }
     private static void Reconcile(StackPanel panel, IReadOnlyList<Control> desired)
@@ -209,7 +215,7 @@ public sealed class BrowserPane : UserControl
         var choose=Action(node.Name);
         choose.HorizontalAlignment=HorizontalAlignment.Stretch; choose.HorizontalContentAlignment=HorizontalAlignment.Left;
         choose.Classes.Add("quiet");choose.Classes.Add("navigation");
-        var toggle=Action(""); toggle.Content=BrowserPresentation.Icon("right"); toggle.Classes.Add("quiet");toggle.Classes.Add("disclosure");
+        var toggle=Action(""); toggle.Content=BrowserPresentation.Disclosure(); toggle.Classes.Add("quiet");toggle.Classes.Add("disclosure");
         toggle.IsVisible=true;
         toggle.MinWidth=32; toggle.MinHeight=32; toggle.HorizontalContentAlignment=HorizontalAlignment.Center;
         var row=new Grid { ColumnDefinitions=new("32,*") }; row.Children.Add(toggle); Grid.SetColumn(choose,1);row.Children.Add(choose);

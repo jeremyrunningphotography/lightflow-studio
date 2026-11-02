@@ -18,6 +18,8 @@
     <SolidColorBrush x:Key="LightflowWarning">#F2C94C</SolidColorBrush>
     <SolidColorBrush x:Key="LightflowDanger">#3A1E25</SolidColorBrush>
     <SolidColorBrush x:Key="LightflowDangerBorder">#7A3444</SolidColorBrush>
+    <x:Double x:Key="LightflowTreeDisclosureSize">12</x:Double>
+    <x:Double x:Key="LightflowTreeDisclosureStroke">1.25</x:Double>
     <FontFamily x:Key="LightflowFont">$Default</FontFamily>
     <Thickness x:Key="LightflowControlPadding">7,4</Thickness>
     <Thickness x:Key="LightflowPanelPadding">9</Thickness>
@@ -88,8 +90,14 @@
   <Style Selector="ProgressBar.lf-progress"><Setter Property="Foreground" Value="{DynamicResource LightflowAccent}"/></Style>
   <Style Selector="GridSplitter.lf-splitter"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/></Style>
   <Style Selector="GridSplitter.lf-splitter:focus-visible"><Setter Property="Background" Value="{DynamicResource LightflowFocus}"/></Style>
+  <Style Selector="Border.lf-location-heading"><Setter Property="MinHeight" Value="32"/><Setter Property="Padding" Value="7,0"/></Style>
   <Style Selector="Border.lf-location-separator"><Setter Property="Background" Value="{DynamicResource LightflowDivider}"/></Style>
   <Style Selector="Path.lf-icon"><Setter Property="Stroke" Value="{DynamicResource LightflowNavigation}"/><Setter Property="StrokeThickness" Value="1.5"/><Setter Property="Fill" Value="Transparent"/></Style>
+  <Style Selector="Path.lf-icon.tree-disclosure">
+    <Setter Property="Width" Value="{StaticResource LightflowTreeDisclosureSize}"/>
+    <Setter Property="Height" Value="{StaticResource LightflowTreeDisclosureSize}"/>
+    <Setter Property="StrokeThickness" Value="{StaticResource LightflowTreeDisclosureStroke}"/>
+  </Style>
   <Style Selector="Path.lf-icon.location"><Setter Property="Stroke" Value="{DynamicResource LightflowFolder}"/></Style>
   <Style Selector="Path.lf-icon.folder"><Setter Property="Stroke" Value="{DynamicResource LightflowFolder}"/></Style>
   <Style Selector="Path.lf-icon.active"><Setter Property="Stroke" Value="{DynamicResource LightflowFocus}"/></Style>

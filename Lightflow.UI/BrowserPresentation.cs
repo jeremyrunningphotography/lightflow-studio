@@ -8,6 +8,15 @@ namespace Lightflow.UI;
 /// <summary>Presentation values aligned with WPF Themes/LightflowShell.xaml. No Browser state owner.</summary>
 public static class BrowserPresentation
 {
+    public static Avalonia.Controls.Shapes.Path Disclosure(bool expanded = false)
+    {
+        var icon=Icon(expanded ? "down" : "right");
+        // The theme owns tree artwork size/weight; the containing button owns its hit target.
+        icon.ClearValue(Control.WidthProperty); icon.ClearValue(Control.HeightProperty);
+        icon.Classes.Add("tree-disclosure");
+        return icon;
+    }
+
     // WPF's filled-folder silhouette, and font-independent equivalents of its Segoe controls.
     public static Avalonia.Controls.Shapes.Path Icon(string kind, bool active = false) => new()
     {

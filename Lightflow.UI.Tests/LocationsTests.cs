@@ -34,39 +34,66 @@ public sealed class LocationsTests
             var icon=content.Children[0]; var label=Assert.IsType<TextBlock>(content.Children[1]);
             Assert.Equal("account",label.Text); Assert.Equal(16,icon.Width);
             Assert.Empty(provider.Requests); // no protected built-in Favorites prefetched
-            Click(Button(pane,"Expand account"));
+            var homeToggle=Button(pane,"Expand account");
+            var disclosure=Assert.IsType<Avalonia.Controls.Shapes.Path>(homeToggle.Content);
+            Assert.Equal(12,disclosure.Width); Assert.Equal(12,disclosure.Height);
+            Assert.Equal(1.25,disclosure.StrokeThickness);
+            Assert.True(homeToggle.Bounds.Width>=32 && homeToggle.Bounds.Height>=32);
+            Assert.True(homeToggle.Focus(Avalonia.Input.NavigationMethod.Tab));
+            Click(homeToggle);
+            Assert.True(homeToggle.IsFocused);
             Assert.Same(content,home.Content); Assert.Single(provider.Requests);
             provider.Pending.SetResult(new(MediaFolderEnumerationStatus.Succeeded,[new("/Users/account/Child","Child",false)]));
             await Drain(()=>pane.GetVisualDescendants().OfType<Button>().Any(button=>AutomationProperties.GetName(button)=="Child"));
             var child=Button(pane,"Child"); var childContent=Assert.IsType<Grid>(child.Content);
             Assert.Equal("Child",Assert.IsType<TextBlock>(childContent.Children[1]).Text);
             // Children are born complete even while their disclosure has never been inspected.
-            window.UpdateLayout(); var x=childContent.Children[1].Bounds.X;
+            window.UpdateLayout(); var x=childContent.Children[1].Bounds.X; var chooseX=child.Bounds.X;
             var childToggle=Button(pane,"Expand Child"); Click(childToggle);
             await Drain(()=>!childToggle.IsVisible);
-            window.UpdateLayout(); Assert.Equal(x,childContent.Children[1].Bounds.X);
+            window.UpdateLayout(); Assert.Equal(x,childContent.Children[1].Bounds.X); Assert.Equal(chooseX,child.Bounds.X);
             provider.Delay=false;
             await model.RefreshAsync(); await Drain(()=>ReferenceEquals(content,home.Content));
             Assert.Same(icon,content.Children[0]); Assert.Same(label,content.Children[1]);
+            Assert.Same(disclosure,homeToggle.Content); Assert.True(homeToggle.IsFocused);
             Assert.Same(child,Button(pane,"Child")); Assert.Same(childContent,child.Content);
         }
         finally { window.Close();model.Suspend(); }
     }
     [AvaloniaFact]
-    public async Task SectionCollapseIsSessionOnlyRetainsTreeAndNeverChangesNavigationOrReopensOnAddressHistoryRefresh()
+    public async Task PermanentSectionHeadingsAndTopLevelLocationsSurviveNavigationHistoryAndRefresh()
     {
         var service=new Session();var provider=new Locations();var model=new BrowserViewModel(service,provider);await model.OpenAsync(service.Id);
-        var pane=new BrowserPane(model);var window=new Window { Content=pane,Width=1120,Height=720 };window.Show();
+        var pane=new BrowserPane(model);var window=new Window { Content=pane,Width=1120,Height=720 };LightflowTheme.Apply(window);window.Show();
         try
         {
+            var names=new[] { "Favorites", "Devices & Volumes", "Network" };
+            void PermanentSections()
+            {
+                var headings=pane.GetVisualDescendants().OfType<TextBlock>().Where(text=>text.Classes.Contains("location-section-heading")).ToArray();
+                Assert.Equal(names,headings.Select(text=>text.Text));
+                foreach(var heading in headings)
+                {
+                    Assert.True(heading.IsEffectivelyVisible); Assert.False(heading.Focusable);
+                    Assert.Equal(heading.Text,AutomationProperties.GetName(heading));
+                    var header=Assert.IsType<Border>(heading.Parent);
+                    Assert.Empty(header.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>());
+                }
+                Assert.DoesNotContain(pane.GetVisualDescendants().OfType<Button>(),button=>names.Any(name=>
+                    AutomationProperties.GetName(button) is { } label && (label==name || label=="Expand "+name || label=="Collapse "+name)));
+                foreach(var name in new[] { "account", "Desktop", "Documents", "Downloads", "Macintosh HD", "Flat share", "Mounted share" })
+                    Assert.True(Button(pane,name).IsEffectivelyVisible);
+            }
+            PermanentSections();
             Click(Button(pane,"Expand account")); await Drain(()=>pane.GetVisualDescendants().OfType<Button>().Any(button=>AutomationProperties.GetName(button)=="Child"));
-            var child=Button(pane,"Child");await model.GoPathAsync("/Users/account/Child");var current=model.Location;
-            Click(Button(pane,"Collapse Favorites")); Assert.False(child.IsEffectivelyVisible); Assert.Same(current,model.Location);
+            var child=Button(pane,"Child");await model.GoPathAsync("/Users/account/Child");
             await model.GoPathAsync("/");await model.BackAsync();await model.RefreshAsync();
-            Assert.Equal("/Users/account/Child",model.Location!.AbsolutePath); Assert.False(child.IsEffectivelyVisible);
-            Click(Button(pane,"Expand Favorites"));Assert.True(child.IsEffectivelyVisible);Assert.Same(child,Button(pane,"Child"));
-            var fresh=new BrowserPane(model);var second=new Window {Content=fresh};second.Show();
-            Assert.NotNull(Button(fresh,"Collapse Favorites"));Assert.NotNull(Button(fresh,"Collapse Devices & Volumes"));Assert.NotNull(Button(fresh,"Collapse Network"));second.Close();
+            Assert.Equal("/Users/account/Child",model.Location!.AbsolutePath);
+            PermanentSections(); Assert.True(child.IsEffectivelyVisible);Assert.Same(child,Button(pane,"Child"));
+            // Tree-node collapse remains independent of permanent section headings.
+            Click(Button(pane,"Collapse account"));Assert.False(child.IsEffectivelyVisible);PermanentSections();
+            Assert.Equal("/Users/account/Child",model.Location.AbsolutePath);
+            Click(Button(pane,"Expand account"));Assert.True(child.IsEffectivelyVisible);
         }
         finally { window.Close();model.Suspend(); }
     }
@@ -77,7 +104,11 @@ public sealed class LocationsTests
         var pane=new BrowserPane(model);var window=new Window { Content=pane,Width=1120,Height=720 };window.Show();
         try
         {
-            Assert.NotNull(Button(pane,"Collapse vault")); Assert.NotNull(Button(pane,"Flat share"));
+            var server=Button(pane,"Collapse vault"); Assert.NotNull(Button(pane,"Flat share"));
+            Click(server); Assert.False(Button(pane,"Mounted share").IsEffectivelyVisible);
+            Assert.True(Button(pane,"Flat share").IsEffectivelyVisible);
+            await model.RefreshAsync(); Assert.Same(server,Button(pane,"Expand vault"));
+            Click(server); Assert.True(Button(pane,"Mounted share").IsEffectivelyVisible);
             await model.GoPathAsync("/Users/account");await model.NavigateAsync(model.Roots.Single(node=>node.AbsolutePath=="/Volumes/JRP"));
             Assert.Equal(BrowserLocationKind.NetworkShare,model.Location!.Kind);
             await model.SelectAsync(service.Asset.AssetId);provider.Connected=false;await model.RefreshAsync();Dispatcher.UIThread.RunJobs();

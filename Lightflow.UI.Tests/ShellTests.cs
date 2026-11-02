@@ -13,16 +13,16 @@ using Xunit;
 namespace Lightflow.UI.Tests;
 public static class TestBootstrap
 {
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
+    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApp>().UseSkia().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing=false });
 }
-public sealed class TestApp : Avalonia.Application { public override void Initialize() => Styles.Add(new FluentTheme()); }
+public sealed class TestApp : Avalonia.Application { public override void Initialize() { Styles.Add(new FluentTheme()); RequestedThemeVariant=Avalonia.Styling.ThemeVariant.Dark; } }
 public sealed class ShellTests
 {
     [AvaloniaFact]
     public async Task RealWindowNeverShowsWorkspaceUntilAuthoritativeReadyAndRevokesItOnLoss()
     {
         var service=new TestSession();var model=new ShellViewModel(service);var window=new ShellWindow(model);window.Show();
-        var workspace=window.GetVisualDescendants().OfType<StackPanel>().Single(c=>AutomationProperties.GetAutomationId(c)=="ReadyWorkspace");
+        var workspace=window.GetVisualDescendants().OfType<Grid>().Single(c=>AutomationProperties.GetAutomationId(c)=="ReadyWorkspace");
         Assert.False(workspace.IsVisible);Assert.True(model.IsBusy);
         service.Pending.SetResult(new(StorageStartupStatus.Ready,Directory:"/task/Catalog",CatalogId:Guid.NewGuid(),SchemaVersion:19));
         await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
@@ -87,6 +87,95 @@ public sealed class ShellTests
         Assert.DoesNotContain(diagnostic,visibleText);Assert.Contains("couldn't open this Catalog",visibleText);
         window.Close();await model.CloseAsync();
     }
+    [AvaloniaFact]
+    public async Task SavedGeometryAndPositionPersistWhileZoomedBoundsAreIgnored()
+    {
+        var service=new TestSession();service.Pending.SetResult(new(StorageStartupStatus.Ready));
+        var model=new ShellViewModel(service);
+        var window=new ShellWindow(model,new BrowserLayout(Window:new ShellWindowGeometry(1300,800,100,80)));
+        BrowserLayout? saved=null;window.LayoutChanged+=state=>saved=state;
+        window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        Assert.Equal(1300,window.Width);Assert.Equal(800,window.Height);Assert.Equal(new PixelPoint(100,80),window.Position);
+        Assert.Equal(1120,window.MinWidth);Assert.Equal(720,window.MinHeight);
+        window.Position=new PixelPoint(150,100);
+        await Task.Delay(400);
+        Assert.Equal(1300,saved!.Window!.Width);Assert.Equal(800,saved.Window.Height);Assert.Equal(150,saved.Window.X);
+        window.WindowState=WindowState.Maximized;
+        window.Width=1900;window.Height=1000;window.Position=new PixelPoint(0,0);
+        await Task.Delay(400);
+        Assert.Equal(1300,saved.Window.Width);Assert.Equal(800,saved.Window.Height);Assert.Equal(150,saved.Window.X);
+        Assert.True(saved.Zoomed);
+        window.Close();await model.CloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ReopenedZoomUsesNativeStateWithoutReplacingRestoredGeometryOrReopeningFullscreen()
+    {
+        var service=new TestSession();service.Pending.SetResult(new(StorageStartupStatus.Ready));
+        var model=new ShellViewModel(service);
+        var normal=new ShellWindowGeometry(1300,800,100,80);
+        var window=new ShellWindow(model,new BrowserLayout(Window:normal,Zoomed:true));
+        BrowserLayout? saved=null;window.LayoutChanged+=value=>saved=value;
+        window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        Assert.Equal(WindowState.Maximized,window.WindowState);Assert.True(saved!.Zoomed);
+        Assert.Equal(normal,saved.Window);
+        window.WindowState=WindowState.Normal;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        Assert.False(saved.Zoomed);Assert.Equal(normal,saved.Window);
+        Assert.Equal(1300,window.Width);Assert.Equal(800,window.Height);
+        window.WindowState=WindowState.FullScreen;
+        Assert.False(saved.Zoomed);Assert.Equal(normal,saved.Window);
+        window.Close();await model.CloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task FreshProfileUsesApprovedClientSizeWhileSavedSmallerWindowRemainsUserChoice()
+    {
+        foreach(var savedSize in new ShellWindowGeometry?[] {null,new(1200,800,30,40)})
+        {
+            var service=new TestSession();service.Pending.SetResult(new(StorageStartupStatus.Ready));
+            var model=new ShellViewModel(service);var window=new ShellWindow(model,new BrowserLayout(Window:savedSize));
+            window.Show();await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+            Assert.Equal(savedSize?.Width ?? 1440,window.ClientSize.Width);
+            Assert.Equal(savedSize?.Height ?? 900,window.ClientSize.Height);
+            Assert.Equal(WindowState.Normal,window.WindowState);
+            window.Close();await model.CloseAsync();
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnzoomThenLiveSizeChangeNeverReappliesSavedBounds(bool reopenZoomed)
+    {
+        var service=new TestSession();service.Pending.SetResult(new(StorageStartupStatus.Ready));
+        var model=new ShellViewModel(service);
+        var window=new ShellWindow(model,new BrowserLayout(Window:new ShellWindowGeometry(1300,800,100,80),Zoomed:reopenZoomed));
+        BrowserLayout? saved=null;window.LayoutChanged+=value=>saved=value;
+        window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+
+        if(!reopenZoomed)window.WindowState=WindowState.Maximized;
+        window.Width=1800;window.Height=1026;
+        window.WindowState=WindowState.Normal;
+        window.Width=1300;window.Height=800;
+        // Simulate live-size ordering through public properties; no native AppKit drag is claimed.
+        window.Width=1400;window.Height=850;window.Position=new PixelPoint(220,130);
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        Assert.Equal(1400,window.ClientSize.Width);Assert.Equal(850,window.ClientSize.Height);
+        Assert.Equal(new PixelPoint(220,130),window.Position);
+        window.Width=1450;window.Height=870;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        Assert.Equal(1450,window.ClientSize.Width);Assert.Equal(870,window.ClientSize.Height);
+        await Task.Delay(400);
+        Assert.False(saved!.Zoomed);
+        // Public test size assignments are application changes, not physical user events.
+        Assert.Equal(1300,saved.Window!.Width);Assert.Equal(800,saved.Window.Height);
+        window.Close();await model.CloseAsync();
+    }
+
     private sealed class TestSession : IShellCatalogSession
     {
         public string DataRoot=>"/task";

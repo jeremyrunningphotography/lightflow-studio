@@ -193,7 +193,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         {
             var exists=await session.IsBrowserSourceAvailableAsync(asset.RootId,asset.AssetId,token).WaitAsync(token);
             if(generation==_selectionGeneration && scope==_generation && !token.IsCancellationRequested)
-                SourceMessage=exists ? "Source available · Catalog metadata shown below." : "Source unavailable. Reconnect its media location or retry. The Catalog record is preserved.";
+                SourceMessage=exists ? "Source available" : "Source unavailable. Reconnect its media location or retry. The Catalog record is preserved.";
         }
         catch(OperationCanceledException) { if(generation==_selectionGeneration && scope==_generation) SourceMessage="Source check stopped. Retry selection or reconnect its media location."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_selectionGeneration && scope==_generation) SourceMessage="Source availability couldn't be verified. Retry or reconnect the location; the Catalog record is preserved."; }

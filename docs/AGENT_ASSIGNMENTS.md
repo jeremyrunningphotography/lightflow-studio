@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), parent #366 | Phases 1 I03, 2 I01 and 3 I01 owner-accepted; Phase 4 I01 final inspection, exact-head qualification/publication and DARKMATTER handoff; fresh capture permission required; Project access limitation remains |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
 | 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
@@ -468,3 +469,75 @@ Chronicle candidate after acceptance: the owner-approved shared discovery extrac
 and native Mac automatic Catalog ingestion milestone, with explicit sole-writer,
 identity/safety and separate Windows qualification evidence (#460/#461). No history
 narrative is automatically rewritten. No release, tag or next milestone begins.
+
+## Assignment 028 reservation — 2026-10-27
+
+Jeremy allocated LF-MAC-DEV-028 for bounded #462 Browser presentation parity.
+028 is absent from fetched main `eb95296c6b46422ad372652490bc437823991988`
+and the inspected open PR inventory (#457/#448/#360). Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-028-BrowserParity`; branch
+`codex/028-mac-browser-ui-parity`. No other allocation is changed.
+
+#460 is verified Closed/Completed; #366 and #395 remain open/incomplete. Current
+GitHub connector has no Project-field, native-parent or dependency access; terminal
+Git has no authenticated credential and gh is unavailable. Computer Use is forbidden.
+Consequently #460 Project Done, #462 Browser/existing Priority/Backlog then active
+status, missing native #366 parent, and current Project priorities/active Epic audit
+remain explicitly unverified/unreconciled. Historical dispositions are not asserted
+as current verification; no unrelated roadmap decision is changed. Owner kickoff
+allows continuation with tooling limitations reported; AGENTS.md requires recording
+these honestly. Preserve all wider R2/R3/R4 blockers/DoD and sole Catalog safety.
+No GUI launch, release/tag, merge or acceptance is authorized by this reservation.
+
+028 implementation checkpoint: existing shared Avalonia panes now stretch and resize,
+reuse WPF palette/brand/folder silhouette, compact controls and Selection foundation.
+Mac-only optional view preferences persist proportions/right visibility outside the
+Catalog. 31 headless UI and 41 native Release tests pass; no native GUI app launch.
+See [comparison and exact handoff](qualification/mac-browser-462.md). Project/native
+parent/current priority audit limitations remain explicit; no unrelated roadmap
+decisions, shared discovery/Catalog/schema or Windows shipping input changed.
+Draft PR/exact-head CI, fresh bundle provenance, separate DARKMATTER qualification
+and Jeremy's functional/visual acceptance remain separate gates. No merge/release.
+
+028 continuation — 2026-11-01: Jeremy authorized complete Phase 1 geometry after
+assessment, within existing clone/branch/Draft #464. Approved 1440×900 default,
+1120×720 minimum under native constraints, restored geometry and fixed preferred
+280/360 side widths with right initially collapsed; header toggle/logo integration
+and one compact footer. Local iteration evidence/staging is versioned P1-I01.
+No visible app launch/Computer Use during Stage A. Stop for separate affirmative
+desktop-capture permission and applicable skill, then finalize actual-evidence ZIP.
+No phase acceptance, Phase 2–4 work, Windows shipping/default-view change or merge.
+Final exact-head CI/Windows local package gates and Project/parent access gap remain.
+
+028 continuation — 2026-11-01 I02: owner feedback accepted I01 pane/right/window
+resizing, restored geometry and native zoom interaction, not Phase1 as a whole.
+I02 preserves1440×900 first-run target, adds optional native zoom preference distinct
+from fullscreen, and aligns footer responsibilities with WPF without deferred features.
+Read-only AppKit work area1800×1054 logical points/backing2 supports the target;
+I01 capture was1440×900 client while later saved1200×800 overrides defaults.
+Fresh I02 profile and actual native reopen evidence remain capture-gated. Existing
+Project/native-parent access gap persists; no roadmap values invented. No Phase2.
+
+028 continuation — 2026-11-01 I03: owner I02 resize-after-zoom blocker reproduced
+as queued saved geometry overwriting newer live size in two headless ordering cases.
+Remove state-triggered placement; observe zoom preference only, retain native ownership
+and startup/display clamps. Optional isolated geometry trace supports physical capture;
+headless tests are not AppKit smooth-drag acceptance. Footer/provisional/pane behaviors
+unchanged; no Phase2, merge/release/tag. Native capture requires new permission.
+
+028 continuation — 2026-11-01 P2-I01: Jeremy formally accepted Phase1 I03 at
+02a996e6c0e8c4fbc0307f95bcaa8cb7b4b4c584 / build50639853af3227e6cd1d842077e5540769244f9f02950c5a9a6a8730e5b40ad3
+and authorized shared visual design system and approved Mac icon packaging. Geometry,
+Browser/Catalog,Windows shipping behaviors retained. Phase2 owner acceptance and native
+Finder/Dock/switcher screenshots remain capture-gated. No Phase3/4 or merge/release/tag.
+
+028 continuation — 2026-11-01 P3-I01: Phase1 I03 and Phase2 I01 owner-accepted.
+Phase3 interaction audit and bounded address/shortcut/focus/accessibility corrections,
+headless/native tests and exact-source package; new desktop permission gate.
+No Phase4, merge/release/tag. Project/native-parent operations still unavailable.
+
+028 continuation — 2026-11-01 P4-I01: Jeremy accepted Phase3 I01 and authorized
+final inspection/qualification. No production correction indicated by focused audit;
+preserve accepted source, publish equivalent tree and qualify fresh exact-head package/CI.
+Prepare separate DARKMATTER handoff without remote control or invented allocation.
+StageA only until new capture permission; no Phase4 acceptance, merge/close/release/tag.

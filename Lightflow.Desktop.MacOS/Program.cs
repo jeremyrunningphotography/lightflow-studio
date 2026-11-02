@@ -25,9 +25,7 @@ public sealed class MacApplication : Avalonia.Application
     public override void Initialize()
     {
         Name = "Lightflow Studio";
-        var theme = new FluentTheme();
-        theme.Palettes[Avalonia.Styling.ThemeVariant.Dark] = new ColorPaletteResources { Accent = Avalonia.Media.Color.Parse("#D86B37") };
-        Styles.Add(theme);
+        Styles.Add(new FluentTheme());
         RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
     }
     public override void OnFrameworkInitializationCompleted()
@@ -36,7 +34,14 @@ public sealed class MacApplication : Avalonia.Application
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var model = new ShellViewModel(new MacShellCatalogSession(Program.DataRoot), new MacBrowserLocationProvider());
-            var window = new ShellWindow(model);
+            var window = new ShellWindow(model, BrowserLayoutStore.Load(Program.DataRoot));
+            if(Environment.GetEnvironmentVariable("LIGHTFLOW_WINDOW_TRACE")=="1")
+                window.WindowGeometryDiagnostic+=line=>
+                {
+                    try { File.AppendAllText(Path.Combine(Program.DataRoot,"window-geometry.log"),$"{DateTimeOffset.UtcNow:O} {line}{Environment.NewLine}"); }
+                    catch(Exception error) when(error is IOException or UnauthorizedAccessException) { Console.Error.WriteLine("Window diagnostic could not be written."); }
+                };
+            window.LayoutChanged += layout => BrowserLayoutStore.Save(Program.DataRoot, layout);
             bool drained = false;
             Task? shutdown = null;
             async Task CloseAsync()

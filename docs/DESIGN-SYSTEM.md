@@ -143,3 +143,61 @@ The search box carries its own placeholder ("Search assets…") rather than a se
 The far-left refinement toolbar starts with graphical Grid and Details buttons using the shared dark segmented-control style, selected tint/underline, tooltips, and automation labels. Grid retains Preview/Info/Hybrid tile composition. Details uses 64-DIP rows with 54-DIP cached Previews and the same restrained selection colors. Rows remain left-aligned with the shared column headers while columns resize; generated trailing header space uses the same dark header chrome.
 
 Details starts with Preview, Name, Rating, Flag, Capture Date, Media Type, Dimensions, Duration, Frame Rate, and File Size. Optional columns are available from the column-header context menu, with a checkmark indicating each currently visible column. Headers support drag reordering, resizing, and sorting where the shared Browser sort model supports the field; ascending/descending indicators reflect that same sort. The configuration survives relaunch through workspace state. No row-density settings page or metadata-card presentation is introduced. Jeremy accepted this presentation hands-on before final regression validation.
+
+## Shared Avalonia visual resources (#462, Phase 2)
+
+`Lightflow.UI/Themes/Lightflow.axaml` owns the existing shared shell/Browser's
+semantic brushes, text roles, button theme and state chrome. `LightflowTheme` applies
+that resource set to shared windows and supplies class-based text/button/panel
+construction. Views compose layout and existing state; they do not duplicate palettes
+or add native feature policy. Windows shipping WPF resources remain unchanged.
+
+The Canvas/Surface/Panel/Raised/Divider palette and selection/focus colors match
+`Themes/LightflowShell.xaml`; primary text, muted, orange, success, warning and danger
+come from WPF `App.xaml`. Brand artwork retains its approved dark header surround.
+Panel padding9/radius8 and button padding7,4/radius6 are reusable resources. Existing
+32-point navigation/icon targets are retained; controls center within the accepted
+60-point header. Toolbar uses Surface, media uses Canvas, navigation/information use
+Panel, with Raised for secondary actions and hover. No shadows or panel gradients.
+
+Text roles are body/navigation13, metadata/status12, panel heading13semibold,
+location heading14semibold and Catalog heading26semibold. Avalonia's platform default
+font family supplies native-compatible text rather than requiring Windows Segoe fonts
+on Mac. Headless layout is supporting evidence; actual native text/scale acceptance
+remains a visual gate.
+
+One Button ControlTheme owns secondary/primary/quiet/icon/navigation/disclosure and
+optional danger families; hover, pressed, disabled and keyboard-visible focus share
+that template. Existing active scope/right-panel and navigation selection state use
+restrained tint/border plus existing labels/help text and folder fill. The existing
+single-selection list uses the same selection/focus vocabulary. Shapes are existing
+shared16-point vectors at1.5stroke; folder/disclosure/navigation semantics are unchanged.
+Progress and health retain their existing truthful owners; color is paired with text.
+
+Primary actions use a restrained solid brand orange with dark text (tested contrast
+at least4.5:1), rather than copying the WPF gradient. This deliberate rendering
+adaptation preserves brand identity and readable small text. Secondary metadata is
+also contrast-checked against Panel. Disabled opacity0.4 does not change eligibility.
+Phase2 defines appearance of existing states; Phase3 broader interaction work remains
+separately gated. No Details/Preview/Player/Inspector/Jobs controls are invented.
+
+macOS bundle identity uses the unchanged approved v4 1024master, converted only in
+resolution/format by `Build-MacIcon.sh` to native .icns and declared with CFBundleIconFile.
+The original opaque composition is retained; no guessed alpha mask, crop or padding.
+Native Finder/Dock/switcher validation remains required; build-time native decode checks
+verify10representations and exact unchanged1024master pixels. See Mac Assets/README.md.
+
+
+### Existing shell input conventions (#462, Phase 3)
+
+Shared UI retains native control Tab/ShiftTab, button Enter/Space, ListBox selection,
+and GridSplitter arrows. One shell route handles existing commands with exact modifiers:
+Command+I/L/R on macOS, Control+I/L/R elsewhere, F5, Alt+Left/Right history outside
+the address editor. Option-arrow stays native text editing. These local shell bindings
+do not assign the unqualified semantic Mac shortcut catalog or introduce feature actions.
+The shared Button theme owns its warm focus indicator and suppresses only its redundant
+stock adorner. Closing a focused right splitter returns focus to the header toggle;
+opening preserves invoker focus. Catalog return restores surviving Browser focus.
+Address drafts survive unrelated status updates; explicit navigation replaces them,
+Enter/Go submits nonblank text, and Escape restores the current path. Native desktop
+and accessibility qualification remain separate from headless evidence.

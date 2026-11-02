@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
@@ -91,12 +93,21 @@ public sealed class BrowserTests
         var service=new FakeBrowser(); var provider=new FakeLocations { Delayed=true }; var model=new BrowserViewModel(service,provider);
         await model.OpenAsync(service.CatalogId);
         var pane=new BrowserPane(model); var window=new Window {Content=pane,Width=1100,Height=700}; window.Show();
-        await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
         var expand=pane.GetVisualDescendants().OfType<Button>().Single(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Home");
         Assert.True(expand.IsVisible);
         Assert.True(expand.Bounds.Width >= 32 && expand.Bounds.Height >= 32);
         expand.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        // Loading is asynchronous: qualify the completed leaf state, not a30ms timer race.
+        var deadline=DateTime.UtcNow+TimeSpan.FromSeconds(5);
+        while (true)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var ready=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
+            if(ready.Length==2 && ready.All(leaf=>!leaf.IsVisible))break;
+            Assert.True(DateTime.UtcNow<deadline,"Folder leaf loading did not complete within5seconds.");
+            await Task.Delay(10);
+        }
         var leaves=pane.GetVisualDescendants().OfType<Button>().Where(button=>Avalonia.Automation.AutomationProperties.GetName(button)=="Expand Media").ToArray();
         Assert.NotEmpty(leaves); Assert.All(leaves, leaf=>Assert.False(leaf.IsVisible));
         await model.RefreshAsync(); await Task.Delay(30); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -192,6 +203,240 @@ public sealed class BrowserTests
         await refused;
         Assert.Contains("permissions", model.Message);
         Assert.False(model.IsLoading);
+    }
+
+    [AvaloniaFact]
+    public async Task SplittersResizeWithoutLosingSelectionAndPanelRestores()
+    {
+        var service=new FakeBrowser(); var model=new BrowserViewModel(service,new FakeLocations());
+        await model.OpenAsync(service.CatalogId);
+        var load=model.NavigateAsync(model.Roots.Single(n=>n.Name=="Media"));
+        var asset=Asset(service.RootId,"one.png");
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[asset])); await load;
+        service.Source.SetResult(true); await model.SelectAsync(asset.AssetId);
+        var pane=new BrowserPane(model,new BrowserLayout(RightOpen:true)); var window=new Window { Content=pane,Width=1120,Height=720 }; window.Show();
+        window.UpdateLayout();
+        var splitters=pane.GetVisualDescendants().OfType<GridSplitter>().ToArray(); Assert.Equal(2,splitters.Length);
+        var grid=(Grid)pane.Content!; var before=grid.ColumnDefinitions[0].ActualWidth;
+        BrowserLayout? saved=null; pane.LayoutChanged+=value=>saved=value;
+        splitters[0].Focus();
+        splitters[0].RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.Right });
+        window.UpdateLayout(); Assert.True(grid.ColumnDefinitions[0].ActualWidth>before);
+        splitters[0].RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent=Avalonia.Input.InputElement.KeyUpEvent,Key=Avalonia.Input.Key.Right });
+        Assert.True(saved!.NavigationWidth>before);
+        Assert.Equal(asset.AssetId,model.SelectedAssetId);
+        var toggle=pane.RightPanelToggle;
+        toggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); window.UpdateLayout();
+        Assert.False(splitters[1].IsVisible); Assert.Equal(0,grid.ColumnDefinitions[4].ActualWidth); Assert.False(saved!.RightOpen);
+        toggle.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); window.UpdateLayout();
+        Assert.True(splitters[1].IsVisible); Assert.True(grid.ColumnDefinitions[4].ActualWidth>=200);
+        window.Width=1120; window.Height=720; window.UpdateLayout();
+        Assert.True(grid.ColumnDefinitions[0].ActualWidth>=180); Assert.True(grid.ColumnDefinitions[2].ActualWidth>=340);
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single(); Assert.True(address.Bounds.Width>=70);
+        Assert.Equal(asset.AssetId,model.SelectedAssetId);
+        window.Close(); model.Suspend();
+        var restored=new BrowserPane(model,saved); Assert.Equal(saved.NavigationWidth,((Grid)restored.Content!).ColumnDefinitions[0].Width.Value,5);
+    }
+
+    [AvaloniaFact]
+    public async Task ShellBrowserFillsWindowAndOptionalHeadlessRender()
+    {
+        var service=new FakeShellBrowser();var shell=new ShellViewModel(service,new FakeLocations());
+        var window=new ShellWindow(shell); window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        var model=shell.Browser!;
+        var load=model.NavigateAsync(model.Roots.Single(n=>n.Name=="Media"));
+        var assets=new[] { Asset(service.RootId,"Alpine sunrise.jpg"),Asset(service.RootId,"Forest trail.mov"),Asset(service.RootId,"Quiet morning.wav") };
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],assets)); await load;
+        service.Source.SetResult(true); await model.SelectAsync(assets[0].AssetId);
+        window.UpdateLayout(); var pane=window.Browser!;
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        var list=pane.GetVisualDescendants().OfType<ListBox>().Single();
+        Assert.True(list.Bounds.Height>pane.Bounds.Height-180);
+        Assert.True(address.TranslatePoint(default,list)!.Value.Y<0);
+        var before=pane.Bounds.Height;
+        window.Height+=100;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        window.UpdateLayout(); Assert.True(pane.Bounds.Height>before+90,$"Browser height {before} -> {pane.Bounds.Height}; window {window.Bounds}");
+        Assert.Equal(assets[0].AssetId,model.SelectedAssetId);
+        window.Height-=100;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        window.UpdateLayout();
+        Assert.Equal(1440,window.Width); Assert.Equal(900,window.Height);
+        var headerToggle=window.GetVisualDescendants().OfType<Button>().Single(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Toggle Right Panel");
+        Assert.DoesNotContain(pane,headerToggle.GetVisualAncestors());
+        Assert.DoesNotContain(pane.GetVisualDescendants(),control=>ReferenceEquals(control,pane.StatusView));
+        Assert.Contains(window,pane.StatusView.GetVisualAncestors());
+        var ready=window.GetVisualDescendants().OfType<TextBlock>().Single(t=>t.Text=="Ready");
+        Assert.True(ready.TranslatePoint(default,window)!.Value.X < pane.StatusView.TranslatePoint(default,window)!.Value.X);
+        Assert.Contains(pane.StatusView.GetVisualDescendants().OfType<TextBlock>(),t=>t.Text==$"{assets.Length} items · 1 selected");
+        if(Environment.GetEnvironmentVariable("LIGHTFLOW_UI_EVIDENCE") is { } evidence)
+        {
+            System.IO.Directory.CreateDirectory(evidence);
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            window.CaptureRenderedFrame()!.Save(System.IO.Path.Combine(evidence,"browser-default.png"));
+            pane.ToggleRightPanel(); window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            window.CaptureRenderedFrame()!.Save(System.IO.Path.Combine(evidence,"browser-right-open.png"));
+            window.Width=1120;window.Height=720;window.UpdateLayout();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            window.CaptureRenderedFrame()!.Save(System.IO.Path.Combine(evidence,"browser-minimum.png"));
+        }
+        window.Close(); await shell.CloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task NarrowLayoutDoesNotSaveClampedPaneWidthsAndExpandingRestoresThem()
+    {
+        var model=new BrowserViewModel(new FakeBrowser());var preferred=new BrowserLayout(500,580,true);
+        var pane=new BrowserPane(model,preferred); var window=new Window { Content=pane,Width=1600,Height=900 };window.Show();
+        var saves=0;pane.LayoutChanged+=_=>saves++;
+        window.UpdateLayout();var grid=(Grid)pane.Content!;
+        Assert.Equal(500,grid.ColumnDefinitions[0].ActualWidth,2);Assert.Equal(580,grid.ColumnDefinitions[4].ActualWidth,2);
+        window.Width=1120;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);window.UpdateLayout();
+        Assert.True(grid.ColumnDefinitions[0].ActualWidth+grid.ColumnDefinitions[2].ActualWidth+grid.ColumnDefinitions[4].ActualWidth+16<=1120.1);
+        Assert.True(grid.ColumnDefinitions[2].ActualWidth>=340);Assert.Equal(0,saves);
+        window.Width=1600;
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);window.UpdateLayout();
+        Assert.Equal(500,grid.ColumnDefinitions[0].ActualWidth,2);Assert.Equal(580,grid.ColumnDefinitions[4].ActualWidth,2);Assert.Equal(0,saves);
+        window.Close();model.Suspend();
+    }
+
+    [AvaloniaFact]
+    public async Task UnifiedFooterPreservesLoadingCancelPartialAndPermissionFeedback()
+    {
+        var service=new FakeShellBrowser();var shell=new ShellViewModel(service,new FakeLocations());
+        var window=new ShellWindow(shell);window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        var browser=shell.Browser!;
+        var loading=browser.NavigateAsync(browser.Roots.Single(n=>n.Name=="Media"));
+        window.UpdateLayout();
+        var cancel=window.GetVisualDescendants().OfType<Button>().Single(b=>Avalonia.Automation.AutomationProperties.GetName(b)=="Stop loading");
+        Assert.True(cancel.IsVisible);Assert.Contains(cancel.GetVisualAncestors(),c=>Avalonia.Automation.AutomationProperties.GetAutomationId(c)=="ShellStatusRegion");
+        cancel.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); await loading;
+        Assert.Contains("Loading stopped",browser.Message);Assert.False(cancel.IsVisible);
+        var partial=browser.NavigateAsync(browser.Roots.Single(n=>n.Name=="Media"));
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[],"private-native-diagnostic"));await partial;
+        Assert.StartsWith("Scan incomplete",browser.Message);
+        var texts=window.GetVisualDescendants().OfType<TextBlock>().Select(t=>t.Text).ToArray();
+        Assert.Contains(browser.Message,texts);Assert.DoesNotContain(texts,t=>t?.Contains("private-native-diagnostic")==true);
+        var denied=browser.NavigateAsync(browser.Roots.Single(n=>n.Name=="Media"));
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.AccessDenied,[],[]));await denied;
+        Assert.Contains("permissions",browser.Message);
+        Assert.Single(window.GetVisualDescendants(),c=>Avalonia.Automation.AutomationProperties.GetAutomationId(c)=="ShellStatusRegion");
+        Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(),t=>t.Text=="Ready");
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(),b=>b.Content?.ToString()=="Jobs");
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBlock>(),t=>t.Text=="/task");
+        window.Close();await shell.CloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task FocusedAddressTracksNavigationButPreservesUncommittedDraftDuringSelection()
+    {
+        var service=new FakeBrowser();var model=new BrowserViewModel(service,new FakeLocations());
+        await model.OpenAsync(service.CatalogId);
+        var pane=new BrowserPane(model);var window=new Window {Content=pane,Width=1440,Height=900};window.Show();
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        var first=model.GoPathAsync("/task/Media");
+        var asset=Asset(service.RootId,"one.png");
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[asset]));await first;
+        address.Focus();address.Text="/intentional-draft";
+        service.Source.SetResult(true);await model.SelectAsync(asset.AssetId);
+        Assert.Equal("/intentional-draft",address.Text);
+        // Explicit navigation must publish its path even while the field retains focus.
+        await model.GoPathAsync("/other");Assert.True(address.IsFocused);Assert.Equal("/other",address.Text);
+        var back=model.BackAsync();
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[asset]));await back;
+        Assert.Equal("/task/Media",address.Text);Assert.True(model.CanGoForward);
+        address.Text="/draft";
+        address.RaiseEvent(new Avalonia.Input.KeyEventArgs {RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.Escape});
+        Assert.Equal("/task/Media",address.Text);
+        address.Text="   ";
+        address.RaiseEvent(new Avalonia.Input.KeyEventArgs {RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.Enter});
+        Assert.Equal("/task/Media",model.Location!.AbsolutePath);
+        window.Close();model.Suspend();
+    }
+
+    [AvaloniaFact]
+    public async Task ShellShortcutHasExactModifiersAndClosingFocusedSplitterKeepsVisibleFocus()
+    {
+        var service=new FakeShellBrowser();var shell=new ShellViewModel(service,new FakeLocations());
+        var window=new ShellWindow(shell);window.Show();
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(()=>{},Avalonia.Threading.DispatcherPriority.Background);
+        var pane=window.Browser!;var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        var primary=OperatingSystem.IsMacOS() ? Avalonia.Input.KeyModifiers.Meta : Avalonia.Input.KeyModifiers.Control;
+        void Key(Avalonia.Input.Key key,Avalonia.Input.KeyModifiers modifiers)=>
+            address.RaiseEvent(new Avalonia.Input.KeyEventArgs {RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=key,KeyModifiers=modifiers});
+        address.Focus();Key(Avalonia.Input.Key.I,primary|Avalonia.Input.KeyModifiers.Shift);
+        Assert.False(pane.RightPanelOpen);
+        Key(Avalonia.Input.Key.I,primary);Assert.True(pane.RightPanelOpen);
+        var splitter=pane.GetVisualDescendants().OfType<GridSplitter>().Single(s=>Avalonia.Automation.AutomationProperties.GetName(s)=="Resize Right Panel");
+        splitter.Focus();splitter.RaiseEvent(new Avalonia.Input.KeyEventArgs {RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.I,KeyModifiers=primary});
+        Assert.False(pane.RightPanelOpen);Assert.True(pane.RightPanelToggle.IsFocused);
+        Key(Avalonia.Input.Key.L,primary);Assert.True(address.IsFocused);
+        Assert.Equal(address.Text?.Length??0,address.SelectionEnd-address.SelectionStart);
+        // Option-arrow must remain local to the native address editor.
+        var arrow=new Avalonia.Input.KeyEventArgs {RoutedEvent=Avalonia.Input.InputElement.KeyDownEvent,Key=Avalonia.Input.Key.Left,KeyModifiers=Avalonia.Input.KeyModifiers.Alt};
+        address.RaiseEvent(arrow);Assert.False(pane.RightPanelOpen);
+        var catalog=window.GetVisualDescendants().OfType<Button>().Single(b=>b.Content?.ToString()=="Catalog…");
+        catalog.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.False(address.IsEffectivelyVisible);
+        catalog.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.True(address.IsFocused);
+        window.Close();await shell.CloseAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task ToolbarNavigationReplacesDraftIncludingSameLocationRefresh()
+    {
+        var service=new FakeBrowser();var model=new BrowserViewModel(service,new FakeLocations());await model.OpenAsync(service.CatalogId);
+        var pane=new BrowserPane(model);var window=new Window {Content=pane,Width=1440,Height=900};window.Show();
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        Button ButtonNamed(string name)=>pane.GetVisualDescendants().OfType<Button>().Single(b=>Avalonia.Automation.AutomationProperties.GetName(b)==name);
+        void Click(string name)=>ButtonNamed(name).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await model.GoPathAsync("/first");await model.GoPathAsync("/second/child");
+        address.Focus();address.Text="/draft";Click("Back");Assert.Equal("/first",address.Text);
+        address.Text="/draft";Click("Forward");Assert.Equal("/second/child",address.Text);
+        address.Text="/draft";Click("Up one folder");Assert.Equal("/second",address.Text);
+        address.Text="/draft";Click("Refresh current folder");Assert.Equal("/second",address.Text);
+        address.Text="/third";Click("Open folder path");Assert.Equal("/third",model.Location!.AbsolutePath);
+        Assert.Equal("/third",address.Text);Assert.False(model.CanGoForward);
+        window.Close();model.Suspend();
+    }
+
+    [AvaloniaFact]
+    public async Task NativeControlKeyboardTraversalAndSelectionRemainSeparate()
+    {
+        var service=new FakeBrowser();var model=new BrowserViewModel(service,new FakeLocations());await model.OpenAsync(service.CatalogId);
+        var load=model.GoPathAsync("/task/Media");var a=Asset(service.RootId,"a.png");var b=Asset(service.RootId,"b.png");
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[a,b]));await load;service.Source.SetResult(true);
+        var pane=new BrowserPane(model,new BrowserLayout(RightOpen:true));var window=new Window {Content=pane,Width=1440,Height=900};LightflowTheme.Apply(window);window.Show();window.UpdateLayout();
+        var address=pane.GetVisualDescendants().OfType<TextBox>().Single();
+        var go=pane.GetVisualDescendants().OfType<Button>().Single(c=>Avalonia.Automation.AutomationProperties.GetName(c)=="Open folder path");
+        void Press(Avalonia.Input.Key key,Avalonia.Input.RawInputModifiers modifiers=0) {window.KeyPress(key,modifiers);window.KeyRelease(key,modifiers);}
+        address.Focus(Avalonia.Input.NavigationMethod.Tab);Press(Avalonia.Input.Key.Tab);Assert.True(go.IsFocused);
+        Press(Avalonia.Input.Key.Tab,Avalonia.Input.RawInputModifiers.Shift);Assert.True(address.IsFocused);
+        var list=pane.GetVisualDescendants().OfType<ListBox>().Single();
+        list.SelectedIndex=0;window.UpdateLayout();
+        var first=list.GetVisualDescendants().OfType<ListBoxItem>().First();
+        Assert.True(first.Focus());Assert.Equal(a.AssetId,model.SelectedAssetId);
+        Press(Avalonia.Input.Key.Down);Assert.Equal(b.AssetId,model.SelectedAssetId);
+        address.Focus();Assert.Equal(b.AssetId,model.SelectedAssetId);
+        Assert.Contains(pane.GetVisualDescendants().OfType<TextBlock>(),t=>t.Text?.StartsWith("b.png\n")==true);
+        window.Close();model.Suspend();
+    }
+
+    private sealed class FakeShellBrowser : FakeBrowser, IShellCatalogSession, IBrowserDiscoverySession
+    {
+        public Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? path,Guid rootId,string folder,CancellationToken token=default)=>ReadBrowserFolderAsync(rootId,folder,token);
+        public Task SetBrowserRecursiveAsync(Guid rootId,string folder,bool enabled,CancellationToken token=default)=>Task.CompletedTask;
+        public string DataRoot=>"/task";
+        public Task<ShellCatalogSnapshot> StartAsync()=>Task.FromResult(new ShellCatalogSnapshot(StorageStartupStatus.Ready,Directory:"/task/Catalog",CatalogId:CatalogId));
+        public Task<ShellCatalogSnapshot> OpenAsync(string directory)=>StartAsync();
+        public Task<ShellCatalogSnapshot> CreateAsync(string directory)=>StartAsync();
+        public Task<ShellCatalogSnapshot> VerifyAsync()=>StartAsync();
+        public ValueTask DisposeAsync()=>ValueTask.CompletedTask;
     }
 
     private sealed class FakeDiscovery : FakeBrowser, IBrowserDiscoverySession

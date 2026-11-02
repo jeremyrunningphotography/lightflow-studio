@@ -7,4 +7,5 @@
     <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.8"/>
     <ProjectReference Include="../Lightflow.UI/Lightflow.UI.csproj"/>
   </ItemGroup>
+  <ItemGroup><Compile Include="../Lightflow.Desktop.MacOS/BrowserLayoutStore.cs" Link="BrowserLayoutStore.cs"/></ItemGroup>
 </Project>

@@ -43,11 +43,16 @@ public sealed class VolumeLifecycleTests
     public async Task RenameChangesOnlyPresentationAndDuplicateSnapshotsDoNotRepublishRoots()
     {
         var session=new Session();var locations=new Locations();var model=new BrowserViewModel(session,locations);await model.OpenAsync(session.Id);
-        await model.NavigateAsync(model.Roots.Single(node=>node.AbsolutePath==Field.Path));var before=model.Location!;var reads=session.Discoveries;
+        var pending=session.NextDiscovery=new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var navigation=model.NavigateAsync(model.Roots.Single(node=>node.AbsolutePath==Field.Path));var before=model.Location!;
         locations.Current=[System,Field with {Name="Renamed Field"},Share];await model.ReconcileLocationsAsync();
+        pending.SetResult(new(session.Root,"",false,MediaFolderEnumerationStatus.Succeeded,[],[session.Asset]));await navigation;
+        var reads=session.Discoveries;
         Assert.Equal("Renamed Field",model.Location!.Name);Assert.Equal(before.Key,model.Location.Key);
         Assert.Equal(before.RootId,model.Location.RootId);Assert.Equal(before.RelativeFolder,model.Location.RelativeFolder);
-        var roots=model.Roots;await model.ReconcileLocationsAsync();Assert.Same(roots,model.Roots);Assert.Equal(reads,session.Discoveries);model.Suspend();
+        var roots=model.Roots;await model.ReconcileLocationsAsync();Assert.Same(roots,model.Roots);Assert.Equal(reads,session.Discoveries);
+        await model.GoPathAsync("/Users/task");locations.Current=[System,Field with {Name="Second name"},Share];await model.ReconcileLocationsAsync();
+        await model.BackAsync();Assert.Equal("Second name",model.Location!.Name);Assert.Equal(before.Key,model.Location.Key);model.Suspend();
     }
     [Fact]
     public async Task SupersededNotificationsManualRefreshAndSuspensionRejectLateSnapshots()
@@ -110,11 +115,12 @@ public sealed class VolumeLifecycleTests
     private sealed class Session : IBrowserDiscoverySession
     {
         public Guid Id=Guid.NewGuid(),Root=Guid.NewGuid();public int CatalogReads,Discoveries,SourceReads;
+        public TaskCompletionSource<BrowserFolderSnapshot>? NextDiscovery;
         public MediaAsset Asset=new(Guid.NewGuid(),Guid.NewGuid(),"Child/forest.png","CHILD/FOREST.PNG","image",1,DateTime.UtcNow.Ticks,null,MediaAssetSourceStatus.Available,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null);
         public Task<BrowserCatalogSnapshot> ReadBrowserCatalogAsync(Guid? rootId=null,string folder="",bool recursive=false,CancellationToken cancellationToken=default)
         {CatalogReads++;return Task.FromResult(new BrowserCatalogSnapshot(Id,[new(Root,"Field",Field.Path,MediaRootAvailability.Online)],[]));}
         public Task<BrowserFolderSnapshot> DiscoverBrowserFolderAsync(string? path,Guid rootId,string folder,CancellationToken token=default)
-        {Discoveries++;return Task.FromResult(new BrowserFolderSnapshot(rootId==Guid.Empty?Root:rootId,folder,false,MediaFolderEnumerationStatus.Succeeded,[],[Asset]));}
+        {Discoveries++;var pending=NextDiscovery;NextDiscovery=null;return pending?.Task ?? Task.FromResult(new BrowserFolderSnapshot(rootId==Guid.Empty?Root:rootId,folder,false,MediaFolderEnumerationStatus.Succeeded,[],[Asset]));}
         public Task<BrowserFolderSnapshot> ReadBrowserFolderAsync(Guid rootId,string folder,CancellationToken token=default)=>throw new InvalidOperationException("Unexpected Catalog scan");
         public Task<MediaFolderEnumerationResult> ReadBrowserFoldersAsync(Guid rootId,string folder,CancellationToken token=default)=>throw new InvalidOperationException("Unexpected Catalog expansion");
         public Task<bool> IsBrowserSourceAvailableAsync(Guid rootId,Guid assetId,CancellationToken token=default){SourceReads++;return Task.FromResult(true);}

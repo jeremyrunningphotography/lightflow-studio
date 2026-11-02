@@ -112,7 +112,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
         if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
         _unavailableVolume=null;
-        Location=node; IsLoading=true; Recursive=false;
+        Location=PresentedNode(node); IsLoading=true; Recursive=false;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
         Message="Checking folder…"; Notify();
         try
@@ -126,7 +126,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
                 if (listing.Status != MediaFolderEnumerationStatus.Succeeded)
                 { if (!refreshing) { Assets=[]; _selection.Clear(); } Message = Unavailable(listing.Status); return; }
                 node = FileNode(new(path, node.Name, node.CanPrefetch, node.Section, node.Kind, node.Server));
-                Location = node;
+                Location = PresentedNode(node);
                 if (node.RootId == Guid.Empty && session is not IBrowserDiscoverySession)
                 { Assets=[]; _selection.Clear(); Message = "This folder is not cataloged. Folder navigation does not import files."; return; }
             }
@@ -134,7 +134,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
                 ? await discovery.DiscoverBrowserFolderAsync(node.AbsolutePath, node.RootId, node.RelativeFolder, token).WaitAsync(token)
                 : await session.ReadBrowserFolderAsync(node.RootId,node.RelativeFolder,token).WaitAsync(token);
             node = node with { RootId = content.RootId, RelativeFolder = content.RelativeFolder };
-            if (generation == _generation && !token.IsCancellationRequested) Location = node;
+            if (generation == _generation && !token.IsCancellationRequested) Location = PresentedNode(node);
             if(generation!=_generation || token.IsCancellationRequested) return;
             var retainAssetId = refreshing ? SelectedAssetId : null;
             Assets=content.Assets; Recursive=content.Recursive;
@@ -317,6 +317,11 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
             !_observedVolumeMounts.Any(mount=>!live.Contains(mount) &&
                 Under(path,mount))))
             .DistinctBy(node=>node.Key).ToArray();
+    }
+    private BrowserFolderNode PresentedNode(BrowserFolderNode node)
+    {
+        var shown=Roots.FirstOrDefault(root=>root.Key==node.Key && root.Section!=BrowserLocationSection.None);
+        return shown is null ? node : node with { Name=shown.Name,Section=shown.Section,Kind=shown.Kind,Server=shown.Server };
     }
     private BrowserFolderNode FileNode(BrowserFileLocation location)
     {

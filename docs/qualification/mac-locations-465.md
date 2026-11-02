@@ -11,8 +11,11 @@ Desktop/Documents warnings prompted the bounded I05 investigation/correction.
   Native metadata established the Documents top-level supported source was dataless,
   not downloaded and had zero allocated blocks. Desktop resident files were actually
   fingerprinted and returned. No evidence justified hydrating sources or loosening
-  identity/storage checks. This does not establish that every owner-reported missing
-  file was reproduced; a specific missing resident source remains an owner follow-up.
+  identity/storage checks. The owner later supplied a specific nested Documents JPG;
+  native metadata also reported that example as dataless/not downloaded with zero
+  allocated blocks. Its bounded direct check completed in 61 ms with zero resident
+  assets, one unavailable source and no genuine discovery diagnostic. No sampled
+  locally resident source was shown to be incorrectly excluded.
 - Expected exclusions were encoded as a generic reconciliation Diagnostic, causing
   the Browser to say Scan incomplete even when direct discovery completed safely.
 - A separate bounded recursive Documents run exposed a genuine rejected filesystem

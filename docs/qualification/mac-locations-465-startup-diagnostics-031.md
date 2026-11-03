@@ -1,5 +1,32 @@
 # LF-WIN-TST-031 — startup-frame diagnostic continuation
 
+## Implementation merge and documentation reconciliation — 2026-11-03
+
+Jeremy explicitly authorized normal merge of implementation #467 and this bounded
+qualification documentation #469. Implementation merged as
+`fc00a68eef606a7894e08d8495986a78d17c4621`, preserving accepted tree
+`ba4299d4d8ac79ea687592d65025d66c138a3f66` exactly. Accepted-head CI41539568094
+passed all five required jobs; implementation post-merge CI41734277170 is pending.
+This report is reconciled against that merged main. Documentation merge/final CI
+and administrative closeout remain pending; current outcomes will be recorded in
+closeout records. Earlier pending/blocked/no-authorization statements below are
+historical checkpoints, superseded only by explicit owner acceptance and merge.
+
+Original Windows **2,879 passed / 1 failed / 2 skipped**, the native startup-frame
+exception and **D — Inconclusive** remain unchanged. Owner approval accepts this
+qualification exception; no root cause, fixed failure, reproduced baseline failure
+or clean full-suite result is claimed. Mac I01–I06, Windows 6/6 hands-on, package
+qualification and accepted exact-head CI evidence are retained.
+
+Native #465 parent remains absent by REST read-back. #395 is the valid owner-selected
+parent and is itself under #366; current connector lacks native-parent/Projects v2
+writes and local GitHub authentication is absent. These operations remain unresolved,
+not substituted by body links. Existing empty dependency lists are preserved.
+Project latest verified Review/Browser/unset Priority is from qualification; no
+current Done mutation is claimed. #395/#366 stay open/incomplete. No release/tag.
+
+---
+
 Date: 2026-11-03. Required conversation name is exactly **LF-WIN-TST-031 — Mac Locations Windows Qualification**; applied through the chat title tool. Same assignment, no new agent.
 
 ## Owner exception approval — 2026-11-03

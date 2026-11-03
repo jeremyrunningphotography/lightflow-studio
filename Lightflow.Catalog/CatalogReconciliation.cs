@@ -7,7 +7,7 @@ namespace LightflowStudio;
 /// </summary>
 public sealed class CatalogReconciliationService(
     IMediaFolderEnumerator folders,
-    IMediaAssetService assets) : ICatalogReconciliationService
+    IMediaAssetService assets, bool allowPartialSources = false) : ICatalogReconciliationService
 {
     private CatalogMutationLifecycle Mutations { get; } = CatalogMutationLifecycle.From(assets);
     public async Task<CatalogReconciliationResult> ReconcileAsync(MediaFolderEnumerationRequest request,
@@ -31,12 +31,18 @@ public sealed class CatalogReconciliationService(
         if (!enumeration.Succeeded)
             return Result(Map(enumeration.Status), request, folder, enumeration.Diagnostic);
         folder = enumeration.RelativeFolder;
-        if (enumeration.SkippedLinkedEntries > 0)
+        if (enumeration.SkippedLinkedEntries > 0 && !allowPartialSources)
             return Result(CatalogReconciliationStatus.InvalidRequest, request, folder,
                 "Filesystem links were skipped. Catalog refresh was refused before mutation or missing-state inference; review the linked paths.");
 
+        var refusals = enumeration.Entries.Where(entry => entry.UnavailableDiagnostic is not null)
+            .Select(entry => entry.UnavailableDiagnostic!).ToList();
+        if (enumeration.SkippedLinkedEntries > 0)
+            refusals.Add($"Skipped {enumeration.SkippedLinkedEntries} filesystem link(s) for safety; linked sources were not reconciled.");
+        var unavailableCount = enumeration.Entries.Count(entry => !entry.IsAvailable && entry.UnavailableDiagnostic is null);
+
         var supported = enumeration.Entries
-            .Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown)
+            .Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown && entry.IsAvailable)
             .ToArray();
         var unsupportedCount = enumeration.Entries.Count(entry => !entry.IsDirectory && !entry.MediaType.IsKnown);
         IReadOnlyList<MediaAsset> existing;
@@ -101,7 +107,8 @@ public sealed class CatalogReconciliationService(
                     status));
             }
 
-            var missing = existing.Where(asset => !seen.Contains(asset.RelativePathKey)).ToArray();
+            // A refused/link source makes absence non-authoritative. Preserve all unseen records.
+            var missing = refusals.Count == 0 ? existing.Where(asset => !seen.Contains(asset.RelativePathKey)).ToArray() : [];
             cancellationToken.ThrowIfCancellationRequested();
             var updated = await assets.MarkMissingAsync(missing.Select(asset => asset.AssetId).ToArray(),
                 cancellationToken).ConfigureAwait(false);
@@ -122,7 +129,7 @@ public sealed class CatalogReconciliationService(
         }
 
         return new(CatalogReconciliationStatus.Succeeded, request.RootId, folder, changes,
-            unsupportedCount);
+            unsupportedCount, refusals.Count == 0 ? null : string.Join(" ",refusals), UnavailableSourceCount: unavailableCount);
     }, cancellationToken);
     }
 

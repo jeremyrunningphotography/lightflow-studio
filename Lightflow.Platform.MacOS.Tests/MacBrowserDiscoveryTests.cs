@@ -139,7 +139,9 @@ public sealed class MacBrowserDiscoveryTests
         await Assert.ThrowsAsync<IOException>(() => shell.DiscoverBrowserFolderAsync(contents, Guid.Empty, ""));
         // A link masquerading as a package is still a link, never an exemption from safety.
         Directory.CreateSymbolicLink(Path.Combine(media, "Linked.app"), package);
-        await Assert.ThrowsAsync<IOException>(() => shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder));
+        var partial = await shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder);
+        Assert.Contains("link",partial.Diagnostic);
+        Assert.Equal("photo.jpg",Path.GetFileName(Assert.Single(partial.Assets).RelativePath));
         Assert.Equal(MediaAssetSourceStatus.Available,
             Assert.Single((await shell.ReadBrowserCatalogAsync(first.RootId, first.RelativeFolder, true)).Assets).SourceStatus);
     }
@@ -242,7 +244,8 @@ public sealed class MacBrowserDiscoveryTests
         var asset = Assert.Single(first.Assets);
         File.CreateSymbolicLink(Path.Combine(media, "link.jpg"), Path.Combine(media, "keep.jpg"));
         File.Delete(Path.Combine(media, "keep.jpg"));
-        await Assert.ThrowsAsync<IOException>(() => shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder));
+        var partial = await shell.DiscoverBrowserFolderAsync(media, first.RootId, first.RelativeFolder);
+        Assert.Contains("link",partial.Diagnostic);Assert.Empty(partial.Assets);
         var retained = await shell.ReadBrowserCatalogAsync(first.RootId, first.RelativeFolder);
         Assert.Equal(MediaAssetSourceStatus.Available, Assert.Single(retained.Assets).SourceStatus);
         Assert.Empty((await shell.DiscoverBrowserFolderAsync(Path.Combine(data, "Catalog"), Guid.Empty, "")).Assets);

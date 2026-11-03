@@ -15,4 +15,8 @@
     </PackageReference>
     <ProjectReference Include="../Lightflow.Platform.MacOS/Lightflow.Platform.MacOS.csproj" />
   </ItemGroup>
+  <ItemGroup><None Include="native/libLightflowVolumeTests.dylib" Link="libLightflowVolumeTests.dylib" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+  <Target Name="BuildMacVolumeTests" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -framework Foundation -framework AppKit &quot;$(MSBuildProjectDirectory)/native/volume_notifications.m&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowVolumeTests.dylib&quot;" />
+  </Target>
 </Project>

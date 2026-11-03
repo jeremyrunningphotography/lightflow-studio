@@ -17,7 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Owner-accepted with documented startup-frame exception; pending final implementation merge; accepted 8643942/tree ba4299d; diagnostic D remains inconclusive; no merge authorization |
+| 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Owner-accepted with documented startup-frame exception; implementation merged fc00a68; original 2879/1/2 and diagnostic D retained; documentation/final CI and closeout pending |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Implementation merged fc00a68 with exact accepted tree; Mac I01–I06 and Windows exception qualification owner-accepted; documentation/final CI and administrative closeout pending |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -561,6 +562,81 @@ unverified because connector operations are unavailable. #366 and #395 remain
 open/incomplete; their remaining DoD and dependencies are unchanged. This registry-only
 closeout does not change production inputs or authorize further UI work or release.
 
+## Assignment 030 reservation — 2026-11-01
+
+Jeremy allocated **LF-MAC-DEV-030 — Mac Locations Redesign** for #465. Number
+030 is absent from independently cloned main `1ea4da350371c277eb95c6208310a5d355cc5085`
+and inspected open PRs (#457/#448/#360). Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-030-MacLocations`; branch
+`codex/030-mac-locations`. Canonical checkout untouched. Current AGENTS.md,
+#465/embedded approved mockup and accepted #456/#462 qualification reviewed.
+Stage A only; separate owner permission required for desktop control.
+User-managed Favorites excluded. Mac hands-on, independent Windows qualification,
+exact-head CI and explicit acceptance/merge remain separate gates; no release/closure.
+Current connector lacks Project/native-parent/dependency operations; reconciliation
+remains unverified, no Area/Priority/parentage invented.
+
+030 Stage A implementation checkpoint: native mount metadata behind shared Browser contracts,
+three session-only sections, expandable built-ins and retained complete folder controls.
+Focused UI51/native50/Application137/Catalog50 passing; actual visual/package/Windows/CI
+gates remain separate. See [qualification](qualification/mac-locations-465.md).
+Jeremy explicitly confirmed preserving accepted #460 discovery; #465 adds no ingestion
+behavior (recorded on #465). Draft PR #467 remains unmerged; 23 native process checks
+also passed. Stage B desktop permission/owner acceptance remain separate.
+
+030 continuation — 2026-11-01 I02: Jeremy passed all9I01 hands-on checks and authorized
+only permanent non-interactive section headings and smaller12-DIP/1.25-stroke tree
+artwork within existing32-DIP targets. Same clone/branch/Draft#467; no new allocation.
+I01 native/shared behavior and #460 discovery retained. I02 UI51/native50PASS; fresh
+package/staging without desktop control. Stop for new5–7minute capture permission,
+then owner I02 review; Windows/exact-headCI/explicit merge remain separate. I01
+CI41380067750SUCCESS carried as historical evidence only. Project access gap unchanged.
+
+030 continuation — 2026-11-02 I03: Jeremy accepted all six I02 checks and authorized
+automatic native mount/unmount/rename reconciliation for local/external and mounted
+network volumes. Same assignment, clone, branch and Draft PR #467. Native observer
+feeds debounced/cancellable UI-thread shared-model reconciliation without discovery
+or Catalog mutation; current unavailable path/history/selection retained. Application
+141 / UI 56 / native 52 tests pass; actual hardware events await owner hands-on.
+Separate narrow AGENTS.md workflow commit 50cb7a3 records Markdown-first routine
+handoffs, without mandatory screenshots/Computer Use/ZIP. No desktop control performed.
+Fresh I03 package/report, Windows local qualification, exact-head CI, owner acceptance
+and explicit merge remain gates. Project/native-parent tool gap unchanged; no release.
+
+
+030 continuation — 2026-11-02 I04: owner approved bounded resident iCloud media
+and unrelated unavailable mapping corrections after diagnostics. Media-only native
+residency/no-materialization guards preserve Catalog storage restrictions; offline
+root exclusion requires resolved absent-volume versus distinct live-mount evidence.
+Release Application 141, Catalog 51, shared UI 57 and Mac native 58 pass, including
+task-owned disk-image remount/authored-state coverage. Cloud metadata is simulated
+for registered fixtures; actual provider behavior awaits owner hands-on testing.
+No spinner timeout/progress/concurrency work, Computer Use, screenshot or ZIP.
+Same assignment/branch/Draft PR; fresh I04 package, Windows, exact-head CI and
+explicit merge authorization remain gates. Project/native-parent tool gap unchanged.
+
+
+030 continuation — 2026-11-02 I05: owner reported Desktop/Documents partial warnings
+with recursion on/off. Bounded native diagnostics distinguished actual cloud-only
+exclusions from genuine rejected-link diagnostics; no evidence justified hydration
+or storage-policy relaxation. Typed availability counts and Mac opt-in safe sibling
+reconciliation retain real warnings, disable missing inference for refused scopes
+and preserve identities/authored data. Application 141, Catalog 52, UI 59 and native
+59 Release tests pass. Fresh I05 isolated package/Markdown handoff, owner hands-on,
+Windows, exact-head CI and explicit merge remain gated. No spinner policy changes,
+Computer Use, screenshot, ZIP, new assignment or separate branch.
+
+
+030 continuation — 2026-11-02 I06: owner accepted I05 and requires recursive tree
+indication and toolbar parity before merge. Verified Windows selected-OR-effective
+scope filled icons, inherited root/descendant rules, labeled Subfolders toggle and
+leaf capability. Mac read-only presentation metadata/cache and retained row styling
+now reflect those rules immediately; Windows UI and discovery semantics unchanged.
+Application 141, Catalog 52, shared UI 61 and native 60 Release tests pass. Fresh I06
+isolated package/Markdown handoff, owner, independent Windows, exact-head CI and
+explicit merge remain gates. Same assignment/branch/Draft PR; no spinner or #468 work.
+
+
 ## Assignment 031 reservation — 2026-11-02
 
 Jeremy allocated LF-WIN-TST-031 — Mac Locations Windows Qualification for #465 / Draft #467. Registry maximum 030; 031 absent on accepted source and cloned main. Independent DARKMATTER full clone: `C:\Git\Agents\LF-WIN-TST-031`; branch `codex/031-windows-qualification`; accepted source `8643942d8cb5de111e7f1d9ea73d09e32bd84308`, verified against live PR head. Qualification only; production and accepted implementation remain unchanged. Windows regression/package work begins; owner hands-on and explicit merge authorization remain required. No merge, closure, tag or release authorized. Next number 032 subject to concurrent owner allocations.
@@ -575,3 +651,17 @@ Jeremy allocated LF-WIN-TST-031 — Mac Locations Windows Qualification for #465
 
 
 031 publication checkpoint — 2026-11-03: documentation-only branch codex/031-qualification-evidence targets main; registry and two reports only. #465 Project #4 Review/Browser/Priority unset verified; native parent null/dependencies empty preserved, parentage not inferred. Qualification owner-accepted with documented exception; final implementation merge pending. Related #395 remains open/incomplete; no merge authorization.
+
+030/031 implementation merge checkpoint — 2026-11-03: Jeremy explicitly authorized
+normal merge and closeout. PR #467 merged as fc00a68eef606a7894e08d8495986a78d17c4621,
+exact accepted tree ba4299d4d8ac79ea687592d65025d66c138a3f66 preserved. Accepted-head
+CI41539568094 passed all five jobs; implementation post-merge CI41734277170 is pending.
+Reconciled #469 preserves both assignment histories and the original Windows
+2879 passed / 1 failed / 2 skipped, native startup-frame exception and owner-approved
+D — Inconclusive disposition. No failure was relabeled as fixed or clean passing.
+Final documentation/CI and administrative completion remain pending. Native parent
+#395 is valid (its parent #366 verified), but #465 parent write and Project #4
+operations are unavailable through current connector/local authentication. Native
+parent remains absent by REST read-back; Project latest verified Review/Browser/
+unset Priority is historical, not a successful current mutation. Dependencies are
+empty and preserved; #395/#366 remain open/incomplete. No release or tag.

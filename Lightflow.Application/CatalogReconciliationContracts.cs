@@ -28,7 +28,8 @@ public sealed record CatalogReconciliationResult(
     string RelativeFolder,
     IReadOnlyList<CatalogReconciliationItem> Items,
     int UnsupportedCount = 0,
-    string? Diagnostic = null)
+    string? Diagnostic = null,
+    int UnavailableSourceCount = 0)
 {
     public bool Succeeded => Status == CatalogReconciliationStatus.Succeeded;
     public int NewCount => Items.Count(item => item.Status == CatalogReconciliationItemStatus.New);

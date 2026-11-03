@@ -95,7 +95,7 @@ public sealed class MacBrowserCatalogTests
         var root=FixtureRoot("lf026-locations-"); Directory.CreateDirectory(Path.Combine(root,"Leaf"));
         var provider=new MacBrowserLocationProvider();
         var locations=await provider.GetLocationsAsync(default);
-        Assert.Contains(locations,location=>location.Name=="Home" && Path.IsPathFullyQualified(location.Path));
+        Assert.Contains(locations,location=>location.Kind==BrowserLocationKind.Home && location.Name==Path.GetFileName(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) && Path.IsPathFullyQualified(location.Path));
         Assert.Empty((await provider.GetFoldersAsync(Path.Combine(root,"Leaf"),default)).Folders);
         Assert.Equal(MediaFolderEnumerationStatus.FolderNotFound,(await provider.GetFoldersAsync(Path.Combine(root,"Missing"),default)).Status);
         var link=Path.Combine(root,"Linked"); Directory.CreateSymbolicLink(link,Path.Combine(root,"Leaf"));

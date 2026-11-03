@@ -9,6 +9,13 @@
 - Materially separate issues normally begin in a clean agent conversation after the prior issue is merged.
 - Follow the branch → implementation → validation → Draft PR → review → explicit acceptance → merge/cleanup rhythm.
 
+## Implementation handoff convention
+
+- Routine implementations and functional fixes use a self-contained, copyable Markdown completion report; screenshots, Computer Use and ZIP evidence packages are not mandatory.
+- Significant visual redesigns or material visual uncertainty warrant screenshots and an evidence package. Always obtain explicit owner permission before controlling the visible desktop.
+- Reports must include exact source/build provenance, a runnable isolated launch command, focused owner acceptance instructions, validation results and outstanding gates.
+- Owner hands-on acceptance, appropriate automated tests, independent Windows qualification where applicable, exact-head CI and explicit merge authorization remain required. This convention changes handoff format only; all storage isolation, packaging and other safety requirements below still apply.
+
 ## Release and maintenance branches
 
 - Normal issues and features start from and target `main`, the development trunk.

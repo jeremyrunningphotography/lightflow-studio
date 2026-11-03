@@ -105,7 +105,7 @@ public sealed class RecursiveMediaDiscoveryService(
 
         var diagnostic = CombineDiagnostics(state.Diagnostics);
         var reconciliation = new CatalogReconciliationResult(CatalogReconciliationStatus.Succeeded,
-            baseRequest.RootId, baseFolder, state.ReconciliationItems, state.UnsupportedCount, diagnostic);
+            baseRequest.RootId, baseFolder, state.ReconciliationItems, state.UnsupportedCount, diagnostic, UnavailableSourceCount: state.UnavailableSourceCount);
         var batches = state.DerivedWorkBatches;
         var derivedWork = batches.Count == 0 ? null : new AggregateDerivedWorkBatch(reconciliation, batches);
         return new(CatalogReconciliationStatus.Succeeded, baseRequest.RootId, baseFolder, state.MediaEntries,
@@ -206,6 +206,7 @@ public sealed class RecursiveMediaDiscoveryService(
         private readonly List<IDerivedWorkBatch> _derivedWorkBatches = [];
         private readonly List<string> _diagnostics = [];
         private int _unsupportedCount;
+        private int _unavailableSourceCount;
         private int _reservedFolders;
         private int _visitedFolders;
         private bool _truncated;
@@ -215,6 +216,7 @@ public sealed class RecursiveMediaDiscoveryService(
         public IReadOnlyList<IDerivedWorkBatch> DerivedWorkBatches { get { lock (_sync) return _derivedWorkBatches.ToArray(); } }
         public IReadOnlyList<string> Diagnostics { get { lock (_sync) return _diagnostics.ToArray(); } }
         public int UnsupportedCount { get { lock (_sync) return _unsupportedCount; } }
+        public int UnavailableSourceCount { get { lock (_sync) return _unavailableSourceCount; } }
 
         /// <summary>Marks one reserved folder's own enumerate+reconcile attempt as finished (success or a recorded per-folder failure).</summary>
         public void MarkVisited() { lock (_sync) _visitedFolders++; }
@@ -254,6 +256,8 @@ public sealed class RecursiveMediaDiscoveryService(
                 _mediaEntries.AddRange(listing.Entries.Where(entry => !entry.IsDirectory));
                 _reconciliationItems.AddRange(refresh.Reconciliation.Items);
                 _unsupportedCount += refresh.Reconciliation.UnsupportedCount;
+                _unavailableSourceCount += refresh.Reconciliation.UnavailableSourceCount;
+                if (refresh.Reconciliation.Diagnostic is { } refusal) _diagnostics.Add(refusal);
                 if (refresh.DerivedWork is { } batch) _derivedWorkBatches.Add(batch);
                 if (listing.Diagnostic is { } diagnostic) _diagnostics.Add(diagnostic);
             }

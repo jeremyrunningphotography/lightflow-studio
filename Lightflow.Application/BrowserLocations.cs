@@ -3,7 +3,11 @@ using LightflowStudio;
 namespace Lightflow.Application;
 
 /// <summary>Filesystem identities are transient navigation, never Catalog ingestion intent.</summary>
-public sealed record BrowserFileLocation(string Path, string Name, bool CanPrefetch = true);
+public enum BrowserLocationSection { None, Favorites, Devices, Network }
+public enum BrowserLocationKind { Folder, Home, Desktop, Documents, Downloads, SystemVolume, LocalVolume, ExternalVolume, NetworkShare }
+public sealed record BrowserFileLocation(string Path, string Name, bool CanPrefetch = true,
+    BrowserLocationSection Section = BrowserLocationSection.None,
+    BrowserLocationKind Kind = BrowserLocationKind.Folder, string? Server = null);
 public sealed record BrowserLocationListing(MediaFolderEnumerationStatus Status,
     IReadOnlyList<BrowserFileLocation> Folders);
 

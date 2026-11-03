@@ -6,6 +6,33 @@ namespace Lightflow.Catalog.Tests;
 public sealed class DiscoveryWorkflowTests
 {
     [Fact]
+    public async Task OptInPartialSourcesPreserveUnseenRecordsAndDefaultLinkRefusalRemains()
+    {
+        var id=Guid.NewGuid();var assets=new Assets(id);var prior=assets.Rows[0];
+        var refused=Entry(id,"alias.jpg") with {IsAvailable=false,UnavailableDiagnostic="alias refused"};
+        var listing=new MediaFolderEnumerationResult(MediaFolderEnumerationStatus.Succeeded,"",[refused,Entry(id,"resident.jpg")],SkippedLinkedEntries:1);
+        var folders=new Folders(listing);
+        var strict=await new CatalogReconciliationService(folders,assets).ReconcileAsync(new(id));
+        Assert.False(strict.Succeeded);Assert.Single(assets.Rows);Assert.Equal(0,assets.MissingCalls);
+        var partial=await new CatalogReconciliationService(folders,assets,allowPartialSources:true).ReconcileAsync(new(id));
+        Assert.True(partial.Succeeded);Assert.Contains("alias refused",partial.Diagnostic);Assert.Contains("link",partial.Diagnostic);
+        Assert.Equal(prior,assets.Rows.Single(a=>a.AssetId==prior.AssetId));Assert.Empty(assets.MissingIds);Assert.Equal(new[]{"resident.jpg"},assets.CreatedPaths);Assert.Equal(0,partial.UnavailableSourceCount);
+    }
+
+    [Fact]
+    public async Task UnavailableSourcesAreNotOpenedOrMarkedMissingWhileResidentSourcesReconcile()
+    {
+        var id=Guid.NewGuid();var assets=new Assets(id);var prior=assets.Rows[0];
+        var unavailable=Entry(id,"kept.jpg") with {IsAvailable=false};
+        var placeholder=Entry(id,"cloud-only.jpg") with {IsAvailable=false};
+        var resident=Entry(id,"resident.jpg");
+        var result=await new CatalogReconciliationService(new Folders(new(MediaFolderEnumerationStatus.Succeeded,"",[unavailable,placeholder,resident])),assets).ReconcileAsync(new(id));
+        Assert.True(result.Succeeded);Assert.Null(result.Diagnostic);Assert.Equal(2,result.UnavailableSourceCount);
+        Assert.Equal(prior,assets.Rows.Single(a=>a.AssetId==prior.AssetId));
+        Assert.Equal(new[]{"resident.jpg"},assets.CreatedPaths);Assert.Empty(assets.ObservedIds);Assert.Empty(assets.MissingIds);
+        Assert.DoesNotContain(assets.Rows,a=>a.RelativePath=="cloud-only.jpg");
+    }
+    [Fact]
     public async Task CancellationAfterOneObservationNeverMarksUnseenAssetsMissing()
     {
         var id = Guid.NewGuid(); using var cancel = new CancellationTokenSource();
@@ -79,14 +106,15 @@ public sealed class DiscoveryWorkflowTests
         public CatalogMutationLifecycle Mutations {get;}=new();
         public List<MediaAsset> Rows=[new(Guid.NewGuid(),root,"kept.jpg","KEPT.JPG","image",4,0,null,MediaAssetSourceStatus.Available,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null)];
         public int MissingCalls;
+        public List<string> CreatedPaths=[];public List<Guid> ObservedIds=[];public List<Guid> MissingIds=[];
         public Task<IReadOnlyList<MediaAsset>> ListAsync(CancellationToken token=default)=>Task.FromResult<IReadOnlyList<MediaAsset>>(Rows.ToArray());
         public Task<MediaAssetOperationResult> CreateAsync(Guid rootId,string path,string mediaType="unknown",CancellationToken token=default)
         {
             var asset=new MediaAsset(Guid.NewGuid(),rootId,path,path.ToUpperInvariant(),mediaType,4,0,null,MediaAssetSourceStatus.Available,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow,null);
-            Rows.Add(asset);cancel?.Cancel();return Task.FromResult(new MediaAssetOperationResult(MediaAssetOperationStatus.Succeeded,new(asset,MediaRootAvailability.Online,path,true)));
+            CreatedPaths.Add(path);Rows.Add(asset);cancel?.Cancel();return Task.FromResult(new MediaAssetOperationResult(MediaAssetOperationStatus.Succeeded,new(asset,MediaRootAvailability.Online,path,true)));
         }
-        public Task<MediaAssetOperationResult> ObserveAsync(Guid id,CancellationToken token=default)=>Task.FromResult(new MediaAssetOperationResult(MediaAssetOperationStatus.Succeeded,new(Rows.Single(a=>a.AssetId==id),MediaRootAvailability.Online,"source",true)));
-        public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> ids,CancellationToken token=default) { MissingCalls++; return Task.FromResult(ids.Count); }
+        public Task<MediaAssetOperationResult> ObserveAsync(Guid id,CancellationToken token=default){ ObservedIds.Add(id);return Task.FromResult(new MediaAssetOperationResult(MediaAssetOperationStatus.Succeeded,new(Rows.Single(a=>a.AssetId==id),MediaRootAvailability.Online,"source",true))); }
+        public Task<int> MarkMissingAsync(IReadOnlyCollection<Guid> ids,CancellationToken token=default) { MissingCalls++;MissingIds.AddRange(ids); return Task.FromResult(ids.Count); }
         public Task<MediaAssetResolution?> GetAsync(Guid id,CancellationToken token=default)=>throw new NotSupportedException();
         public Task<MediaAssetResolution?> FindAsync(Guid id,string path,CancellationToken token=default)=>throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid,MediaAsset>> GetManyAsync(IReadOnlyCollection<Guid> ids,CancellationToken token=default)=>throw new NotSupportedException();

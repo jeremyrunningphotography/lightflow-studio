@@ -5,6 +5,8 @@ using Avalonia.Themes.Fluent;
 using Avalonia.Threading;
 using Lightflow.Platform.MacOS;
 using Lightflow.UI;
+using Lightflow.Application;
+using System.ComponentModel;
 
 namespace Lightflow.Desktop.MacOS;
 internal static class Program
@@ -34,6 +36,24 @@ public sealed class MacApplication : Avalonia.Application
         {
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             var model = new ShellViewModel(new MacShellCatalogSession(Program.DataRoot), new MacBrowserLocationProvider());
+            BrowserLocationMonitor? volumes=null;
+            try
+            {
+                volumes=new(new MacVolumeChangeSource(),async token=>
+                {
+                    await Dispatcher.UIThread.InvokeAsync(()=>model.Browser?.ReconcileLocationsAsync(token) ?? Task.CompletedTask);
+                });
+            }
+            catch(Exception error) when(error is IOException or DllNotFoundException or EntryPointNotFoundException)
+            { Console.Error.WriteLine($"Automatic volume updates unavailable; manual Refresh remains available. {error}"); }
+            void LocationsReady(object? sender,PropertyChangedEventArgs args)
+            {
+                if(!model.WorkspaceAvailable)return;
+                if(volumes is not null && model.Browser is { } browser)volumes.RequestAfterOpen(browser.Epoch);
+                else model.Browser?.ReportLocationUpdatesUnavailable();
+            }
+            // Also reconcile after Catalog open/switch, closing the registration/initial-snapshot race.
+            model.PropertyChanged+=LocationsReady;
             var window = new ShellWindow(model, BrowserLayoutStore.Load(Program.DataRoot));
             if(Environment.GetEnvironmentVariable("LIGHTFLOW_WINDOW_TRACE")=="1")
                 window.WindowGeometryDiagnostic+=line=>
@@ -48,6 +68,8 @@ public sealed class MacApplication : Avalonia.Application
             {
                 try
                 {
+                    model.PropertyChanged-=LocationsReady;
+                    if(volumes is not null)await volumes.DisposeAsync();
                     await model.CloseAsync();
                     drained = true;
                     window.Close();

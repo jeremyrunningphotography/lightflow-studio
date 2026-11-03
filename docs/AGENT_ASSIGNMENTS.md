@@ -17,7 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | I05 hands-on accepted; I06 Windows-equivalent recursive tree indicators and labeled Subfolders toggle implemented; owner/Windows/exact-head CI/merge gated |
+| 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Owner-accepted with documented startup-frame exception; implementation merged fc00a68; original 2879/1/2 and diagnostic D retained; documentation/final CI and closeout pending |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Implementation merged fc00a68 with exact accepted tree; Mac I01–I06 and Windows exception qualification owner-accepted; documentation/final CI and administrative closeout pending |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -634,3 +635,33 @@ now reflect those rules immediately; Windows UI and discovery semantics unchange
 Application 141, Catalog 52, shared UI 61 and native 60 Release tests pass. Fresh I06
 isolated package/Markdown handoff, owner, independent Windows, exact-head CI and
 explicit merge remain gates. Same assignment/branch/Draft PR; no spinner or #468 work.
+
+
+## Assignment 031 reservation — 2026-11-02
+
+Jeremy allocated LF-WIN-TST-031 — Mac Locations Windows Qualification for #465 / Draft #467. Registry maximum 030; 031 absent on accepted source and cloned main. Independent DARKMATTER full clone: `C:\Git\Agents\LF-WIN-TST-031`; branch `codex/031-windows-qualification`; accepted source `8643942d8cb5de111e7f1d9ea73d09e32bd84308`, verified against live PR head. Qualification only; production and accepted implementation remain unchanged. Windows regression/package work begins; owner hands-on and explicit merge authorization remain required. No merge, closure, tag or release authorized. Next number 032 subject to concurrent owner allocations.
+
+031 qualification checkpoint: Application 141/Catalog 52/headless UI 61 PASS; Windows 2879 passed, 1 failed, 2 existing environment/external skips (2882 total). Browser 749/749 and selected Catalog safety 64/64 PASS. Fresh required PR package, dependencies, startup/backup/shutdown and executable freshness PASS. Windows disposition BLOCKED by StartupRestore_NativeVideoSurvivesTaskbarReveal(seconds:1), No presented video frame is available; #465 causality unproven, no fix. No task executable remains. See qualification/mac-locations-465-windows-031.md. Owner acceptance/explicit merge gates remain; no merge/closure/release or tag. Reservation/evidence remain local and unpublished.
+
+
+031 continuation — 2026-11-03: Jeremy accepted all six Windows hands-on checks. Bounded startup-frame diagnostic: accepted 8643942 and verified pre-#465 merge base 1ea4da3 each pass 3/3 isolated rounds for seconds:1 plus 3/3 seconds:0 controls. D — Inconclusive; historical full-suite failure retained, baseline failure not reproduced, causal regression or environmental root cause unproven. No production/test changes or full-suite rerun. See qualification/mac-locations-465-startup-diagnostics-031.md. Final qualification acceptance/explicit merge remain owner decisions; PR Draft/unmerged and issue open. Same assignment; records local/unpublished.
+
+
+031 owner qualification acceptance — 2026-11-03: Jeremy explicitly approved Windows qualification with the documented startup-frame exception, pending final implementation merge. This supersedes earlier blocked/pending qualification status, not historical results. Original 2879 pass/1 fail/2 skip retained; baseline and accepted isolated repeats 6/6 each; D — Inconclusive remains, cause unresolved, failure not fixed/proven pre-existing. Mac I01–I06 and Windows 6/6 hands-on, Browser749/Catalog-safety64/shared suites/package/exact-head CI accepted. Separate documentation-only publication; #467 accepted SHA/tree unchanged, Draft/unmerged; #465 open. Explicit final merge authorization still required.
+
+
+031 publication checkpoint — 2026-11-03: documentation-only branch codex/031-qualification-evidence targets main; registry and two reports only. #465 Project #4 Review/Browser/Priority unset verified; native parent null/dependencies empty preserved, parentage not inferred. Qualification owner-accepted with documented exception; final implementation merge pending. Related #395 remains open/incomplete; no merge authorization.
+
+030/031 implementation merge checkpoint — 2026-11-03: Jeremy explicitly authorized
+normal merge and closeout. PR #467 merged as fc00a68eef606a7894e08d8495986a78d17c4621,
+exact accepted tree ba4299d4d8ac79ea687592d65025d66c138a3f66 preserved. Accepted-head
+CI41539568094 passed all five jobs; implementation post-merge CI41734277170 is pending.
+Reconciled #469 preserves both assignment histories and the original Windows
+2879 passed / 1 failed / 2 skipped, native startup-frame exception and owner-approved
+D — Inconclusive disposition. No failure was relabeled as fixed or clean passing.
+Final documentation/CI and administrative completion remain pending. Native parent
+#395 is valid (its parent #366 verified), but #465 parent write and Project #4
+operations are unavailable through current connector/local authentication. Native
+parent remains absent by REST read-back; Project latest verified Review/Browser/
+unset Priority is historical, not a successful current mutation. Dependencies are
+empty and preserved; #395/#366 remain open/incomplete. No release or tag.

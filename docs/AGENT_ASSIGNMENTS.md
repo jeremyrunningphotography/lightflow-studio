@@ -17,8 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Owner-accepted with documented startup-frame exception; implementation merged fc00a68; original 2879/1/2 and diagnostic D retained; documentation/final CI and closeout pending |
-| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [Draft PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Implementation merged fc00a68 with exact accepted tree; Mac I01–I06 and Windows exception qualification owner-accepted; documentation/final CI and administrative closeout pending |
+| 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Done; Windows qualification owner-accepted with startup-frame exception; original 2879 passed / 1 failed / 2 skipped and D — Inconclusive preserved; implementation fc00a68 and docs 8ff2774 merged; post-merge CI PASS |
+| 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Done; Mac I01–I06 and Windows exception qualification owner-accepted; implementation merge fc00a68, qualification docs merge 8ff2774; required post-merge CI PASS; #465 Completed; native-parent/Project access gaps documented |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
@@ -665,3 +665,33 @@ operations are unavailable through current connector/local authentication. Nativ
 parent remains absent by REST read-back; Project latest verified Review/Browser/
 unset Priority is historical, not a successful current mutation. Dependencies are
 empty and preserved; #395/#366 remain open/incomplete. No release or tag.
+
+## Assignments 030/031 final closeout — 2026-11-03
+
+Jeremy authorized normal merge and administrative closeout. Implementation PR #467
+merged as `fc00a68eef606a7894e08d8495986a78d17c4621` and preserves accepted implementation
+tree `ba4299d4d8ac79ea687592d65025d66c138a3f66` exactly. Reconciled qualification
+PR #469 merged as `8ff27744c2bea55058bfcbb5f9a0ef54b421c2ac`; only the intended registry and
+two reports differ from implementation main. Original Windows 2,879 passed /
+1 failed / 2 skipped, native startup-frame exception and owner-approved D —
+Inconclusive remain; no fixed/proven-pre-existing or clean full-suite claim.
+
+Implementation post-merge [CI 41734277170](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/41734277170)
+and documentation post-merge [CI 41736178407](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/41736178407)
+passed all five required jobs; tagged publication skipped. Mac I01–I06 and
+Windows 6/6 hands-on, package and accepted-head CI evidence remain preserved.
+#465 is Closed/Completed; assignments LF-MAC-DEV-030 and LF-WIN-TST-031 are Done.
+
+Native #465 parent remains absent by REST read-back. Owner-selected #395 is valid
+under native parent #366, but the connector has no native-parent/Projects v2 writes
+and local gh/environment/Git credentials are unavailable. Project #4 Done mutation
+and current Browser/unset Priority read-back remain unresolved; latest verified
+Review/Browser/unset Priority is historical qualification evidence only. Empty
+blocked-by/blocking lists were preserved. #395/#366 remain Open/incomplete with
+unchanged wider DoD/dependencies. No unrelated roadmap change, release or tag.
+
+This registry-only closeout does not alter accepted production or historical
+qualification reports. Owning task evidence/workspaces are retained; only completed
+task branches are eligible for cleanup after required checks. Remote branch deletion
+is unavailable through the connector/local authentication and automatic deletion is
+disabled; any retained remote refs remain an explicit administrative access gap.

@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Administrative operations verified complete; native #395 parent and Project Done/Browser/unset Priority confirmed; three merged task branches deleted; documentation review/merge pending |
 | 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Done; Windows qualification owner-accepted with startup-frame exception; original 2879 passed / 1 failed / 2 skipped and D — Inconclusive preserved; implementation fc00a68 and docs 8ff2774 merged; post-merge CI PASS |
 | 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Done; Mac I01–I06 and Windows exception qualification owner-accepted; implementation merge fc00a68, qualification docs merge 8ff2774; required post-merge CI PASS; #465 Completed; native-parent/Project access gaps documented |
 | 028 | LF-MAC-DEV-028 | Mac Browser UI Parity | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464), parent #366 | Done; #462 Completed, normal merge 49cb3c7; all four Mac phases and independent DARKMATTER Windows qualification owner-accepted at 3fa23ee / tree b41a6b7; post-merge CI 41369147121 attempt 2 PASS without source changes; Project/native-parent access gap remains |
@@ -695,3 +696,13 @@ qualification reports. Owning task evidence/workspaces are retained; only comple
 task branches are eligible for cleanup after required checks. Remote branch deletion
 is unavailable through the connector/local authentication and automatic deletion is
 disabled; any retained remote refs remain an explicit administrative access gap.
+
+
+## Assignment 032 reservation — 2026-11-03
+
+Jeremy allocated LF-ANY-ADM-032 — GitHub Administrative Reconciliation.
+032 is absent from live main registry and matching open PR/issue searches; maximum allocated number is 031. The owner explicitly selected ADM for this assignment, extending the listed activity codes only for this identity. Independent full clone: C:\Git\Agents\LF-ANY-ADM-032-GitHubReconciliation; branch codex/032-github-administrative-reconciliation; baseline main bb816c6492d8310cb6aeea8c678ae5bfd998b81e. Authenticated gh access works outside the restricted sandbox with repo/project scopes. No production change, release, tag or automatic merge authorized. Historical Windows qualification and startup-frame exception remain unchanged.
+
+## Assignment 032 administrative results — 2026-11-03
+
+Authenticated CLI access supersedes the earlier access-gap summaries without rewriting them. Native #395 parent for #465 is established and independently read back; #395 remains under #366. Project #4 Status changed Review to Done; Browser and unset Priority preserved. Both #465 dependency lists remain empty. Verified merged/unprotected/inactive branches codex/030-mac-locations (#467), codex/031-qualification-evidence (#469), and codex/030-locations-closeout (#470) were deleted with exact-SHA leases after reachability checks against bb816c6492d8310cb6aeea8c678ae5bfd998b81e; remote refs are absent. All other branches and historical evidence are retained. #465 remains Completed; #395/#366 remain open/incomplete. See [administrative report](qualification/github-administrative-reconciliation-032.md). Separate owner approval is required to merge the documentation Draft PR; 030/031 remain Done. No Chronicle entry warranted for routine administration.

@@ -38,7 +38,7 @@ jobs:
 
   mac-storage:
     needs: changes
-    if: always() && needs.changes.outputs.docs_only != 'true'
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
     name: macOS storage and Catalog lifecycle
     runs-on: macos-latest
     steps:
@@ -80,7 +80,7 @@ jobs:
 
   neutral:
     needs: changes
-    if: always() && needs.changes.outputs.docs_only != 'true'
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
     name: Neutral classification (${{ matrix.os }})
     strategy:
       matrix:
@@ -111,7 +111,7 @@ jobs:
 
   full-test:
     needs: changes
-    if: always() && needs.changes.outputs.docs_only != 'true'
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
     name: Windows application tests
     runs-on: windows-latest
     steps:
@@ -175,7 +175,7 @@ jobs:
     name: Build Windows installer and portable package
     needs: test
     # Override transitive skip propagation from the docs/full branches.
-    if: always() && needs.test.result == 'success' && needs.test.outputs.docs_only != 'true'
+    if: always() && !cancelled() && needs.test.result == 'success' && needs.test.outputs.docs_only != 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -254,7 +254,7 @@ jobs:
 
   release:
     name: Publish tagged release
-    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success'
+    if: always() && !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success'
     needs: package
     runs-on: windows-latest
     permissions:

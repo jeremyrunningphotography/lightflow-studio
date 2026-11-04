@@ -174,7 +174,8 @@ jobs:
   full-package:
     name: Build Windows installer and portable package
     needs: test
-    if: needs.test.outputs.docs_only != 'true'
+    # Override transitive skip propagation from the docs/full branches.
+    if: always() && needs.test.result == 'success' && needs.test.outputs.docs_only != 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -253,7 +254,7 @@ jobs:
 
   release:
     name: Publish tagged release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success'
     needs: package
     runs-on: windows-latest
     permissions:

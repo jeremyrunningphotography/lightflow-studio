@@ -166,7 +166,7 @@ class WorkflowTests(unittest.TestCase):
         for job in ['full-test', 'neutral', 'mac-storage']:
             self.assertIn(f"  {job}:\n    needs: changes\n    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'", workflow)
         self.assertIn("    if: always() && !cancelled() && needs.test.result == 'success' && needs.test.outputs.docs_only != 'true'", workflow)
-        self.assertIn("    if: always() && !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success'", workflow)
+        self.assertIn("    if: startsWith(github.ref, 'refs/tags/v') && always() && !cancelled() && needs.package.result == 'success'", workflow)
         self.assertIn('    needs: test', workflow)
         self.assertIn('      docs_only: ${{ needs.changes.outputs.docs_only }}', workflow)
         self.assertNotIn('paths-ignore:', workflow)

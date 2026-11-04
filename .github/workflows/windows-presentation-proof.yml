@@ -3,7 +3,6 @@ on:
   pull_request:
     paths:
       - 'research/windows-presentation/**'
-      - 'docs/research/windows-presentation/**'
       - '.github/workflows/windows-presentation-proof.yml'
 permissions:
   contents: read

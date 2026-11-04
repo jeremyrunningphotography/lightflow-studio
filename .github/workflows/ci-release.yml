@@ -11,7 +11,34 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Classify changed files
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Test CI routing
+        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - id: classify
+        run: python3 scripts/ci/docs_ci.py
+
+  docs:
+    name: Documentation validation
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/ci/docs_ci.py --validate
+
   mac-storage:
+    needs: changes
+    if: always() && needs.changes.outputs.docs_only != 'true'
     name: macOS storage and Catalog lifecycle
     runs-on: macos-latest
     steps:
@@ -52,6 +79,8 @@ jobs:
           retention-days: 14
 
   neutral:
+    needs: changes
+    if: always() && needs.changes.outputs.docs_only != 'true'
     name: Neutral classification (${{ matrix.os }})
     strategy:
       matrix:
@@ -80,8 +109,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  test:
-    name: Unit tests
+  full-test:
+    needs: changes
+    if: always() && needs.changes.outputs.docs_only != 'true'
+    name: Windows application tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -140,9 +171,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  package:
-    name: Windows installer and portable package
-    needs: test
+  full-package:
+    name: Build Windows installer and portable package
+    needs: full-test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -172,6 +203,50 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 30
+
+  # Stable protection contexts: a docs pass is required; a skipped/failed
+  # classifier never grants the lightweight path. Full runs retain both gates.
+  test:
+    name: Unit tests
+    needs: [changes, docs, full-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify selected validation succeeded
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          FULL_RESULT: ${{ needs.full-test.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if [ "$DOCS_ONLY" = true ]; then
+            test "$DOCS_RESULT" = success
+          else
+            test "$FULL_RESULT" = success
+          fi
+
+  package:
+    name: Windows installer and portable package
+    needs: [changes, docs, full-package, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify selected package validation succeeded
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          FULL_RESULT: ${{ needs.full-package.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$TEST_RESULT" = success
+          test "$CHANGES_RESULT" = success
+          if [ "$DOCS_ONLY" = true ]; then
+            test "$DOCS_RESULT" = success
+          else
+            test "$FULL_RESULT" = success
+          fi
 
   release:
     name: Publish tagged release

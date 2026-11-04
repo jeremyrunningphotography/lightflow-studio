@@ -24,10 +24,10 @@ this assignment does not maintain that workspace or its records.
 | 029 | LF-WIN-TST-029 | Mac Shell Windows Qualification | [Issue #462](https://github.com/jeremyrunningphotography/lightflow-studio/issues/462), [PR #464](https://github.com/jeremyrunningphotography/lightflow-studio/pull/464) | Done; independent DARKMATTER qualification at accepted 3fa23ee / tree b41a6b7; Windows tests, installer/portable staging, final executable refresh and Jeremy hands-on acceptance PASS; no production changes |
 | 027 | LF-MAC-DEV-027; LF-WIN-DEV-027 companion | Mac Browser Discovery | [Issue #460](https://github.com/jeremyrunningphotography/lightflow-studio/issues/460), [PR #461](https://github.com/jeremyrunningphotography/lightflow-studio/pull/461), parent #366 | Done; Jeremy accepted head 3559281 and Windows companion PASS (156 focused tests/package); normal merge d847d19; #462 unstarted and wider milestones incomplete |
 | 026 | LF-MAC-DEV-026 | Finder-Style Browser Navigation | [Issue #456](https://github.com/jeremyrunningphotography/lightflow-studio/issues/456), [PR #458](https://github.com/jeremyrunningphotography/lightflow-studio/pull/458) | Done; Jeremy accepted Mac/Windows hands-on and LF-WIN-DEV-026 companion package PASS at 4fac866; normal merge d2a600f; bounded navigation only, R2/R3/R4 incomplete |
-| 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Review; real Catalog checkpoint, 34 native / 136 Application / 44 Catalog / 15 UI tests and 23 process checks passed; owner/CI/Windows package acceptance pending |
+| 025 | LF-MAC-DEV-025 | Catalog-Backed Browser | [Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454), related #395/#366 | Done; owner accepted Mac hands-on and same-source Windows companion qualification at 6368099; #455 normal merge 4e1f361 and post-merge CI passed; #456 subsequently completed under 026; broader milestones incomplete |
 | 024 | LF-MAC-DEV-024 | Mac Application Shell | [Issue #451](https://github.com/jeremyrunningphotography/lightflow-studio/issues/451), [PR #452](https://github.com/jeremyrunningphotography/lightflow-studio/pull/452), related #395/#366 | Done; owner Mac functional/visual and LF-WIN-DEV-024 DARKMATTER companion package qualification accepted at b4a8e0a; normal merge 3801de8; bounded shell only, no R2/R3/R4 or release completion |
 | 023 | LF-MAC-DEV-023 | Catalog Portability | [R2 #393](https://github.com/jeremyrunningphotography/lightflow-studio/issues/393), [physical qualification #406](https://github.com/jeremyrunningphotography/lightflow-studio/issues/406), accepted host [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Research Complete / Production Portability Blocked; owner accepted final bounded CONDITIONAL disposition on 2026-10-20; write-capable SQLite activation, WAL/SHM, pooling and recovery integration unresolved; original production objective not delivered |
-| 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [Draft PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Review; journal fixture correction separately qualified; bounded playback attribution inconclusive; SQLite/Browser unresolved; final gates and owner acceptance required |
+| 022 | LF-WIN-DEV-022 | Windows CI Reliability Stabilization | [Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446), [merged PR #447](https://github.com/jeremyrunningphotography/lightflow-studio/pull/447) | Partial delivery; accepted journal #447 and initial-startup Browser fixture #449 merged; #446 remains Open/Review; SQLite ownership, historical after-selection Browser failure and playback attribution unresolved; not Done |
 | 015 | LF-MAC-DEV-015 | Native Catalog Lifecycle | [Issue #425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425), accepted prerequisite [#432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432) | Done; owner accepted native CLI at 3635fff; normal merge #443 / 27d4e95; bounded portability refusals retained |
 | 021 | LF-ANY-DOC-021 | Development History and Historical Maintenance | [Issue #430](https://github.com/jeremyrunningphotography/lightflow-studio/issues/430), [History Epic #427](https://github.com/jeremyrunningphotography/lightflow-studio/issues/427), [PR #442](https://github.com/jeremyrunningphotography/lightflow-studio/pull/442) | Done; owner editorial/architecture acceptance; normal merge 12b85ed on 2026-10-13; source/provenance limitations preserved |
 | 019 | LF-WIN-DEV-019 | Shared Catalog Lifecycle Extraction | [Issue #432](https://github.com/jeremyrunningphotography/lightflow-studio/issues/432), [PR #435](https://github.com/jeremyrunningphotography/lightflow-studio/pull/435), downstream [#425](https://github.com/jeremyrunningphotography/lightflow-studio/issues/425) | Done; owner technical and Windows hands-on acceptance; isolated-only condition verified; normal merge 89ee65a on 2026-10-12; two local baseline exceptions preserved; Mac host/R2 remain outstanding |
@@ -713,3 +713,93 @@ Authenticated CLI access supersedes the earlier access-gap summaries without rew
 Jeremy authorized normal #471 merge conditional on successful required CI and exactly one unchanged-source retry. Original CI41746919361 attempt 1 failed NativeMovePreservesDatabaseManagedBackupsAndExternalLutReferences: 2,883 passed / 1 failed / 1 skipped; source admission during Quiescing reported ambiguous containment with db-shm LeafLinkCount links=0. No deeper native exception chain was recorded. Test, production, workflow and dependency files match baseline main; no correction was made. Attempt 2 of the same run passed all five required jobs, including Windows packaging: 2,884 passed / 0 failed / 1 skipped. Both attempts reported runner image windows-2025-vs2026 version 20261030.294.1, runner 2.338.2. Exactly one retry; original cause remains unproven.
 
 PR #471 merged normally as f9c5529767b41e7be7ec3e603c0e0b2ad4728f05, preserving accepted head 3e2cf40d870c199cd4486a8a0a2647a25dd97b1e and tree bb105fae7c2cfa92f5493ade9eaafb14547f59c9 exactly. First-parent diff contains only this registry and qualification/github-administrative-reconciliation-032.md. Post-merge CI41751296327 passed all five required jobs; tagged publication skipped. #465 remains Closed/Completed under native #395, Project #4 Done/Browser/unset Priority; #395/#366 remain open/incomplete. Original three task branches remain absent, dependencies and wider DoD preserved. Assignment LF-ANY-ADM-032 is Done; publication of this final registry record is a separate registry-only Draft PR requiring owner merge approval. Prior pending checkpoints remain historical. Windows startup-frame exception and owner-approved D — Inconclusive are unchanged; no production/test/workflow/dependency change, release or tag. No Chronicle entry warranted for routine administration.
+
+## Assignment 033 reservation and legacy reconciliation preparation — 2026-11-04
+
+Jeremy allocated LF-ANY-ADM-033 — Legacy PR Reconciliation. Number 033 was absent
+from current main registry and matching open assignment work (the issue-search hit
+in #446 was a commit substring, not an allocation); maximum allocation was 032.
+Owner-selected ADM follows the bounded activity-code exception recorded for 032.
+Independent DARKMATTER full clone:
+`C:\Git\Agents\LF-ANY-ADM-033-LegacyPRReconciliation`; branch
+`codex/033-legacy-pr-reconciliation`; starting main
+`332062562a585d8123f077d05c15fa5063366d27`, tree
+`7a2d1b7014fba142964edad75a63c8caf9ade576`.
+Status: documentation prepared for owner review; no merge, closure or deletion authorized.
+
+### Assignment 025 — accepted completion reconciled
+
+[Issue #454](https://github.com/jeremyrunningphotography/lightflow-studio/issues/454)
+records Jeremy's accepted Mac hands-on and same-source LF-WIN-DEV-025 Windows
+companion package PASS at `6368099a304e7242a77b87ded45cedd4f7036eaa`, tree
+`006d1e305a7c7d5a50045c98a1506b06966d2a24`. The companion is the same global
+allocation, not a new assignment. Normal #455 merge
+`4e1f361ab02b1e72ed729a59b439478ca916dc7b` preserved that tree.
+Accepted-head CI 39495587310 and implementation post-merge CI 39499032786 passed.
+Assignment 025 is Done; historical pending checkpoints above are superseded only
+in acceptance/status. Failed CI 39494864488 and 39495258487 remain historical failures.
+
+The exact historical #457 patch was reviewed at
+`9e9cc164b12b5c2bd26d40a90174404542003a11`. Its failed CI 39499445829 remains
+failed: 2,883 passed / 1 failed / 1 skipped; NativeMovePreservesDatabaseManagedBackupsAndExternalLutReferences
+refused admission during Quiescing with db-shm LeafLinkCount=0; dependent packaging
+was skipped. Later #446 research demonstrated a cross-fixture global SQLite pool-clear
+mechanism; it did not deliver a correction or conclusively identify the unique historical
+caller. No green later run establishes this historical failure fixed.
+
+Retain the original Mac clone `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-025-Browser`,
+accepted app/provenance (290 verified file hashes), real Catalog/media/process fixtures,
+original failed logs, source bundles and artifacts/lf025-closeout evidence documented
+on #454. Preserve the separately owned Windows qualifier's clone, package, isolated
+profile and smoke/dependency evidence; unavailable paths/hashes are not invented.
+The accepted qualification snapshot docs/qualification/mac-browser-454.md is unchanged.
+
+#456 is now Closed/Completed: assignment 026, #458 normal merge
+`d2a600f9372fc5a6869540135dc77eaa57a308d4`, registry #459 and successful final-main
+CI 39634319595. Its four accepted requirements (filesystem Locations including
+uncataloged folders, no product-facing Media Root, leaf disclosure behavior, and
+Refresh context preservation) are delivered bounded follow-up, not pending 025 work.
+R2 #393, R3 #394, R4 #395 and #366 remain Open/incomplete; no broader DoD is waived.
+
+### Assignment 022 — partial delivery reconciled
+
+[Issue #446](https://github.com/jeremyrunningphotography/lightflow-studio/issues/446)
+records accepted journal source `144178ee31aa9961fa57c08a607ac758e54458be`, normal
+#447 merge `1af0bc49e29aa70a9c43d362032791316f35cbcd` with identical tree, and
+successful accepted-head CI 38466354591 / post-merge CI 38472601390.
+Native process termination synchronization and controlled live-journal refusal coverage
+preserve recovery, retention, PendingRecovery and single-writer assertions.
+The later accepted initial-startup Browser fixture correction #449 merged as
+`b3e353d958db4e7d1beed8331a72aa57882517bf`; accepted-head CI 38511370068 and
+post-merge CI 38734852974 passed. This corrects the demonstrated initial-startup
+synchronization race, not the historical after-selection failure.
+
+Assignment 022 remains partial/incomplete; #446 remains Open. Latest authoritative
+#446 record is Project #4 Review / Other / Priority unset, with no native parent or
+dependency edges. No Project mutation is made here. SQLite cleanup ownership,
+historical Browser after-selection attribution, playback cadence and separate #436
+remain unresolved; no investigation resumes. Later pool-clear research is not a
+completed CI reliability fix. Historical #423/#444 references above are checkpoints;
+both were subsequently merged by their owners.
+
+The exact #448 patch was reviewed at `e04ef580f9aad011cbc11ce3fef2991f204e9ca3`.
+Its required CI 38510355543 remains failed (cadence gaps 0.134/0.117); preceding
+playback failure 38456963160 and original focused Browser failures remain evidence.
+Later passes do not erase them. Retain both 022 clones, original/corrected probes,
+TRX/logs, package provenance, complete-history bundles and artifacts/lf022-evidence,
+artifacts/lf022-continuation, artifacts/lf022-remaining and artifacts/lf022-449-closeout
+in their owning workspace. The stale instrumented incremental-build attempt remains
+disclosed and is not a playback reproduction. Existing qualification reports are unchanged.
+
+### Proposed owner disposition
+
+Prefer this minimal current-main registry reconciliation over rebasing either stale
+branch. #457 and Draft #448 remain Open, unchanged, with failed CI preserved.
+After explicit owner acceptance and required checks, a replacement documentation PR
+may be merged normally, then the historical PRs closed as superseded only with
+separate authorization; branch deletion is a further explicit disposition.
+#360 remains Open/Draft and untouched; TourBox Console layout and physical acceptance
+remain separate #354/#345/#346 work. No production, tests, build scripts, dependencies,
+qualification snapshots, release/tag or unrelated roadmap changes. No Chronicle entry
+is warranted for routine registry administration. All newer assignment rows/history
+are preserved; 033 preparation does not complete 022 or the broader milestones.

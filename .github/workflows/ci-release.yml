@@ -173,7 +173,8 @@ jobs:
 
   full-package:
     name: Build Windows installer and portable package
-    needs: full-test
+    needs: test
+    if: needs.test.outputs.docs_only != 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -208,6 +209,8 @@ jobs:
   # classifier never grants the lightweight path. Full runs retain both gates.
   test:
     name: Unit tests
+    outputs:
+      docs_only: ${{ needs.changes.outputs.docs_only }}
     needs: [changes, docs, full-test]
     if: always()
     runs-on: ubuntu-latest

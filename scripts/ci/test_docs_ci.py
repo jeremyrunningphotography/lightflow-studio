@@ -165,7 +165,8 @@ class WorkflowTests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci-release.yml').read_text()
         for job in ['full-test', 'neutral', 'mac-storage']:
             self.assertIn(f"  {job}:\n    needs: changes\n    if: always() && needs.changes.outputs.docs_only != 'true'", workflow)
-        self.assertIn('    needs: full-test', workflow)
+        self.assertIn("    needs: test\n    if: needs.test.outputs.docs_only != 'true'", workflow)
+        self.assertIn('      docs_only: ${{ needs.changes.outputs.docs_only }}', workflow)
         self.assertNotIn('paths-ignore:', workflow)
         self.assertNotIn('    paths:', workflow)
         for job in ['test', 'package']:

@@ -39,6 +39,10 @@ The target direction is owner-selected; production remains Windows WPF until qua
 
 ## Feature specifications
 
+Controller setup: [TourBox Elite Plus Console mapping and physical acceptance](tourbox/README.md).
+This proposed supported-preset path consumes the accepted semantic shortcuts; hardware acceptance
+and a real Console export remain pending under #354.
+
 Feature specifications live under `features/` and describe behavior, acceptance criteria,
 dependencies, and future expansion. Issues may link to reusable specifications, but
 current issue decisions and acceptance criteria remain authoritative. Check disposition

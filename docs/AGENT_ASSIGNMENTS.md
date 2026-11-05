@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B performance correction; owner/Windows acceptance and merge pending |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B video/functional checks owner-accepted; cached presentation correction in review; Windows qualification/merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -920,3 +920,17 @@ No decoder dependency, Preview schema or Windows behavior change is intended.
 PR #486 remains Draft; #481 remains open/In Progress; owner acceptance,
 independent DARKMATTER qualification and explicit merge authorization remain gates.
 No new issue or agent was allocated; #482–#485 remain unstarted.
+
+
+## Assignment 036 cached presentation continuation — 2026-11-05
+
+Owner accepted the corrected video-generation performance and seven functional
+checks at `72729b35`. Remaining warm-navigation latency is addressed in the same
+Draft #486 by provisional existing-Catalog/cache publication before unchanged
+authoritative reconciliation. No schema/index/Windows decoder change. The separate
+last-location behavior predates #481 and needs owner-scoped persistence semantics;
+it is reported rather than silently implemented. See the [cached presentation report](qualification/browser-thumbnail-foundation-036-cached-presentation.md).
+Owner acceptance of the final Mac source must precede independent Windows
+qualification. #481 remains open/In Progress; no merge, #482 or new agent.
+Historical maintenance: **Not warranted** for this bounded correction; earlier
+feature milestone records remain preserved.

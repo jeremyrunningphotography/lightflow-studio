@@ -56,6 +56,7 @@ internal sealed class BrowserThumbnailCell : Border
         _image.RenderTransform = new RotateTransform(value?.RotationDegrees ?? 0);
         _state.Text = value?.Path is not null && _bitmap is null ? "Preview unavailable" : value?.State ?? "Loading"; _state.IsVisible = _bitmap is null || value?.State != "Ready";
         _state.Background = new SolidColorBrush(Color.FromArgb(200, 5, 7, 10));
+        _state.VerticalAlignment = value?.State == "Cached" ? Avalonia.Layout.VerticalAlignment.Bottom : Avalonia.Layout.VerticalAlignment.Center;
         ToolTip.SetTip(this, value?.Diagnostic ?? value?.State ?? "Loading thumbnail");
         Avalonia.Automation.AutomationProperties.SetName(this, value?.State ?? "Loading thumbnail");
     }

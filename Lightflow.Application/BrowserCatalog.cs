@@ -56,6 +56,13 @@ public interface IBrowserFolderSession : IBrowserCatalogSession
     Task<bool> IsBrowserSourceAvailableAsync(Guid rootId, Guid assetId, CancellationToken token = default);
 }
 
+/// <summary>Optional, source-I/O-free projection of existing Catalog scope. Results are provisional,
+/// never evidence of current source availability. Authoritative discovery must still follow.</summary>
+public interface IBrowserCachedFolderSession
+{
+    Task<BrowserFolderSnapshot> ReadCachedBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default);
+}
+
 /// <summary>Visited-folder discovery request; expanding Locations never invokes ingestion.</summary>
 public interface IBrowserDiscoverySession : IBrowserFolderSession
 {

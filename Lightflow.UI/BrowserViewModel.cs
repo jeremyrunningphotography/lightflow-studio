@@ -30,7 +30,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     private readonly List<BrowserFolderNode> _back = [], _forward = [];
     public bool CanGoBack => _back.Count > 0;
     public bool CanGoForward => _forward.Count > 0;
-    public bool CanChangeRecursive => session is IBrowserDiscoverySession && Location?.RootId != Guid.Empty && Location is not null && !IsLoading && (Recursive || _hasSubfolders != false);
+    public bool CanChangeRecursive => session is IBrowserDiscoverySession && Location?.RootId != Guid.Empty && Location is not null && !IsLoading && !IsProvisional && (Recursive || _hasSubfolders != false);
     public bool CanRefresh => _catalogId is not null;
     public bool HasNoSubfolders => _hasSubfolders == false && !Recursive;
     private readonly BrowserGridSelection _selection = new();
@@ -38,6 +38,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     public IReadOnlyList<MediaAsset> Assets { get; private set; } = [];
     public BrowserFolderNode? Location { get; private set; }
     public bool IsLoading { get; private set; }
+    public bool IsProvisional { get; private set; }
     public bool IsAvailable { get; private set; }
     public bool Recursive { get; private set; }
     public string Message { get; private set; } = "Choose a location to browse Catalog content.";
@@ -63,7 +64,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         _navigation?.Cancel(); _selectionRead?.Cancel();
         _back.Clear(); _forward.Clear(); _observedVolumeMounts.Clear();
         _recursiveRoots=[]; _hasSubfolders=null; Recursive=false;
-        _catalogId = null; IsAvailable = false; IsLoading = false; Roots = []; Assets = []; Location = null;
+        _catalogId = null; IsAvailable = false; IsLoading = false; IsProvisional = false; Roots = []; Assets = []; Location = null;
         _selection.Clear(); SourceMessage = "Select an asset to see its Catalog details."; Notify();
     }
     public async Task OpenAsync(Guid catalogId)
@@ -120,18 +121,34 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     public async Task NavigateAsync(BrowserFolderNode node, bool refreshing = false, bool history = true)
     {
         if(!IsAvailable) return;
+        using var navigationTiming = ThumbnailPerformance.Measure("navigation.request");
         _navigation?.Cancel(); _navigation?.Dispose(); _navigation=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
         if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
         _unavailableVolume=null;
         ClearThumbnailDemand();
-        Location=PresentedNode(node); IsLoading=true; Recursive=IsRecursiveScope(node); _hasSubfolders=null;
+        Location=PresentedNode(node); IsLoading=true; IsProvisional=false; Recursive=IsRecursiveScope(node); _hasSubfolders=null;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
         Message="Checking folder…"; Notify();
         try
         {
             if(node.AbsolutePath is { } missingMount && IsKnownUnmountedPath(missingMount))
             { _unavailableVolume=missingMount; Message=VolumeUnavailableMessage; return; }
+            if (session is IBrowserCachedFolderSession cached && node.RootId != Guid.Empty)
+            {
+                var known = await cached.ReadCachedBrowserFolderAsync(node.RootId, node.RelativeFolder, token).WaitAsync(token);
+                if (generation != _generation || token.IsCancellationRequested) return;
+                if (known.Assets.Count > 0)
+                {
+                    IsProvisional = true; Assets = known.Assets; Recursive = known.Recursive;
+                    if (known.RecursiveRoots is { } scopes) _recursiveRoots = scopes;
+                    Message = "Showing cached media · Checking for changes…";
+                    using (var publication = ThumbnailPerformance.Measure("ui.assets.publish"))
+                    { publication?.SetTag("provisional", true); publication?.SetTag("count", Assets.Count); Notify(); }
+                    await HydrateNavigationCacheAsync(known.Assets, provisional: true, generation, token);
+                    if (generation != _generation || token.IsCancellationRequested) return;
+                }
+            }
             if (locations is not null && node.AbsolutePath is { } path)
             {
                 var listing = await locations.GetFoldersAsync(path, token, userInitiated: true).WaitAsync(token);
@@ -149,10 +166,17 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
             node = node with { RootId = content.RootId, RelativeFolder = content.RelativeFolder };
             if (generation == _generation && !token.IsCancellationRequested) Location = PresentedNode(node);
             if(generation!=_generation || token.IsCancellationRequested) return;
-            var retainAssetId = refreshing ? SelectedAssetId : null;
+            var retainAssetId = refreshing || IsProvisional ? SelectedAssetId : null;
             if(content.CatalogRoots is { } catalogRoots)_catalogRoots=catalogRoots;
             if(content.RecursiveRoots is { } scopeRoots)_recursiveRoots=scopeRoots;
-            Assets=content.Assets; Recursive=content.Recursive; _hasSubfolders=content.Folders.Count>0;
+            if (IsProvisional)
+            {
+                // Re-read identities after reconciliation; changed/missing/Color-invalidated cached pixels
+                // must not be promoted from provisional to current without the existing reuse checks.
+                await HydrateNavigationCacheAsync(content.Assets, provisional: false, generation, token);
+                if (generation != _generation || token.IsCancellationRequested) return;
+            }
+            IsProvisional=false; Assets=content.Assets; Recursive=content.Recursive; _hasSubfolders=content.Folders.Count>0;
             if (retainAssetId is { } selected && Assets.Any(asset => asset.AssetId == selected)) await SelectAsync(selected);
             else { _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
             if (generation != _generation || token.IsCancellationRequested) return;
@@ -167,7 +191,16 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message=error is IOException ? $"{error.Message} Catalog records are preserved. Retry after resolving the source location." : "This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }
-        finally { if(generation==_generation) { IsLoading=false; Notify(); } }
+        finally
+        {
+            if(generation==_generation)
+            {
+                if (IsProvisional) MarkNavigationCacheUnverified();
+                IsLoading=false;
+                using var publication = ThumbnailPerformance.Measure("ui.navigation.complete");
+                publication?.SetTag("provisional", IsProvisional); publication?.SetTag("count", Assets.Count); Notify();
+            }
+        }
     }
     public void CancelNavigation() => _navigation?.Cancel();
     public Task GoPathAsync(string path) => NavigateAsync(FileNode(new(path, path == "/" ? "/" : path.TrimEnd('/').Split('/')[^1])));
@@ -224,6 +257,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         _selection.Clear(); var index=assetId is null ? -1 : Assets.ToList().FindIndex(asset=>asset.AssetId==assetId);
         if(index<0) { SourceMessage="Select an asset to see its Catalog details."; Notify(); return; }
         var asset=Assets[index]; _selection.SelectSingle(asset.AssetId.ToString("D"),index);
+        if (IsProvisional) { SourceMessage="Cached Catalog details · source availability has not been verified."; Notify(); return; }
         SourceMessage="Checking source availability…"; Notify();
         try
         {

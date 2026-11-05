@@ -18,7 +18,7 @@ public sealed partial class BrowserViewModel
     private void OnThumbnailChanged() => PropertyChanged?.Invoke(this, new(nameof(Thumbnails)));
     public async Task SetThumbnailViewportAsync(IReadOnlyList<Guid> visible, IReadOnlyList<Guid> overscan)
     {
-        if (session is not IBrowserThumbnailSession previews || !IsAvailable || IsLoading) return;
+        if (session is not IBrowserThumbnailSession previews || !IsAvailable || IsLoading || IsProvisional) return;
         var ids = visible.Concat(overscan).Distinct().Take(192).ToArray();
         var prior = _thumbnailDemand;
         var demand = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _thumbnailDemand = demand;
@@ -87,5 +87,32 @@ public sealed partial class BrowserViewModel
             if (Current()) { foreach (var id in ids) _thumbnails[id] = new(id, null, "Preview unavailable", Diagnostic: error.Message); OnThumbnailChanged(); }
         }
         finally { prior?.Cancel(); prior?.Dispose(); }
+    }
+
+    private async Task HydrateNavigationCacheAsync(IReadOnlyList<MediaAsset> assets, bool provisional, long generation, CancellationToken token)
+    {
+        if (session is not IBrowserThumbnailSession previews) return;
+        // A bounded initial page uses local Preview data only. No generation or source validation is
+        // scheduled until authoritative discovery finishes. Scrolling remains free during that work.
+        var ids = assets.Take(192).Select(asset => asset.AssetId).ToArray();
+        using var timing = ThumbnailPerformance.Measure("ui.navigation.cache");
+        IReadOnlyDictionary<Guid, BrowserThumbnail> values;
+        try { values = await previews.ReadThumbnailsAsync(ids, token).WaitAsync(token); }
+        catch (Exception error) when (error is IOException or InvalidOperationException)
+        { Console.Error.WriteLine($"Cached preview projection unavailable: {error.Message}"); values = new Dictionary<Guid, BrowserThumbnail>(); }
+        if (generation != _generation || token.IsCancellationRequested) return;
+        _thumbnails.Clear();
+        foreach (var (id, value) in values)
+            if (ids.Contains(id)) _thumbnails[id] = provisional ? value with
+            { State = value.Path is null ? "Checking" : "Cached", Diagnostic = "Cached preview · source changes are being checked." } : value;
+        OnThumbnailChanged();
+    }
+
+    private void MarkNavigationCacheUnverified()
+    {
+        foreach (var id in _thumbnails.Keys.ToArray()) _thumbnails[id] = _thumbnails[id] with
+        { State = "Unverified", Diagnostic = "Source verification did not complete. Retry or reconnect the location." };
+        SourceMessage = "Cached Catalog details · source availability has not been verified.";
+        OnThumbnailChanged();
     }
 }

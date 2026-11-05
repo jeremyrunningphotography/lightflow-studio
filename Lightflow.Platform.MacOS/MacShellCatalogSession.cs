@@ -4,7 +4,7 @@ using LightflowStudio;
 namespace Lightflow.Platform.MacOS;
 
 /// <summary>Thin shell composition adapter; CatalogLifecycle retains admission, configuration and resource ownership.</summary>
-public sealed partial class MacShellCatalogSession(string dataRoot, IThumbnailImageCodec? thumbnailCodec = null, Action<MacThumbnailObservation>? thumbnailObserved = null) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession, IBrowserThumbnailSession
+public sealed partial class MacShellCatalogSession(string dataRoot, IThumbnailImageCodec? thumbnailCodec = null, Action<MacThumbnailObservation>? thumbnailObserved = null) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession, IBrowserThumbnailSession, IBrowserCachedFolderSession
 {
     public string DataRoot { get; } = Path.GetFullPath(dataRoot);
     private readonly SemaphoreSlim _requests = new(1, 1);
@@ -101,6 +101,20 @@ public sealed partial class MacShellCatalogSession(string dataRoot, IThumbnailIm
         var folders = new CatalogMediaFolderEnumerator(Roots(owner), MediaTypeRegistry.CreateDefault(), effects, effects);
         return new BrowserCatalogReader(new CatalogMediaAssetRepository(() => owner.Session),
             new CatalogBrowserRecursiveRootRepository(() => owner.Session), folders).ReadAsync(rootId, folder, token);
+    }, token);
+
+    public Task<BrowserFolderSnapshot> ReadCachedBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(async owner =>
+    {
+        using var timing = BrowserPerformance.Measure("mac.catalog.known");
+        if (folder.Length > 0 && !PortablePathIdentityValidator.ValidateRelativePath(folder, token).IsSafe)
+            throw new ArgumentException("This relative folder needs review.", nameof(folder));
+        var scopes = await new CatalogBrowserRecursiveRootRepository(() => owner.Session).ListAsync(token).ConfigureAwait(false);
+        var recursive = BrowserRecursiveRootLogic.IsEffectivelyRecursive(scopes, rootId, folder);
+        var known = await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(rootId, folder, recursive, token).ConfigureAwait(false);
+        var types = MediaTypeRegistry.CreateDefault();
+        return new BrowserFolderSnapshot(rootId, folder, recursive, MediaFolderEnumerationStatus.Succeeded, [],
+            known.Where(asset => asset.SourceStatus == MediaAssetSourceStatus.Available && types.Classify(new(asset.RelativePath)).IsKnown).ToArray(),
+            RecursiveRoots: scopes);
     }, token);
 
     public Task<bool> IsBrowserSourceAvailableAsync(Guid rootId, Guid assetId, CancellationToken token = default) => BorrowAsync(async owner =>

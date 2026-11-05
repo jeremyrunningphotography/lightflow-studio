@@ -54,6 +54,7 @@ public sealed partial class MacShellCatalogSession
             using var timing = ThumbnailPerformance.Measure("cache.project");
             timing?.SetTag("count", ids.Count);
             if (ids.Count > 192) throw new ArgumentException("Thumbnail reads must be viewport bounded.", nameof(ids));
+            await EnsurePreviewsAsync(owner, token).ConfigureAwait(false);
             if (_previews is null) return new Dictionary<Guid, BrowserThumbnail>();
             var records = await _previews.GetManyAsync(ids.ToArray(), token).ConfigureAwait(false);
             var assets = await new CatalogMediaAssetRepository(() => owner.Session).GetManyAsync(ids.ToArray(), token).ConfigureAwait(false);

@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase A architecture audit; implementation not started; owner architecture approval required |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -879,3 +880,17 @@ Assignment LF-ANY-ADM-033 is Done; publication of this final registry record use
 a separate registry-only Draft PR and remains subject to required CI and explicit
 owner merge authorization. The earlier preparation/proposed-disposition paragraphs
 remain historical checkpoints. Routine administration warrants no Chronicle entry.
+
+## Assignment 036 reservation — 2026-11-05
+
+Jeremy allocated **LF-MAC-DEV-036 — Browser Thumbnail Foundation** for #481.
+036 was absent from current main, every fetched remote assignment registry, and
+matching GitHub issue/PR searches. Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-036-BrowserThumbnailFoundation`; branch
+`codex/036-browser-thumbnail-foundation`; independently verified remote main
+`7f755460e36375234281481cea3004f60344325b`. Conversation title matches exactly.
+Phase A only: repository/project hygiene, Windows/Mac parity and thumbnail audit,
+and an unapproved architecture proposal. No production implementation, implementation
+PR, merge, issue closure, release, or additional assignment is authorized.
+#482–#485 remain unallocated and unstarted. Reservation publication is task-owned;
+no routine registry-closeout agent or PR.

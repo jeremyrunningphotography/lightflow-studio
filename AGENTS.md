@@ -9,6 +9,13 @@
 - Materially separate issues normally begin in a clean agent conversation after the prior issue is merged.
 - Follow the branch → implementation → validation → Draft PR → review → explicit acceptance → merge/cleanup rhythm.
 
+## Assignment closeout and documentation CI
+
+- The global [assignment registry](docs/AGENT_ASSIGNMENTS.md) remains mandatory and authoritative for identities and number allocation. Record completion in the original implementation/documentation PR whenever practical; avoid chains of PRs solely to mark agents Done, and do not allocate new agents for routine closeout administration.
+- When final merge provenance cannot be included in an already-accepted source tree, record it in the issue or PR discussion. If registry reconciliation is necessary, use one registry-only reconciliation through documentation CI.
+- Only changes exclusively within `docs/**` qualify for lightweight CI: changed-file discovery, whitespace/Markdown checks, assignment table/unique-number validation and practical local-reference checks. Root `AGENTS.md`, application, tests, dependencies, build scripts, workflows, configuration, mixed changes and uncertain discovery require full CI. Tags and manual runs retain full CI.
+- Documentation-only post-merge CI is monitoring: preserve failures and pending results without automatically starting another acceptance cycle. Production changes retain explicit owner acceptance and merge authorization; identity, independent workspace, Catalog safety, qualification and evidence requirements remain in force.
+
 ## Implementation handoff convention
 
 - Routine implementations and functional fixes use a self-contained, copyable Markdown completion report; screenshots, Computer Use and ZIP evidence packages are not mandatory.

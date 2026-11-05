@@ -11,7 +11,34 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Classify changed files
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Test CI routing
+        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - id: classify
+        run: python3 scripts/ci/docs_ci.py
+
+  docs:
+    name: Documentation validation
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/ci/docs_ci.py --validate
+
   mac-storage:
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
     name: macOS storage and Catalog lifecycle
     runs-on: macos-latest
     steps:
@@ -51,12 +78,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  neutral:
-    name: Neutral classification (${{ matrix.os }})
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+  neutral-windows:
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
+    name: Neutral classification (windows-latest)
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -72,7 +98,35 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: neutral-classification-${{ matrix.os }}
+          name: neutral-classification-windows-latest
+          path: |
+            Lightflow.Application.Tests/TestResults/*.trx
+            Lightflow.Catalog.Tests/TestResults/*.trx
+            Lightflow.UI.Tests/TestResults/*.trx
+          if-no-files-found: error
+          retention-days: 14
+
+  neutral-macos:
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
+    name: Neutral classification (macos-latest)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+      - name: Test shared classification and storage contracts without Windows targeting packs
+        run: dotnet test Lightflow.Application.Tests/Lightflow.Application.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral.trx"
+      - name: Test shared production Catalog without Windows targeting packs
+        run: dotnet test Lightflow.Catalog.Tests/Lightflow.Catalog.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=neutral-catalog.trx"
+      - name: Test shared Avalonia shell presentation
+        run: dotnet test Lightflow.UI.Tests/Lightflow.UI.Tests.csproj -c Release --disable-build-servers -p:RestoreLockedMode=true --logger "trx;LogFileName=shell-ui.trx"
+      - name: Preserve neutral results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: neutral-classification-macos-latest
           path: |
             Lightflow.Application.Tests/TestResults/*.trx
             Lightflow.Catalog.Tests/TestResults/*.trx
@@ -81,7 +135,9 @@ jobs:
           retention-days: 14
 
   test:
-    name: Unit tests
+    needs: changes
+    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'
+    name: Windows application tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -140,9 +196,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  package:
-    name: Windows installer and portable package
+  full-package:
+    name: Build Windows installer and portable package
     needs: test
+    # Override transitive skip propagation from the docs/full branches.
+    if: always() && !cancelled() && needs.test.result == 'success'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
@@ -173,9 +231,68 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Stable protection contexts: a docs pass is required; a skipped/failed
+  # classifier never grants the lightweight path. Each platform has its own
+  # result, so an unsuccessful required platform cannot be hidden by another.
+  unit-tests:
+    name: Unit tests
+    needs: [changes, docs, test, full-package, mac-storage, neutral-windows, neutral-macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify selected validation succeeded
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          NATIVE_RESULT: ${{ needs.mac-storage.result }}
+          NEUTRAL_WINDOWS_RESULT: ${{ needs.neutral-windows.result }}
+          NEUTRAL_MACOS_RESULT: ${{ needs.neutral-macos.result }}
+          FULL_RESULT: ${{ needs.test.result }}
+          PACKAGE_RESULT: ${{ needs.full-package.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if [ "$DOCS_ONLY" = true ]; then
+            test "$DOCS_RESULT" = success
+            test "$FULL_RESULT" = skipped
+            test "$PACKAGE_RESULT" = skipped
+            test "$NATIVE_RESULT" = skipped
+            test "$NEUTRAL_WINDOWS_RESULT" = skipped
+            test "$NEUTRAL_MACOS_RESULT" = skipped
+          else
+            test "$FULL_RESULT" = success
+            test "$PACKAGE_RESULT" = success
+            test "$NATIVE_RESULT" = success
+            test "$NEUTRAL_WINDOWS_RESULT" = success
+            test "$NEUTRAL_MACOS_RESULT" = success
+          fi
+
+  package:
+    name: Windows installer and portable package
+    needs: [changes, docs, full-package, unit-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify selected package validation succeeded
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          FULL_RESULT: ${{ needs.full-package.result }}
+          TEST_RESULT: ${{ needs.unit-tests.result }}
+        run: |
+          test "$TEST_RESULT" = success
+          test "$CHANGES_RESULT" = success
+          if [ "$DOCS_ONLY" = true ]; then
+            test "$DOCS_RESULT" = success
+            test "$FULL_RESULT" = skipped
+          else
+            test "$FULL_RESULT" = success
+          fi
+
   release:
     name: Publish tagged release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && always() && !cancelled() && needs.package.result == 'success'
     needs: package
     runs-on: windows-latest
     permissions:

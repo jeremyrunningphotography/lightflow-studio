@@ -54,10 +54,11 @@ internal sealed class BrowserThumbnailCell : Border
         }
         _image.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
         _image.RenderTransform = new RotateTransform(value?.RotationDegrees ?? 0);
-        _state.Text = value?.Path is not null && _bitmap is null ? "Preview unavailable" : value?.State ?? "Loading"; _state.IsVisible = _bitmap is null || value?.State != "Ready";
+        var cached = value?.State == "Cached";
+        _state.Text = value?.Path is not null && _bitmap is null ? "Preview unavailable" : cached ? "Loading" : value?.State ?? "Loading";
+        _state.IsVisible = _bitmap is null || value?.State is not ("Ready" or "Cached");
         _state.Background = new SolidColorBrush(Color.FromArgb(200, 5, 7, 10));
-        _state.VerticalAlignment = value?.State == "Cached" ? Avalonia.Layout.VerticalAlignment.Bottom : Avalonia.Layout.VerticalAlignment.Center;
-        ToolTip.SetTip(this, value?.Diagnostic ?? value?.State ?? "Loading thumbnail");
-        Avalonia.Automation.AutomationProperties.SetName(this, value?.State ?? "Loading thumbnail");
+        ToolTip.SetTip(this, cached ? "Preview" : value?.Diagnostic ?? value?.State ?? "Loading thumbnail");
+        Avalonia.Automation.AutomationProperties.SetName(this, cached ? "Preview" : value?.State ?? "Loading thumbnail");
     }
 }

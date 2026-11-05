@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B video/functional checks owner-accepted; cached presentation correction in review; Windows qualification/merge pending |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B video/functional and cached presentation owner-accepted; final thumbnail label refinement in review; Windows qualification/merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -934,3 +934,15 @@ Owner acceptance of the final Mac source must precede independent Windows
 qualification. #481 remains open/In Progress; no merge, #482 or new agent.
 Historical maintenance: **Not warranted** for this bounded correction; earlier
 feature milestone records remain preserved.
+
+
+## Assignment 036 final thumbnail label refinement — 2026-11-05
+
+Owner accepted all six cached-presentation scenarios at `cf6b9145`, retaining prior
+video-generation/functional PASS results. The final requested product change removes
+the visible Cached label in the Mac thumbnail cell only; cached-first publication,
+background verification and genuine failure/unavailable/loading states remain.
+See the [final UI report](qualification/browser-thumbnail-foundation-036-final-ui.md).
+Fresh exact-head Mac package acceptance precedes independent Windows qualification;
+#481 remains open/In Progress, #486 Draft, and merge requires explicit authorization.
+Historical maintenance: **Not warranted** for a minor presentation refinement.

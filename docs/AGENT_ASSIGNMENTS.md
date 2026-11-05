@@ -18,6 +18,7 @@ this assignment does not maintain that workspace or its records.
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
+| 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
 | 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Done; Windows qualification owner-accepted with startup-frame exception; original 2879 passed / 1 failed / 2 skipped and D — Inconclusive preserved; implementation fc00a68 and docs 8ff2774 merged; post-merge CI PASS |
 | 030 | LF-MAC-DEV-030 | Mac Locations Redesign | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467), related #395/#366 | Done; Mac I01–I06 and Windows exception qualification owner-accepted; implementation merge fc00a68, qualification docs merge 8ff2774; required post-merge CI PASS; #465 Completed; native-parent/Project access gaps documented |
@@ -836,3 +837,45 @@ November 4 checkpoint remain intact. Overall PR stays Draft; full CI, normal own
 acceptance of the policy change and explicit merge authorization remain required.
 No separate registry-closeout PR. Related #427 was already Completed and is unchanged.
 No production/test/workflow, release/tag, merge or concurrent 034/#475/#474 changes.
+## Assignment 033 administrative closeout — 2026-11-04
+
+Jeremy explicitly authorized normal #473 merge, superseded #457/#448 closure,
+safe completed-branch cleanup and assignment 033 closeout. PR #473 merged normally
+as `4fb5b3f9c2cdbce08befeac8f1896f08e252b242`, with parents starting main
+`332062562a585d8123f077d05c15fa5063366d27` and accepted head
+`1fd9df90db4a1f1d8bfe939de4a99f5b084460a1`. Complete accepted tree
+`413cc94d99b4ea529f7533b619d06e3a0098bf2f` is preserved exactly.
+Accepted-head [CI 41889581607](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/41889581607)
+and post-merge [CI 41915468032](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/41915468032)
+passed all five validation jobs, including Windows installer/portable packaging;
+tagged publication was skipped. No retry or protection bypass was used.
+
+#457 closed automatically with the merge and received an explicit supersession
+comment after successful post-merge CI; #448 then closed with its supersession
+comment. Both are Closed/unmerged at their original heads. Their discussion,
+failed CI and qualification records remain intact; #473 is the authoritative
+current-main reconciliation. Assignment 025 remains Done; assignment 022 remains
+Partial delivery, not Done. Read-back confirmed #454 Closed/Completed with Project
+#4 Done/Browser/unset Priority and native parent #366; #446 Open with Project #4
+Review/Other/unset Priority, no native parent. No issue/Project mutation was needed.
+
+Remote branches `codex/025-browser-closeout` (9e9cc164),
+`codex/022-journal-partial-registry` (e04ef580), and completed
+`codex/033-legacy-pr-reconciliation` (1fd9df90) were deleted with exact-SHA leases.
+Each was unprotected, had no applicable branch rules and had no remaining open PR
+using it as head or base; historical content was preserved on main and in durable
+issue/PR records. Remote refs were independently read back absent. The merged
+local 033 branch was deleted after ancestry verification; other task workspaces
+were not changed. A verified complete-history backup of both historical PR heads,
+accepted 033 head and merged main remains at
+`C:\Git\Agents\LF-ANY-ADM-033-LegacyPRReconciliation\artifacts\lf033-closeout\legacy-pr-history.bundle`.
+Accepted-head and post-merge CI JSON and PR metadata are retained alongside it.
+
+#360 remains Open/Draft at `5d67d752d6670c194aab31a5a3b6492ab886310f`;
+its `issue-354-tourbox-console-preset` branch and separate #354/#345/#346 work are
+untouched. R2/R3/R4/#366 remain incomplete. No production, test, build, dependency,
+qualification-report, release/tag or unrelated roadmap changes were made.
+Assignment LF-ANY-ADM-033 is Done; publication of this final registry record uses
+a separate registry-only Draft PR and remains subject to required CI and explicit
+owner merge authorization. The earlier preparation/proposed-disposition paragraphs
+remain historical checkpoints. Routine administration warrants no Chronicle entry.

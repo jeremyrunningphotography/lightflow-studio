@@ -323,3 +323,17 @@ The release API still showed v1.0.2 as the latest application publication. Merge
 **Editorial scope.** This continuation follows major product and architecture milestones and meaningful changes in development practice. The [maintenance guidance refinement](DEVELOPMENT_HISTORY.md#editorial-refinement-for-future-maintenance) records Jeremy's subsequent editorial direction without extending the historical checkpoint. Detailed validation evidence remains in the Source Index and original records; owner outcomes are attributed, and no private conversation or hardware experiment was independently reconstructed for this writing.
 
 **Subsequent maintenance status.** Jeremy approved the revised narrative at `2991a2bb03d2efaf0c1ff0c4482865f1d4447dd1`, superseding its pending editorial status above. The [current maintenance policy](DEVELOPMENT_HISTORY.md#editorial-refinement-for-future-maintenance) requires qualifying progress to be documented by the delivering assignment within its existing PR, with no separate routine editorial gate. This later policy/status note does not extend the historical checkpoint; the overall PR remains Draft pending normal acceptance and explicit merge authorization.
+
+
+## November 5 — shared Browser thumbnail foundation implemented for review
+
+**Implementation record; acceptance and merge pending.** Under the owner-approved
+architecture for [#481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481),
+LF-MAC-DEV-036 moved Preview contracts, schema-4 persistence and generation/scheduling
+workflows into shared assemblies while retaining Windows WIC/FFmpeg adapters. Mac
+adapters add resident still/RAW/video thumbnails and a minimal Browser proof surface.
+This advances the Browser's shared derived-media foundation; it does not deliver the
+later Grid, Details, query or metadata-parity issues. The [qualification report](../qualification/browser-thumbnail-foundation-036-phase-b.md)
+distinguishes Mac automated evidence from outstanding owner acceptance and independent
+Windows qualification. The implementation is not yet an accepted, merged or released
+milestone. [H036](SOURCES.md#h036--browser-thumbnail-foundation-implementation).

@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase A architecture audit; implementation not started; owner architecture approval required |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B implemented for Draft review; Mac/Windows acceptance and merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -894,3 +894,16 @@ and an unapproved architecture proposal. No production implementation, implement
 PR, merge, issue closure, release, or additional assignment is authorized.
 #482–#485 remain unallocated and unstarted. Reservation publication is task-owned;
 no routine registry-closeout agent or PR.
+
+
+## Assignment 036 Phase B authorization and implementation — 2026-11-05
+
+The owner explicitly approved the Phase A architecture and authorized implementation
+of #481 in the existing clone and branch. This supersedes the Phase A-only authority
+boundary above; the earlier audit remains historical evidence. Shared schema-4
+Preview services and narrow Windows wrappers, native Mac thumbnail adapters and
+bounded Browser demand are implemented for review. See the [Phase B report](qualification/browser-thumbnail-foundation-036-phase-b.md).
+#481 is In Progress, Browser, priority unset. #480 and #482–#485 remain Backlog;
+no child assignment was allocated. Owner Mac hands-on acceptance, independent
+DARKMATTER Windows qualification, exact-head CI and explicit merge authorization
+remain outstanding. This is not Done, accepted, merged or released.

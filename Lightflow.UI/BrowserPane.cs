@@ -16,7 +16,7 @@ using Lightflow.Application;
 namespace Lightflow.UI;
 
 /// <summary>One shared Browser presentation, with application requests only and no filesystem/Catalog dependency.</summary>
-public sealed class BrowserPane : UserControl
+public sealed partial class BrowserPane : UserControl
 {
     private readonly BrowserViewModel _model;
     private readonly StackPanel _roots = new() { Spacing = 0 };
@@ -118,6 +118,7 @@ public sealed class BrowserPane : UserControl
     public BrowserPane(BrowserViewModel model, BrowserLayout? savedLayout = null)
     {
         _model=model;
+        InitializeThumbnailDemand();
         var saved=(savedLayout ?? new()).Validated();
         _preferred=saved;
         var layout=_layout=new Grid { ColumnDefinitions=new("280,8,*,0,0") };
@@ -145,18 +146,19 @@ public sealed class BrowserPane : UserControl
         var toolbarContent=new StackPanel { Children={toolbar,scope} };
         var toolbarPanel=Panel(toolbarContent);toolbarPanel.Classes.Add("toolbar");center.Children.Add(toolbarPanel);
         var media=new Grid { RowDefinitions=new("28,*") };
-        var columns=new Grid { ColumnDefinitions=new("*,74,90"), Margin=new Thickness(12,0) };
-        foreach(var (label,index) in new[] { ("Name",0), ("Kind",1), ("Size",2) })
+        var columns=new Grid { ColumnDefinitions=new("72,*,74,90"), Margin=new Thickness(12,0) };
+        foreach(var (label,index) in new[] { ("Name",1), ("Kind",2), ("Size",3) })
         { var text=Text(label,"muted"); text.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(text,index); columns.Children.Add(text); }
         media.Children.Add(columns);
         _assets.ItemTemplate=new FuncDataTemplate<MediaAsset>((asset,_)=>
         {
             if(asset is null)return new TextBlock();
-            var row=new Grid { ColumnDefinitions=new("*,74,90"), Margin=new Thickness(8,2), MinHeight=26 };
+            var row=new Grid { ColumnDefinitions=new("72,*,74,90"), Margin=new Thickness(8,2), MinHeight=54 };
+            row.Children.Add(new BrowserThumbnailCell(model,asset.AssetId));
             var name=Text(asset.RelativePath.Split('/')[^1]); name.TextWrapping=TextWrapping.NoWrap; name.TextTrimming=TextTrimming.CharacterEllipsis;
-            row.Children.Add(name);
-            var kind=Text(asset.MediaType,"muted"); Grid.SetColumn(kind,1); row.Children.Add(kind);
-            var size=Text($"{asset.FileSizeBytes:N0} bytes","muted"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,2); row.Children.Add(size);
+            Grid.SetColumn(name,1);row.Children.Add(name);
+            var kind=Text(asset.MediaType,"muted"); Grid.SetColumn(kind,2); row.Children.Add(kind);
+            var size=Text($"{asset.FileSizeBytes:N0} bytes","muted"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,3); row.Children.Add(size);
             ToolTip.SetTip(row,asset.RelativePath);
             AutomationProperties.SetName(row,$"{asset.RelativePath}, {asset.MediaType}, {asset.FileSizeBytes:N0} bytes");
             return row;

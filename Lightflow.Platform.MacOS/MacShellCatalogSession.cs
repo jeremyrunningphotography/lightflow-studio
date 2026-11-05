@@ -4,7 +4,7 @@ using LightflowStudio;
 namespace Lightflow.Platform.MacOS;
 
 /// <summary>Thin shell composition adapter; CatalogLifecycle retains admission, configuration and resource ownership.</summary>
-public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession
+public sealed partial class MacShellCatalogSession(string dataRoot, IThumbnailImageCodec? thumbnailCodec = null, Action<MacThumbnailObservation>? thumbnailObserved = null) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession, IBrowserThumbnailSession
 {
     public string DataRoot { get; } = Path.GetFullPath(dataRoot);
     private readonly SemaphoreSlim _requests = new(1, 1);
@@ -255,6 +255,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     }
     private async Task RetireAsync()
     {
+        await RetirePreviewsAsync().ConfigureAwait(false);
         var owner = _owner;
         _owner = null;
         if (owner is not null) await owner.DisposeAsync(Console.Error.WriteLine).ConfigureAwait(false);

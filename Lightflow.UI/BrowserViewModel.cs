@@ -12,7 +12,7 @@ public sealed record BrowserFolderNode(Guid RootId, string RelativeFolder, strin
 }
 
 /// <summary>Shared transient presentation. Catalog/Folder services own data; extracted selection owns keys.</summary>
-public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLocationProvider? locations = null) : INotifyPropertyChanged
+public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBrowserLocationProvider? locations = null) : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
     private CancellationTokenSource _lifetime = new();
@@ -56,6 +56,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
 
     public void Suspend()
     {
+        ClearThumbnailDemand();
         _epoch++; _generation++; _selectionGeneration++; _refreshGeneration++; FolderRefreshRevision++;
         _locationUpdate?.Cancel(); _unavailableVolume=null; _liveVolumeMounts.Clear();
         _lifetime.Cancel(); _lifetime.Dispose(); _lifetime = new();
@@ -123,6 +124,7 @@ public sealed class BrowserViewModel(IBrowserFolderSession session, IBrowserLoca
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
         if (!refreshing && history && Location is { } prior && prior.Key != node.Key) { _back.Add(prior); _forward.Clear(); }
         _unavailableVolume=null;
+        ClearThumbnailDemand();
         Location=PresentedNode(node); IsLoading=true; Recursive=IsRecursiveScope(node); _hasSubfolders=null;
         if (!refreshing) { Assets=[]; _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
         Message="Checking folder…"; Notify();

@@ -10,6 +10,6 @@
     <None Include="native/libLightflowStorage.dylib" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Link="libLightflowStorage.dylib" />
   </ItemGroup>
   <Target Name="BuildMacStorageNative" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
-    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -install_name @rpath/libLightflowStorage.dylib -framework Foundation -framework AppKit &quot;$(MSBuildProjectDirectory)/native/storage.m&quot; &quot;$(MSBuildProjectDirectory)/native/catalog.c&quot; &quot;$(MSBuildProjectDirectory)/native/locations.m&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowStorage.dylib&quot;" />
+    <Exec Command="xcrun clang -dynamiclib -fobjc-arc -Wall -Wextra -Werror -install_name @rpath/libLightflowStorage.dylib -framework Foundation -framework AppKit -framework AVFoundation -framework CoreMedia -framework ImageIO -framework CoreGraphics -framework UniformTypeIdentifiers &quot;$(MSBuildProjectDirectory)/native/storage.m&quot; &quot;$(MSBuildProjectDirectory)/native/catalog.c&quot; &quot;$(MSBuildProjectDirectory)/native/locations.m&quot; &quot;$(MSBuildProjectDirectory)/native/thumbnails.m&quot; -o &quot;$(MSBuildProjectDirectory)/native/libLightflowStorage.dylib&quot;" />
   </Target>
 </Project>

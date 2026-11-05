@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 namespace LightflowStudio;
 
 // No retry timer: subsequent demand can retry after this persisted deadline. Reads never extend it.
-internal static class PreviewRetryPolicy
+public static class PreviewRetryPolicy
 {
-    internal static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(30);
+    public static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(30);
     private sealed class Gates
     {
         public AssetPreviewGenerationGate Metadata { get; } = new();
@@ -19,7 +19,7 @@ internal static class PreviewRetryPolicy
         preview.MetadataRetryAfterUtc > now;
     internal static bool ThumbnailDeferred(PreviewRecord preview, string identity, DateTimeOffset now) =>
         preview.ThumbnailState == PreviewComponentState.Failed &&
-        preview.ThumbnailGeneratorVersion == ThumbnailGenerationService.CurrentGeneratorVersion &&
+        preview.ThumbnailGeneratorVersion == SharedThumbnailGenerationService.CurrentGeneratorVersion &&
         string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, identity, StringComparison.Ordinal) &&
         preview.ThumbnailRetryAfterUtc > now;
 }

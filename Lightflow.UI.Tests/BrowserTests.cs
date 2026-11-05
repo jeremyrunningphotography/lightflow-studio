@@ -9,7 +9,7 @@ using LightflowStudio;
 using Xunit;
 namespace Lightflow.UI.Tests;
 
-public sealed class BrowserTests
+public sealed partial class BrowserTests
 {
     [Theory]
     [InlineData(false)]

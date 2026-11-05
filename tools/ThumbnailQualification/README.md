@@ -1,0 +1,14 @@
+# LF-MAC-DEV-036 engineering harness
+
+Run on Apple Silicon macOS from the reviewed clone. This is a disposable test tool, not a shipped dependency. It references the production Mac session and Skia adapter. Arguments must be absolute paths: a **new** task-owned data folder, disposable fixture media, and JSON output. The tool creates the Catalog, discovers the media, requests at most 192 thumbnails, closes/reopens, and (for a small corpus) removes only that disposable Preview cache and rebuilds it. It then exercises native cancellation. Never point it at an owner Catalog or personal media.
+
+```sh
+DOTNET_CLI_HOME="$PWD/work/dotnet-home" .cache/dotnet/dotnet run --project tools/ThumbnailQualification -c Release --disable-build-servers -- "$PWD/artifacts/lf036-phase-b/new-data" "$PWD/artifacts/lf036-phase-b/fixtures" "$PWD/artifacts/lf036-phase-b/evidence/new-run.json"
+python3 tools/ThumbnailQualification/compare-posters.py artifacts/lf036-phase-b/evidence/new-run.json artifacts/lf036-phase-b/evidence/new-posters
+```
+
+The program creates JPEG, PNG, linear/alpha PNG and WebP vectors. Qualification also used generated EXIF 1–8 JPEGs, `sips` TIFF/HEIC/BMP/GIF conversions, corrupt files, and FFmpeg `testsrc2` H.264/HEVC videos. The source command for CFR is `ffmpeg -f lavfi -i testsrc2=size=640x360:rate=30:duration=5 -c:v libx264 -pix_fmt yuv420p output.mp4`; short is 0.6 seconds, HEVC is 12 seconds at 24 fps (`libx265`, `-tag:v hvc1`), long is 310 seconds at 5 fps/256×144. VFR selects every second frame before 2 seconds and every third afterwards, with `-fps_mode vfr`. Display-matrix MOV uses `-display_rotation 90` **before** `-i`, followed by `-c copy`. Files contain generated test patterns, not owner media. FFmpeg is a host qualification tool; it is not shipped by the Mac app.
+
+Three public CC0 RAW fixtures were downloaded from [the sample repository's v1 release](https://github.com/tellodaniel/revelraw-sample-raw-files/releases/tag/v1): `Canon-5D-Mark-IV.CR2`, `Ricoh-GR-III.DNG`, `Sony-a7III.ARW`. Verify against its `SHA256SUMS.txt` before use. The evidence package records the download URLs, publisher checksums and byte counts. RAW files are excluded from git and the evidence ZIP. The small synthetic CFA DNG was deliberately not advertised as supported when ImageIO refused it. No universal camera support is inferred from three samples.
+
+`compare-posters.py` requires host FFmpeg/ffprobe. Its reference reproduces the existing Windows ExtractThumbnail arguments, using the Mac host's FFmpeg. It records SHA-256, requested/actual rational PTS, the ordinal of the nearest source presentation frame, the first source frame at/after the requested time, ordinal difference and a coarse RGB difference. It cannot establish independent Windows runtime behavior or pixel-identical color. Run the separate DARKMATTER checklist for that gate.

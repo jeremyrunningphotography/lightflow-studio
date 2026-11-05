@@ -818,3 +818,21 @@ LF-WIN-DEV-034 — Documentation CI & Workflow Simplification. Implementation be
 full CI is required for this workflow/root-policy change. No production behavior,
 branch-protection change, merge, issue closure, release or tag authorized. Owner
 architecture acceptance, exact-head checks and explicit merge authorization remain.
+
+
+## Assignment 035 reservation — 2026-11-04
+
+Jeremy allocated **LF-ANY-DOC-035 — Development History Update** for an evidence-backed
+October 13–November 4 continuation of the three historical documents. Number 035
+was absent from current main, all fetched remote assignment registries and GitHub
+issue/PR search; owner-designated 034 remains separately allocated. Independent
+DARKMATTER full clone: `C:\Git\Agents\LF-ANY-DOC-035-DevelopmentHistory`; branch
+`codex/035-development-history`; starting main
+`4fb5b3f9c2cdbce08befeac8f1896f08e252b242`.
+Status: revised historical narrative owner-approved at `2991a2bb03d2efaf0c1ff0c4482865f1d4447dd1`.
+Owner-authorized continuation in existing #478 adds required in-assignment historical
+maintenance to AGENTS.md and current guidance under #477. Original editions and
+November 4 checkpoint remain intact. Overall PR stays Draft; full CI, normal owner
+acceptance of the policy change and explicit merge authorization remain required.
+No separate registry-closeout PR. Related #427 was already Completed and is unchanged.
+No production/test/workflow, release/tag, merge or concurrent 034/#475/#474 changes.

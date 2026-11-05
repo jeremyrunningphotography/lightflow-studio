@@ -260,3 +260,66 @@ Engineering and process burden also shaped scope. The unused backlog script was 
 ## Edition metadata
 
 Prepared and last updated: **October 12, 2026**. Author: **AI / LF-ANY-DOC-020**. Specification: [#429](https://github.com/jeremyrunningphotography/lightflow-studio/issues/429); parent [#427](https://github.com/jeremyrunningphotography/lightflow-studio/issues/427). Status: **Draft for owner factual/editorial acceptance; no merge authorized.** Research checkpoint: **October 12, 10:16 a.m. PDT (17:16 UTC)**, main `d1531a2f3d2caf282e1215b53615978a6ace5cd1`, plus identified pending PR evidence. Maintenance policy and the separate narrative belong to #430 after Chronicle acceptance. Corrections should retain source provenance and distinguish newly recovered evidence from original contemporary records.
+
+
+---
+
+## Continuation: October 13–November 4, 2026
+
+**AI-authored by LF-ANY-DOC-035 for [#477](https://github.com/jeremyrunningphotography/lightflow-studio/issues/477); Draft for Jeremy's factual and editorial review.** Everything above remains the original edition, including its October 12 checkpoint and historical Draft wording. The continuation's evidence checkpoint is **November 4, 2026, 2:54 p.m. PST (22:54 UTC)**, anchored to main `4fb5b3f9c2cdbce08befeac8f1896f08e252b242`. It does not cover the rest of November 4. Dates use America/Los_Angeles: October dates are PDT (UTC−07:00), November 1 onward PST (UTC−08:00). The original edition's timezone statement applies to that edition.
+
+The period marked a major engineering and product milestone: Lightflow progressed from a Windows-first application with Mac architecture proofs to a functioning native Mac Browser built on shared application foundations. A production Catalog host became a runnable Avalonia shell; filesystem navigation and shared media discovery made it useful for browsing; the UI foundation and Finder-inspired Locations made it recognizably Lightflow on macOS. These were accepted, integrated product slices, while the complete Mac application remained unfinished. [H035-P443, H035-P452, H035-P461, H035-P464, H035-P467](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+New source identifiers begin **H035-** in the [continuation index](SOURCES.md#continuation-evidence-october-13november-4-2026). Merge dates establish integration; owner decisions and runtime outcomes are attributed to their supporting records. Detailed validation evidence remains in the indexed issues, PRs and qualification reports.
+
+### October 13 — the shared Catalog lifecycle gains a native Mac consumer
+
+**Record and accepted report.** The shared extraction left pending in the original morning-of-October-12 account was subsequently accepted and merged later that morning. This is a retrospective bridge, not a revision of that edition. On October 13, PR #443 integrated a production-schema Apple Silicon Catalog-only CLI over the single shared CatalogLifecycle. Issue #425 records Jeremy's acceptance of create, inspect, Collection-add and reopen at `3635fff`. Native effects supplied storage assessment, identity, writer exclusion and recovery. The architecture could now support a real Mac process through the same Catalog authority used by Windows. [H035-BRIDGE, H035-P443, H035-I425](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+The missing Preview peer imposed an important integration boundary: the native host could not declare a paired clean profile, so every reopen retained deep validation. Unqualified Catalog publication and Move remained refused. This delivered a working local Catalog foundation without declaring general cross-platform portability complete. [H035-Q425](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### October 20 — a runnable Mac application shell and first Catalog Browser
+
+**Record and accepted reports.** PR #452 turned the native lifecycle into a runnable Avalonia application shell with Lightflow branding, readiness/recovery gates and safe shutdown/reopen. PR #455 added a read-only Browser of existing Catalog assets, nested folder navigation and stable single-AssetId selection. Jeremy accepted the Mac functional and visual behavior. These changes gave the shared architecture a user-facing application: Catalog content could be opened, navigated and selected on macOS while Windows WPF continued shipping. [H035-P452, H035-I451, H035-P455, H035-C454, H035-Q454](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+**Consequential architecture limit.** Separate portability research had not resolved how verified file identity would remain safe through write-capable SQLite activation, its companion files and recovery. Its accepted disposition was **Research Complete / Production Portability Blocked**; PR #450 recorded that result without delivering a production portability correction. Separately authorized UI work could nevertheless use the accepted local APFS lifecycle. The shell and Browser therefore advanced without depending on unqualified publication or Move. [H035-P450, H035-R023](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### October 21 — Finder-style navigation opens the filesystem
+
+**Record and attributed product direction.** PR #458 delivered #456's next-step requirements: Finder-style access to real filesystem locations, natural labels instead of “Media Root,” quiet leaf rows and Refresh that retained view context. Home, standard folders and mounted volumes could be navigated without first adding Catalog roots. Previously uncataloged folders were accessible, although their files were not yet ingested. Native location discovery fed a shared navigation model, keeping familiar Mac access within the common Browser architecture. [H035-P458, H035-I456, H035-Q456](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### October 22–26 — shared discovery turns navigation into media browsing
+
+**Decision, record and accepted reports.** Shared repositories alone did not expose the shipping Windows reconciliation workflow. That integration gap required an explicit architecture decision: Jeremy authorized extraction within #460 on October 22. PR #461 merged October 26, placing the existing observation, reconciliation and recursive discovery behavior behind shared contracts consumed by both platforms. The Mac Browser could now discover and automatically catalog supported media in previously uncataloged folders, preserving identities and authored relationships through the common workflow. [H035-G460, H035-C460A, H035-P461](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+This changed the product from a reader of existing Catalog content into a functioning folder-based media Browser. Native effects handled Mac filesystem facts, including opaque application bundles, while shared owners retained reconciliation, cancellation and safe treatment of unavailable sources. Jeremy accepted the bounded discovery milestone; broader visual redesign proceeded separately in #462. Preview generation, thumbnails and Player remained later work. [H035-I460, H035-C460B, H035-Q460](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### November 1 — a coherent Lightflow Browser surface on macOS
+
+**Record and accepted reports.** PR #464 integrated #462's Mac Browser UI foundation: shared dark resources and branding, a flexible center with resizable side panes, a single right-panel toggle and consistent keyboard focus/navigation. Jeremy accepted the four-phase milestone at head `3fa23ee`. Familiar visual hierarchy and interaction made the working Browser recognizably part of the same product as the Windows application. [H035-P464, H035-I462, H035-Q462](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+Visual parity concerned the implemented foundation. The provisional filename list and read-only Selection surface did not deliver full Details, Inspector, Preview/thumbnails or Player. Finder-inspired Locations hierarchy and stable folder expansion followed as the next product slice in #465. [H035-Q462P4](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### November 1–3 — Locations connects the Browser to the Mac environment
+
+**Decisions, record and accepted reports.** PR #467 merged November 3 after owner acceptance of #465's Locations work. Permanent Favorites, Devices & Volumes and Network headings organized expandable built-in user locations, local devices and mounted network shares. Complete, stable folder rows replaced the observed labels-before-icons expansion. Native volume facts supplied truthful names and classification; verified server identity allowed grouping shares, with a flat-share fallback when that relationship was uncertain. [H035-P467, H035-I465](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+Automatic mount, unmount and rename updates made Locations follow the live Mac environment. Those events reconciled the location list without starting media scans or silently redirecting an unavailable current path. The work preserved the already accepted discovery workflow. Browsing a mounted share remained distinct from permission to host an active Catalog there. [H035-I465, H035-C465DISC](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+Safe local access also became more useful: resident iCloud-managed media could be browsed without automatically downloading cloud-only files, expected unavailability received distinct feedback, and trustworthy native evidence separated unrelated offline mappings from healthy mounts. Catalog identities and authored state remained protected. The final Subfolders control and recursive folder indications reused Windows semantics. Together, these changes connected the shared Browser to everyday Mac locations while leaving cloud-only previews, network connection/discovery UI and user-managed Favorites for later work. [H035-Q465, H035-I465](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### November 2–4 — routine handoffs become simpler
+
+**Attributed decision and record.** During #465, Jeremy selected a self-contained, copyable Markdown report as the routine implementation handoff, with screenshots and ZIPs available for significant visual redesign or material uncertainty. The policy commit dated November 2 reached main through #467 on November 3. Owner hands-on acceptance and explicit merge authority remained. [H035-I465, H035-WORKFLOW](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+**Emerging direction.** By the November 4 checkpoint, #475 proposed completion records in original PRs where practical and a conservative documentation-only CI path. LF-WIN-DEV-034's Draft PR #476 reported branch implementation but remained unmerged at inspected head `35bafe6`. This records a proposed development-practice change, not an operational main-branch capability at the checkpoint. [H035-I475, H035-P476](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+### Position at the continuation checkpoint
+
+**Record and interpretation.** A functioning native Mac Browser was now an accepted part of Lightflow's development source: the same Catalog and discovery foundations supported a distinct platform's shell, filesystem access and coherent product surface. This was a substantial advance beyond architecture proofs. Windows WPF continued shipping, while Preview, Player, full Inspector, broader Catalog portability and Mac distribution remained separate work. R2, R3 and the wider R4/migration requirements remained incomplete. [H035-P443, H035-P461, H035-P464, H035-P467, H035-STATE](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+The release API still showed v1.0.2 as the latest application publication. Merged Mac milestones and runnable branch packages did not establish a signed/notarized Mac release, WPF retirement or TourBox physical acceptance. The original July evidence gaps also remain unchanged. [H035-STATE, H035-PUBLICATION](SOURCES.md#continuation-evidence-october-13november-4-2026)
+
+**Editorial scope.** This continuation follows major product and architecture milestones and meaningful changes in development practice. The [maintenance guidance refinement](DEVELOPMENT_HISTORY.md#editorial-refinement-for-future-maintenance) records Jeremy's subsequent editorial direction without extending the historical checkpoint. Detailed validation evidence remains in the Source Index and original records; owner outcomes are attributed, and no private conversation or hardware experiment was independently reconstructed for this writing.
+
+**Subsequent maintenance status.** Jeremy approved the revised narrative at `2991a2bb03d2efaf0c1ff0c4482865f1d4447dd1`, superseding its pending editorial status above. The [current maintenance policy](DEVELOPMENT_HISTORY.md#editorial-refinement-for-future-maintenance) requires qualifying progress to be documented by the delivering assignment within its existing PR, with no separate routine editorial gate. This later policy/status note does not extend the historical checkpoint; the overall PR remains Draft pending normal acceptance and explicit merge authorization.

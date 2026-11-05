@@ -134,44 +134,102 @@ class ValidationTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_required_gate_shells(self):
+    @staticmethod
+    def gate_section(job):
+        import re
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci-release.yml').read_text()
+        return re.split(r'\n  [a-z][a-z-]*:\n', workflow.split(f'\n  {job}:\n', 1)[1])[0]
+
+    def run_gate(self, job, results, docs_only='false'):
         import re
         bash = shutil.which('bash') or r'C:\Program Files\Git\bin\bash.exe'
-        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci-release.yml').read_text()
-        for job in ['test', 'package']:
-            section = re.split(r'\n  [a-z][a-z-]*:\n', workflow.split(f'\n  {job}:\n', 1)[1])[0]
-            script = section.split('        run: |\n')[1]
-            script = '\n'.join(line[10:] for line in script.splitlines() if line.startswith('          '))
-            cases = [
-                ('true', 'success', 'skipped', 'success', 'success', True),
-                ('true', 'failure', 'skipped', 'success', 'success', False),
-                ('true', 'skipped', 'skipped', 'success', 'success', False),
-                ('false', 'skipped', 'success', 'success', 'success', True),
-                ('', 'skipped', 'success', 'success', 'success', True),
-                ('false', 'success', 'failure', 'success', 'success', False),
-                ('false', 'skipped', 'skipped', 'success', 'success', False),
-                ('false', 'skipped', 'cancelled', 'success', 'success', False),
-                ('true', 'success', 'skipped', 'failure', 'success', False),
-            ]
-            if job == 'package':
-                cases.append(('true', 'success', 'skipped', 'success', 'failure', False))
-            for docs, doc_result, full_result, changes, tests, expected in cases:
-                env = dict(os.environ, DOCS_ONLY=docs, DOCS_RESULT=doc_result,
-                           FULL_RESULT=full_result, CHANGES_RESULT=changes, TEST_RESULT=tests)
-                with self.subTest(job=job, case=(docs, doc_result, full_result, changes, tests)):
-                    self.assertEqual(expected, subprocess.run([bash, '-e', '-c', script], env=env).returncode == 0)
+        section = self.gate_section(job)
+        script = section.split('        run: |\n')[1]
+        script = '\n'.join(line[10:] for line in script.splitlines() if line.startswith('          '))
+        bindings = re.findall(r'^          (\w+): \$\{\{ needs\.([a-z-]+)\.result \}\}$', section, re.M)
+        env = dict(os.environ, DOCS_ONLY=docs_only)
+        env.update({variable: results[dependency] for variable, dependency in bindings})
+        return subprocess.run([bash, '-e', '-c', script], env=env).returncode == 0
+
+    def test_gate_dependencies_and_result_bindings(self):
+        import re
+        expected = {
+            'unit-tests': {
+                'CHANGES_RESULT': 'changes', 'DOCS_RESULT': 'docs', 'FULL_RESULT': 'test',
+                'PACKAGE_RESULT': 'full-package', 'NATIVE_RESULT': 'mac-storage',
+                'NEUTRAL_WINDOWS_RESULT': 'neutral-windows', 'NEUTRAL_MACOS_RESULT': 'neutral-macos',
+            },
+            'package': {
+                'CHANGES_RESULT': 'changes', 'DOCS_RESULT': 'docs',
+                'FULL_RESULT': 'full-package', 'TEST_RESULT': 'unit-tests',
+            },
+        }
+        for job, bindings in expected.items():
+            section = self.gate_section(job)
+            dependencies = set(re.search(r'    needs: \[(.+)\]', section).group(1).split(', '))
+            self.assertEqual(set(bindings.values()), dependencies)
+            self.assertEqual(bindings, dict(re.findall(
+                r'^          (\w+): \$\{\{ needs\.([a-z-]+)\.result \}\}$', section, re.M)))
+
+    def test_all_full_ci_result_combinations(self):
+        from itertools import product
+        # Execute the actual shell for every combination, including cancellations
+        # and unexpected skips. Both protected gates run after full packaging;
+        # the package gate also requires the complete platform aggregation gate.
+        statuses = ['success', 'failure', 'cancelled', 'skipped']
+        for job, dependencies in [
+            ('unit-tests', ['test', 'full-package', 'mac-storage', 'neutral-windows', 'neutral-macos']),
+            ('package', ['full-package', 'unit-tests']),
+        ]:
+            for values in product(statuses, repeat=len(dependencies)):
+                results = dict(zip(dependencies, values), changes='success', docs='skipped')
+                with self.subTest(job=job, results=results):
+                    self.assertEqual(all(value == 'success' for value in values), self.run_gate(job, results))
+
+    def test_required_gate_scenarios(self):
+        full = ['test', 'full-package', 'mac-storage', 'neutral-windows', 'neutral-macos']
+        baseline = dict.fromkeys(full, 'success')
+        baseline.update(changes='success', docs='skipped')
+        cases = [('all full CI successful', baseline, 'false', (True, True))]
+        for dependency in full:
+            for status in ['failure', 'cancelled', 'skipped']:
+                results = dict(baseline, **{dependency: status})
+                expected = (False, False)
+                cases.append((f'{dependency} {status}', results, 'false', expected))
+        docs = dict.fromkeys(full, 'skipped')
+        docs.update(changes='success', docs='success')
+        cases.append(('docs success with intentionally skipped full jobs', docs, 'true', (True, True)))
+        for status in ['failure', 'cancelled', 'skipped']:
+            cases.append((f'documentation {status}', dict(docs, docs=status), 'true', (False, False)))
+        for dependency in full:
+            cases.append((f'docs unexpectedly ran {dependency}', dict(docs, **{dependency: 'failure'}), 'true', (False, False)))
+        cases.extend([
+            ('classification job failed', dict(baseline, changes='failure'), 'false', (False, False)),
+            ('classification job failed with partial docs output', dict(docs, changes='failure'), 'true', (False, False)),
+            ('classification discovery ambiguous selects full CI', baseline, 'false', (True, True)),
+            ('classification output missing selects full CI', baseline, '', (True, True)),
+            ('classification output missing cannot accept skipped full jobs', docs, '', (False, False)),
+        ])
+        for name, results, mode, expected in cases:
+            results = dict(results)
+            with self.subTest(scenario=name):
+                unit = self.run_gate('unit-tests', results, mode)
+                results['unit-tests'] = 'success' if unit else 'failure'
+                package = self.run_gate('package', results, mode)
+                self.assertEqual(expected, (unit, package))
 
     def test_heavy_job_routing(self):
         workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/ci-release.yml').read_text()
-        for job in ['full-test', 'neutral', 'mac-storage']:
+        for job in ['test', 'neutral-windows', 'neutral-macos', 'mac-storage']:
             self.assertIn(f"  {job}:\n    needs: changes\n    if: always() && !cancelled() && needs.changes.outputs.docs_only != 'true'", workflow)
-        self.assertIn("    if: always() && !cancelled() && needs.test.result == 'success' && needs.test.outputs.docs_only != 'true'", workflow)
+        self.assertIn("    if: always() && !cancelled() && needs.test.result == 'success'", workflow)
         self.assertIn("    if: startsWith(github.ref, 'refs/tags/v') && always() && !cancelled() && needs.package.result == 'success'", workflow)
+        self.assertIn('    name: Neutral classification (windows-latest)', workflow)
+        self.assertIn('    name: Neutral classification (macos-latest)', workflow)
         self.assertIn('    needs: test', workflow)
-        self.assertIn('      docs_only: ${{ needs.changes.outputs.docs_only }}', workflow)
         self.assertNotIn('paths-ignore:', workflow)
         self.assertNotIn('    paths:', workflow)
-        for job in ['test', 'package']:
+        for job in ['unit-tests', 'package']:
             section = workflow.split(f'\n  {job}:\n', 1)[1]
             self.assertIn('    if: always()', section.split('    steps:', 1)[0])
 

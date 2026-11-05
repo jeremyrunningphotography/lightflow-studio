@@ -9,6 +9,13 @@
 - Materially separate issues normally begin in a clean agent conversation after the prior issue is merged.
 - Follow the branch → implementation → validation → Draft PR → review → explicit acceptance → merge/cleanup rhythm.
 
+## Assignment closeout and documentation CI
+
+- The global [assignment registry](docs/AGENT_ASSIGNMENTS.md) remains mandatory and authoritative for identities and number allocation. Record completion in the original implementation/documentation PR whenever practical; avoid chains of PRs solely to mark agents Done, and do not allocate new agents for routine closeout administration.
+- When final merge provenance cannot be included in an already-accepted source tree, record it in the issue or PR discussion. If registry reconciliation is necessary, use one registry-only reconciliation through documentation CI.
+- Only changes exclusively within `docs/**` qualify for lightweight CI: changed-file discovery, whitespace/Markdown checks, assignment table/unique-number validation and practical local-reference checks. Root `AGENTS.md`, application, tests, dependencies, build scripts, workflows, configuration, mixed changes and uncertain discovery require full CI. Tags and manual runs retain full CI.
+- Documentation-only post-merge CI is monitoring: preserve failures and pending results without automatically starting another acceptance cycle. Production changes retain explicit owner acceptance and merge authorization; identity, independent workspace, Catalog safety, qualification and evidence requirements remain in force.
+
 ## Implementation handoff convention
 
 - Routine implementations and functional fixes use a self-contained, copyable Markdown completion report; screenshots, Computer Use and ZIP evidence packages are not mandatory.
@@ -60,11 +67,13 @@
 
 ## Historical documentation maintenance
 
-- At meaningful completed milestones, assess whether [the Chronicle](docs/history/CHRONICLE.md) warrants an entry: major features/releases, consequential architecture or product-direction decisions, abandoned approaches with lasting implications, important AI development-process changes, and major qualification or safety outcomes. Routine commits/PRs, bug fixes, minor UI changes, CI reruns and registry administration normally do not warrant entries unless they embody a significant historical decision.
-- The completing agent identifies candidates in its final report with a concise factual summary and supporting issue/PR/commit references. Do not automatically rewrite [the Development History](docs/history/DEVELOPMENT_HISTORY.md) during unrelated production work; historical updates may be batched into a dedicated follow-up.
-- Chronicle updates are selective, dated and evidence-backed; preserve provenance and distinguish reported behavior from verified delivery. Preserve accepted historical cutoffs/snapshots; corrections must explicitly identify the earlier claim and supporting evidence rather than silently rewriting it.
-- Revise the longer History periodically when accumulated Chronicle entries warrant a meaningful narrative revision, deriving it from the Chronicle and source evidence rather than requiring an update for every milestone. See [maintenance guidance](docs/history/DEVELOPMENT_HISTORY.md#maintaining-the-record).
-- Historical writing is nonblocking: it adds no production merge or release gate, and a missing Chronicle entry does not invalidate otherwise accepted production work. Both historical documents remain explicitly AI-authored; do not impersonate Jeremy or invent personal motivations. Do not publish private transcripts or sensitive source material without explicit owner review.
+- The implementing agent must update [the Chronicle](docs/history/CHRONICLE.md) within its existing PR when the assignment delivers a major feature or product milestone, a consequential architecture or integration decision, a significant change in product direction or capability, an important development-workflow change, or a major release or distribution milestone. Include qualifying historical updates in the original PR whenever practical; do not defer them to a dedicated history-maintenance agent or create a history-only PR for each milestone.
+- Entries must be selective, dated, factual and evidence-backed. Exclude routine bug fixes, minor UI adjustments, CI failures, retries, qualification exceptions and registry administration unless they represent a significant product/architecture integration conflict. Keep detailed validation evidence in qualification reports, issues and PRs.
+- Update [the Development History](docs/history/DEVELOPMENT_HISTORY.md) when the milestone meaningfully advances the broader narrative of Lightflow's development; not every Chronicle entry requires a History update. Keep it readable and focused on product evolution rather than implementation minutiae. Update [the Source Index](docs/history/SOURCES.md) whenever a Chronicle entry needs additional evidence references.
+- Every agent's final completion report must include a brief historical-maintenance disposition: **Updated** (identify the historical documents changed and milestone represented) or **Not warranted** (briefly explain why the work does not meet the threshold). Do not silently omit this disposition.
+- Historical maintenance is part of normal assignment validation, like documentation and tests. Routine qualifying entries require no separate editorial review or approval gate. Normal owner acceptance and explicit merge authorization for the overall PR remain unchanged. Do not reopen completed history issues or Epics.
+- Preserve source identifiers, immutable provenance and accepted historical boundaries. Distinguish proposals, implementation, owner acceptance, merge and release. Use accepted source and PR references when final merge provenance is unavailable before merge; record final merge details in the PR or issue discussion rather than creating a follow-up documentation PR solely for that purpose.
+- Keep both historical documents explicitly AI-authored. Do not impersonate Jeremy or invent personal motivations or private conversations. Do not publish private transcripts or sensitive source material without explicit owner review. See the [current maintenance guidance](docs/history/DEVELOPMENT_HISTORY.md#editorial-refinement-for-future-maintenance); earlier edition guidance remains preserved as historical provenance.
 
 ## Agent assignment naming
 

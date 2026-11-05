@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
 | 031 | LF-WIN-TST-031 | Mac Locations Windows Qualification | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), [PR #467](https://github.com/jeremyrunningphotography/lightflow-studio/pull/467) | Done; Windows qualification owner-accepted with startup-frame exception; original 2879 passed / 1 failed / 2 skipped and D — Inconclusive preserved; implementation fc00a68 and docs 8ff2774 merged; post-merge CI PASS |
@@ -804,6 +805,38 @@ remain separate #354/#345/#346 work. No production, tests, build scripts, depend
 qualification snapshots, release/tag or unrelated roadmap changes. No Chronicle entry
 is warranted for routine registry administration. All newer assignment rows/history
 are preserved; 033 preparation does not complete 022 or the broader milestones.
+
+## Assignment 034 reservation — 2026-11-04
+
+Jeremy allocated LF-WIN-DEV-034 — Documentation CI & Workflow Simplification for
+[#475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), native
+parent #290. Number 034 was absent from current main and matching open work; 033
+and its registry-only Draft #474 remain untouched. Independent DARKMATTER full clone:
+`C:\Git\Agents\LF-WIN-DEV-034-DocumentationCI`; branch
+`codex/034-documentation-ci`; baseline main
+`4fb5b3f9c2cdbce08befeac8f1896f08e252b242`. Conversation title verified as
+LF-WIN-DEV-034 — Documentation CI & Workflow Simplification. Implementation begun;
+full CI is required for this workflow/root-policy change. No production behavior,
+branch-protection change, merge, issue closure, release or tag authorized. Owner
+architecture acceptance, exact-head checks and explicit merge authorization remain.
+
+
+## Assignment 035 reservation — 2026-11-04
+
+Jeremy allocated **LF-ANY-DOC-035 — Development History Update** for an evidence-backed
+October 13–November 4 continuation of the three historical documents. Number 035
+was absent from current main, all fetched remote assignment registries and GitHub
+issue/PR search; owner-designated 034 remains separately allocated. Independent
+DARKMATTER full clone: `C:\Git\Agents\LF-ANY-DOC-035-DevelopmentHistory`; branch
+`codex/035-development-history`; starting main
+`4fb5b3f9c2cdbce08befeac8f1896f08e252b242`.
+Status: revised historical narrative owner-approved at `2991a2bb03d2efaf0c1ff0c4482865f1d4447dd1`.
+Owner-authorized continuation in existing #478 adds required in-assignment historical
+maintenance to AGENTS.md and current guidance under #477. Original editions and
+November 4 checkpoint remain intact. Overall PR stays Draft; full CI, normal owner
+acceptance of the policy change and explicit merge authorization remain required.
+No separate registry-closeout PR. Related #427 was already Completed and is unchanged.
+No production/test/workflow, release/tag, merge or concurrent 034/#475/#474 changes.
 ## Assignment 033 administrative closeout — 2026-11-04
 
 Jeremy explicitly authorized normal #473 merge, superseded #457/#448 closure,

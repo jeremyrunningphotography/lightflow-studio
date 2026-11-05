@@ -37,6 +37,8 @@ public sealed partial class MacShellCatalogSession
     public Task<IDerivedWorkBatch?> DemandThumbnailsAsync(IReadOnlyList<Guid> ids, DerivedWorkPriority priority, CancellationToken token) =>
         BorrowAsync<IDerivedWorkBatch?>(async owner =>
         {
+            using var timing = ThumbnailPerformance.Measure("request.create");
+            timing?.SetTag("count", ids.Count); timing?.SetTag("priority", priority.ToString());
             if (ids.Count > 192) throw new ArgumentException("Thumbnail demand must be viewport bounded.", nameof(ids));
             await EnsurePreviewsAsync(owner, token).ConfigureAwait(false);
             if (_previewScheduler is null) return null;
@@ -49,6 +51,8 @@ public sealed partial class MacShellCatalogSession
     public Task<IReadOnlyDictionary<Guid, BrowserThumbnail>> ReadThumbnailsAsync(IReadOnlyList<Guid> ids, CancellationToken token) =>
         BorrowAsync<IReadOnlyDictionary<Guid, BrowserThumbnail>>(async owner =>
         {
+            using var timing = ThumbnailPerformance.Measure("cache.project");
+            timing?.SetTag("count", ids.Count);
             if (ids.Count > 192) throw new ArgumentException("Thumbnail reads must be viewport bounded.", nameof(ids));
             if (_previews is null) return new Dictionary<Guid, BrowserThumbnail>();
             var records = await _previews.GetManyAsync(ids.ToArray(), token).ConfigureAwait(false);

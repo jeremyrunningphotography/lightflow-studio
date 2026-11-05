@@ -15,7 +15,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
     private readonly IThumbnailGenerationService _thumbnails;
     private readonly IPreviewOperationCoordinator? _operations;
     private readonly IThumbnailColorSource? _colors;
-    private readonly Func<string,bool>? _supportsThumbnail;
+    private readonly Func<string, bool>? _supportsThumbnail;
     private readonly Func<string, bool>? _artifactExists;
     private readonly bool _ownsGenerators;
     private readonly object _sync = new();
@@ -30,8 +30,11 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
     private long _enqueued, _processed, _metadataAttempts, _thumbnailAttempts;
     public DerivedWorkDiagnostics Diagnostics
     {
-        get { lock (_sync) return new(_enqueued, Interlocked.Read(ref _processed),
-            Interlocked.Read(ref _metadataAttempts), Interlocked.Read(ref _thumbnailAttempts), _work.Count); }
+        get
+        {
+            lock (_sync) return new(_enqueued, Interlocked.Read(ref _processed),
+            Interlocked.Read(ref _metadataAttempts), Interlocked.Read(ref _thumbnailAttempts), _work.Count);
+        }
     }
 
     public SharedDerivedWorkScheduler(IMediaAssetService assets, IPreviewStoreService previews,
@@ -39,7 +42,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
         int maximumConcurrency = 2, bool ownsGenerators = false,
         IPreviewOperationCoordinator? operations = null, IThumbnailColorSource? colors = null,
         Func<string, bool>? artifactExists = null, IPreferredPreviewFrameStore? preferredFrames = null,
-        Func<string, bool>? excludedPath = null, TimeProvider? time = null, Func<string,bool>? supportsThumbnail = null)
+        Func<string, bool>? excludedPath = null, TimeProvider? time = null, Func<string, bool>? supportsThumbnail = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
         _time = time ?? TimeProvider.System;
@@ -118,6 +121,8 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
 
     private void Enqueue(WorkItem item)
     {
+        using var timing = ThumbnailPerformance.Measure("queue.insert", item.AssetId);
+        timing?.SetTag("priority", item.Priority.ToString()); timing?.SetTag("outstanding", _work.Count);
         Queue(item.Priority).Enqueue(new(item.AssetId, item.Generation));
         _available.Release();
     }
@@ -145,6 +150,8 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
                 }
             }
             if (item is null) continue;
+            using var workerTiming = ThumbnailPerformance.Measure("worker", item.AssetId);
+            workerTiming?.SetTag("queue.wait.ms", item.QueuedAt is { } queued ? System.Diagnostics.Stopwatch.GetElapsedTime(queued).TotalMilliseconds : 0);
             foreach (var batch in startingBatches) batch.MarkRunning(item.AssetId);
 
             Interlocked.Increment(ref _processed);
@@ -165,7 +172,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
             lock (_sync)
             {
                 completedBatches = item.Batches.ToArray();
-                if (_work.TryGetValue(item.AssetId,out var current) && ReferenceEquals(current,item)) _work.Remove(item.AssetId);
+                if (_work.TryGetValue(item.AssetId, out var current) && ReferenceEquals(current, item)) _work.Remove(item.AssetId);
             }
             foreach (var batch in completedBatches) batch.Complete(item.AssetId, result);
             item.Cancellation.Dispose();
@@ -226,6 +233,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
             try
             {
                 Interlocked.Increment(ref _metadataAttempts);
+                using var timing = ThumbnailPerformance.Measure("metadata.probe", assetId);
                 var result = await _metadata.ProbeAsync(assetId, cancellationToken: cancellationToken).ConfigureAwait(false);
                 metadata = Map(result.Status);
                 if (!result.Succeeded && result.Status is not DerivedMetadataStatus.RootUnavailable and not DerivedMetadataStatus.SourceMissing)
@@ -243,6 +251,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
             try
             {
                 Interlocked.Increment(ref _thumbnailAttempts);
+                using var timing = ThumbnailPerformance.Measure("thumbnail.generate", assetId);
                 var result = await _thumbnails.GenerateAsync(new(assetId, Priority: Map(priority)), cancellationToken)
                     .ConfigureAwait(false);
                 thumbnail = Map(result.Status);
@@ -339,17 +348,17 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
         }
     }
 
-    public int QueuedEntryCount { get { lock(_sync) return _visible.Count+_normal.Count+_background.Count; } }
+    public int QueuedEntryCount { get { lock (_sync) return _visible.Count + _normal.Count + _background.Count; } }
     private void CompactQueues()
     {
-        if(_visible.Count+_normal.Count+_background.Count<=Math.Max(64,_work.Count*4))return;
-        foreach(var queue in new[]{_visible,_normal,_background})
+        if (_visible.Count + _normal.Count + _background.Count <= Math.Max(64, _work.Count * 4)) return;
+        foreach (var queue in new[] { _visible, _normal, _background })
         {
-            var retained=queue.Where(e=>_work.TryGetValue(e.AssetId,out var w)&&w.State==WorkState.Queued&&w.Generation==e.Generation).ToArray();
-            queue.Clear();foreach(var entry in retained)queue.Enqueue(entry);
+            var retained = queue.Where(e => _work.TryGetValue(e.AssetId, out var w) && w.State == WorkState.Queued && w.Generation == e.Generation).ToArray();
+            queue.Clear(); foreach (var entry in retained) queue.Enqueue(entry);
         }
-        while(_available.Wait(0)){}
-        var count=_visible.Count+_normal.Count+_background.Count;if(count>0)_available.Release(count);
+        while (_available.Wait(0)) { }
+        var count = _visible.Count + _normal.Count + _background.Count; if (count > 0) _available.Release(count);
     }
 
     public async ValueTask DisposeAsync()
@@ -366,7 +375,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
         foreach (var batch in batches) batch.CancelPending();
         _available.Release(_workers.Length);
         try { await Task.WhenAll(_workers).ConfigureAwait(false); } catch (OperationCanceledException) { }
-        lock (_sync) { foreach(var item in _work.Values) item.Cancellation.Dispose(); _work.Clear();_visible.Clear();_normal.Clear();_background.Clear(); }
+        lock (_sync) { foreach (var item in _work.Values) item.Cancellation.Dispose(); _work.Clear(); _visible.Clear(); _normal.Clear(); _background.Clear(); }
         if (_ownsGenerators)
         {
             _thumbnails.Dispose();
@@ -381,6 +390,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
     private sealed class WorkItem(Guid assetId, DerivedWorkPriority priority, CancellationToken shutdown)
     {
         public Guid AssetId { get; } = assetId;
+        public long? QueuedAt { get; } = ThumbnailPerformance.Source.HasListeners() ? System.Diagnostics.Stopwatch.GetTimestamp() : null;
         public DerivedWorkPriority Priority { get; set; } = priority;
         public int Generation { get; set; }
         public WorkState State { get; set; }

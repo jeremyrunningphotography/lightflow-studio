@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B implemented for Draft review; Mac/Windows acceptance and merge pending |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B performance correction; owner/Windows acceptance and merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -907,3 +907,16 @@ bounded Browser demand are implemented for review. See the [Phase B report](qual
 no child assignment was allocated. Owner Mac hands-on acceptance, independent
 DARKMATTER Windows qualification, exact-head CI and explicit merge authorization
 remain outstanding. This is not Done, accepted, merged or released.
+
+
+## Assignment 036 performance correction — 2026-11-05
+
+Owner acceptance of #481 was blocked by 20–30+ second DJI video thumbnails on NAS
+and external media. The same assignment/branch investigates the authorized source
+read-only, preserves Phase B evidence, and corrects the Mac resource loader's
+synchronous whole-range delivery. Measured cold-Preview, byte-read, memory and
+same-frame comparisons are in the [performance report](qualification/browser-thumbnail-foundation-036-performance.md).
+No decoder dependency, Preview schema or Windows behavior change is intended.
+PR #486 remains Draft; #481 remains open/In Progress; owner acceptance,
+independent DARKMATTER qualification and explicit merge authorization remain gates.
+No new issue or agent was allocated; #482–#485 remain unstarted.

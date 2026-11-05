@@ -16,6 +16,17 @@ public sealed class MacThumbnailRenderer(IThumbnailImageCodec codec, Action<MacT
         public double Duration; public int Width, Height, Orientation, Mechanism;
         public long ActualValue; public int ActualScale;
     }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeTrace
+    {
+        public double OpenMs, InitializationMs, MetadataMs, FrameMs, PixelsMs, ReadMs, TotalMs;
+        public long BytesRead, ReadCalls, Requests;
+        public int ActiveReaders, MetadataStatus;
+        public long ErrorCode;
+    }
+    [DllImport("libLightflowStorage.dylib")]
+    private static extern int lf_thumbnail_profile([MarshalAs(UnmanagedType.LPUTF8Str)] string source, int mode, double position,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string destination, IntPtr cancelled, out Info info, out NativeTrace trace);
     private const string Library = "libLightflowStorage.dylib";
     [DllImport(Library)]
     private static extern int lf_thumbnail([MarshalAs(UnmanagedType.LPUTF8Str)] string source, int mode, double requested,
@@ -54,6 +65,7 @@ public sealed class MacThumbnailRenderer(IThumbnailImageCodec codec, Action<MacT
                     info.Mechanism switch { 1 => "embedded-preview", 2 => "native-image-render", 3 => "AVFoundation", _ => "unavailable" }, status));
                 token.ThrowIfCancellationRequested();
                 if (status != 0) return Failure(status);
+                using var pixelTiming = ThumbnailPerformance.Measure("image.convert_resize_jpeg");
                 return codec.Render(intermediate, destination, color.OrderedLutPaths, token);
             }
             catch (OperationCanceledException) { throw; }
@@ -77,7 +89,19 @@ public sealed class MacThumbnailRenderer(IThumbnailImageCodec codec, Action<MacT
         {
             using var registration = timeout.Token.Register(() => Marshal.WriteInt32(flag, 1));
             // The slot stays owned until native callbacks drain, even after cancellation/timeout.
-            var status = lf_thumbnail(source, mode, position, destination, flag, out var info);
+            using var timing = ThumbnailPerformance.Measure(mode == 0 ? "native.metadata" : "native.poster");
+            Info info; int status;
+            if (timing is not null)
+            {
+                status = lf_thumbnail_profile(source, mode, position, destination, flag, out info, out var trace);
+                timing.SetTag("native.open.ms", trace.OpenMs); timing.SetTag("native.initialize.ms", trace.InitializationMs);
+                timing.SetTag("native.metadata.ms", trace.MetadataMs); timing.SetTag("native.seek_decode.ms", trace.FrameMs);
+                timing.SetTag("native.convert_resize_write.ms", trace.PixelsMs); timing.SetTag("native.read.ms", trace.ReadMs);
+                timing.SetTag("native.bytes", trace.BytesRead); timing.SetTag("native.reads", trace.ReadCalls); timing.SetTag("native.requests", trace.Requests);
+                timing.SetTag("native.active", trace.ActiveReaders); timing.SetTag("native.status", status); timing.SetTag("native.error", trace.ErrorCode);
+                timing.SetTag("native.actual.value", info.ActualValue); timing.SetTag("native.actual.timescale", info.ActualScale);
+            }
+            else status = lf_thumbnail(source, mode, position, destination, flag, out info);
             token.ThrowIfCancellationRequested();
             if (timeout.IsCancellationRequested) throw new IOException("Native thumbnail decoding timed out.");
             return (status, info);

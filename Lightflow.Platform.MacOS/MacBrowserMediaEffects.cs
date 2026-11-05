@@ -26,9 +26,9 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
     private static async Task<StorageLocationAssessment> ValidateAsync(MacStorageLocationAssessor assessor,
         StorageAssessmentRequest request, CancellationToken token, StorageLocationAssessment? previous = null)
     {
-        var first = await assessor.AssessAsync(request,token).ConfigureAwait(false);
-        var policy = StorageLocationPolicy.Evaluate(request,first,DateTimeOffset.UtcNow,token);
-        var check = PortablePathIdentityValidator.ValidateNativeMapping(request,first,DateTimeOffset.UtcNow,previous);
+        var first = await assessor.AssessAsync(request, token).ConfigureAwait(false);
+        var policy = StorageLocationPolicy.Evaluate(request, first, DateTimeOffset.UtcNow, token);
+        var check = PortablePathIdentityValidator.ValidateNativeMapping(request, first, DateTimeOffset.UtcNow, previous);
         token.ThrowIfCancellationRequested();
         if (policy.Decision != StorageLocationDecision.Eligible || !check.IsSafe) throw new IOException($"This media location needs review ({policy.Reason}; {check.Status}): {check.Diagnostic}");
         return first;
@@ -45,20 +45,20 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
 
     public async Task<IReadOnlyList<MediaFolderFileSystemEntry>> EnumerateAsync(string mediaRootPath, string folderPath, CancellationToken cancellationToken = default)
     {
-        using var assessor=new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
-        var request=new StorageAssessmentRequest(Guid.NewGuid(),0,StorageRole.MediaSource,StorageOperation.Read,mediaRootPath);
+        using var assessor = new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
+        var request = new StorageAssessmentRequest(Guid.NewGuid(), 0, StorageRole.MediaSource, StorageOperation.Read, mediaRootPath);
         RefuseProtected(folderPath);
         RefuseApplicationPackage(folderPath);
         if (GetAnchor(mediaRootPath) != GetAnchor(folderPath))
             throw new IOException("Browse this mounted volume through its own location. Catalog records are preserved.");
         using var timing = BrowserPerformance.Measure("mac.filesystem.enumeration");
-        var first=await ValidateAsync(assessor,request,cancellationToken).ConfigureAwait(false);
-        if (!await Task.Run(() => assessor.IsResidentMedia(folderPath,cancellationToken),cancellationToken).ConfigureAwait(false))
+        var first = await ValidateAsync(assessor, request, cancellationToken).ConfigureAwait(false);
+        if (!await Task.Run(() => assessor.IsResidentMedia(folderPath, cancellationToken), cancellationToken).ConfigureAwait(false))
             throw new IOException("This cloud folder is unavailable locally. Make it available in Finder, then retry; no download was requested.");
-        var result=await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath,folderPath,cancellationToken).ConfigureAwait(false);
+        var result = await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath, folderPath, cancellationToken).ConfigureAwait(false);
         var types = MediaTypeRegistry.CreateDefault();
         var resident = new List<MediaFolderFileSystemEntry>(result.Count);
-        foreach(var entry in result)
+        foreach (var entry in result)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (IsProtected(entry.FullPath) || (entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))) continue;
@@ -66,36 +66,36 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
             string? diagnostic = null;
             if (!entry.IsDirectory && !entry.IsReparsePoint && types.Classify(new(entry.Name)).IsKnown)
             {
-                try { available = await Task.Run(() => assessor.IsResidentMedia(entry.FullPath,cancellationToken),cancellationToken).ConfigureAwait(false); }
+                try { available = await Task.Run(() => assessor.IsResidentMedia(entry.FullPath, cancellationToken), cancellationToken).ConfigureAwait(false); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 { available = false; diagnostic = $"Source '{entry.Name}' was refused: {error.Message}"; }
             }
-            resident.Add(entry with {IsAvailable=available, UnavailableDiagnostic=diagnostic});
+            resident.Add(entry with { IsAvailable = available, UnavailableDiagnostic = diagnostic });
         }
         result = resident.Where(entry => !IsProtected(entry.FullPath) &&
             !(entry.IsDirectory && !entry.IsReparsePoint && IsApplicationPackagePath(entry.FullPath))).ToArray();
-        await ValidateAsync(assessor,request,cancellationToken,first).ConfigureAwait(false);
+        await ValidateAsync(assessor, request, cancellationToken, first).ConfigureAwait(false);
         return result;
     }
     public async Task<bool> FileExistsAsync(MediaRootInfo root, string relativePath, CancellationToken token)
     {
-        if(root.Availability != MediaRootAvailability.Online || root.PhysicalPath is null) return false;
-        using var assessor=new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
-        var request=new StorageAssessmentRequest(Guid.NewGuid(),0,StorageRole.MediaSource,StorageOperation.Read,root.PhysicalPath);
-        var first=await ValidateAsync(assessor,request,token).ConfigureAwait(false);
-        var path=ResolveContained(root.PhysicalPath,relativePath);
+        if (root.Availability != MediaRootAvailability.Online || root.PhysicalPath is null) return false;
+        using var assessor = new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
+        var request = new StorageAssessmentRequest(Guid.NewGuid(), 0, StorageRole.MediaSource, StorageOperation.Read, root.PhysicalPath);
+        var first = await ValidateAsync(assessor, request, token).ConfigureAwait(false);
+        var path = ResolveContained(root.PhysicalPath, relativePath);
         RefuseProtected(path);
         RefuseApplicationPackage(path);
         // No opening, probing or authored observation. Refuse linked path components before an existence observation.
-        var current=NormalizeRootPath(root.PhysicalPath);
-        foreach(var component in relativePath.Split('/'))
+        var current = NormalizeRootPath(root.PhysicalPath);
+        foreach (var component in relativePath.Split('/'))
         {
-            token.ThrowIfCancellationRequested(); current=Path.Combine(current,component);
+            token.ThrowIfCancellationRequested(); current = Path.Combine(current, component);
             if (!File.Exists(current) && !Directory.Exists(current)) return false;
-            if ((File.GetAttributes(current)&FileAttributes.ReparsePoint)!=0) return false;
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return false;
         }
-        var exists=File.Exists(path) && await Task.Run(()=>assessor.IsResidentMedia(path,token),token).ConfigureAwait(false);
-        await ValidateAsync(assessor,request,token,first).ConfigureAwait(false);
+        var exists = File.Exists(path) && await Task.Run(() => assessor.IsResidentMedia(path, token), token).ConfigureAwait(false);
+        await ValidateAsync(assessor, request, token, first).ConfigureAwait(false);
         return exists;
     }
     private string[] ProtectedRoots => protectedRoots;
@@ -174,11 +174,13 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         var parent = Path.GetDirectoryName(path)!;
         using var assessor = new MacStorageLocationAssessor(protectedRoots, allowMediaSourceAncestor: true);
         var request = new StorageAssessmentRequest(Guid.NewGuid(), 0, StorageRole.MediaSource, StorageOperation.Read, parent);
-        var before = await ValidateAsync(assessor, request, token);
+        StorageLocationAssessment before;
+        using (BrowserPerformance.Measure("mac.fingerprint.admit")) before = await ValidateAsync(assessor, request, token);
         // Validate all source components; no alias traversal or ambiguous case/Unicode identity.
-        ValidatePaths("/", [new(Guid.NewGuid(), Guid.Empty, path.TrimStart('/'))], token);
-        var fingerprint = await Task.Run(() => assessor.ResidentFingerprint(path, token), token).ConfigureAwait(false);
-        await ValidateAsync(assessor, request, token, before);
+        using (BrowserPerformance.Measure("mac.fingerprint.path")) ValidatePaths("/", [new(Guid.NewGuid(), Guid.Empty, path.TrimStart('/'))], token);
+        SourceFingerprint fingerprint;
+        using (BrowserPerformance.Measure("mac.fingerprint.read")) fingerprint = await Task.Run(() => assessor.ResidentFingerprint(path, token), token).ConfigureAwait(false);
+        using (BrowserPerformance.Measure("mac.fingerprint.recheck")) await ValidateAsync(assessor, request, token, before);
         return fingerprint;
     }
 

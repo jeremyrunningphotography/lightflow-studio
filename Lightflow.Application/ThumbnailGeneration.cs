@@ -160,9 +160,9 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
     private readonly PriorityAsyncGate _gate;
     private readonly IPreviewOperationCoordinator? _operations;
     private readonly IThumbnailColorSource? _colorSource;
-    private readonly Func<string,bool> _validate;
+    private readonly Func<string, bool> _validate;
     private readonly Action<string>? _log;
-    private readonly Func<string,string> _pathGuard;
+    private readonly Func<string, string> _pathGuard;
     private readonly IThumbnailGenerationActivity? _activity;
     private readonly IPreferredPreviewFrameStore? _preferredFrames;
 
@@ -170,8 +170,8 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
         ILightflowStorageLocations locations, IThumbnailRenderer renderer,
         IDerivedMediaMetadataService? metadata = null, int maximumConcurrency = 2,
         IDisposable? ownedDependency = null, IPreviewOperationCoordinator? operations = null,
-        IThumbnailColorSource? colorSource = null, Func<string,bool>? validate = null, Action<string>? log = null,
-        IThumbnailGenerationActivity? activity = null, IPreferredPreviewFrameStore? preferredFrames = null, TimeProvider? time = null, Func<string,string>? pathGuard = null)
+        IThumbnailColorSource? colorSource = null, Func<string, bool>? validate = null, Action<string>? log = null,
+        IThumbnailGenerationActivity? activity = null, IPreferredPreviewFrameStore? preferredFrames = null, TimeProvider? time = null, Func<string, string>? pathGuard = null)
     {
         _time = time ?? TimeProvider.System;
         _assets = assets;
@@ -193,6 +193,7 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
     public async Task<ThumbnailGenerationResult> GenerateAsync(ThumbnailRequest request,
         CancellationToken cancellationToken = default)
     {
+        using var timing = ThumbnailPerformance.Measure("generation", request.AssetId);
         var result = await GenerateCoreAsync(request, cancellationToken).ConfigureAwait(false);
         if (!result.Succeeded && result.Status != ThumbnailGenerationStatus.Deferred && result.Diagnostic is { Length: > 0 } diagnostic)
             _log?.Invoke($"Preview {request.AssetId}: {diagnostic}");
@@ -258,10 +259,15 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
         var stage = "rendering";
         try
         {
-            var position = preferredFrame?.Position ?? await RepresentativePositionAsync(request.AssetId, asset.MediaType, cancellationToken)
-                .ConfigureAwait(false);
-            var rendered = await _renderer.RenderAsync(observed.Asset.PhysicalPath, asset.MediaType, position,
-                temporaryPath, color, cancellationToken).ConfigureAwait(false);
+            TimeSpan position;
+            using (var posterTiming = ThumbnailPerformance.Measure("poster.policy", request.AssetId))
+            {
+                position = preferredFrame?.Position ?? await RepresentativePositionAsync(request.AssetId, asset.MediaType, cancellationToken).ConfigureAwait(false);
+                posterTiming?.SetTag("requested.seconds", position.TotalSeconds);
+            }
+            ThumbnailRenderResult rendered;
+            using (ThumbnailPerformance.Measure("renderer", request.AssetId))
+                rendered = await _renderer.RenderAsync(observed.Asset.PhysicalPath, asset.MediaType, position, temporaryPath, color, cancellationToken).ConfigureAwait(false);
             if (rendered.Status != ThumbnailGenerationStatus.Succeeded)
             {
                 await RecordFailureAsync(request.AssetId, preview, visualIdentity, cancellationToken, rendered.FailureReason).ConfigureAwait(false);
@@ -300,6 +306,7 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
                 return new(ThumbnailGenerationStatus.SourceChanged, ResolveExisting(preview.ThumbnailRelativePath),
                     "Preview frame or Color changed while its Preview was being generated. Newer work will replace it.");
 
+            using var cacheTiming = ThumbnailPerformance.Measure("cache.publish", request.AssetId);
             stage = "artifact promotion";
             File.Move(temporaryPath, finalPath, overwrite: true);
             if (!string.Equals(visualIdentity,
@@ -384,7 +391,7 @@ public class SharedThumbnailGenerationService : IThumbnailGenerationService
         if (string.IsNullOrWhiteSpace(relativePath)) return null;
         try
         {
-            var path = _pathGuard(PreviewCachePaths.ResolveContained(_locations.PreviewsDirectory,relativePath));
+            var path = _pathGuard(PreviewCachePaths.ResolveContained(_locations.PreviewsDirectory, relativePath));
             return File.Exists(path) ? path : null;
         }
         catch (ArgumentException) { return null; }

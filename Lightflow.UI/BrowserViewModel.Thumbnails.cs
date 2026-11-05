@@ -43,8 +43,10 @@ public sealed partial class BrowserViewModel
                 {
                     do
                     {
-                        again = false; var values = await previews.ReadThumbnailsAsync(ids, token);
+                        again = false; IReadOnlyDictionary<Guid, BrowserThumbnail> values;
+                        using (ThumbnailPerformance.Measure("ui.cache.read")) values = await previews.ReadThumbnailsAsync(ids, token);
                         if (!Current()) return;
+                        using var applyTiming = ThumbnailPerformance.Measure("ui.apply");
                         foreach (var (id, value) in values) if (ids.Contains(id)) _thumbnails[id] = value;
                         OnThumbnailChanged();
                     } while (again && Current());
@@ -55,7 +57,16 @@ public sealed partial class BrowserViewModel
             }
             async Task Observe(IDerivedWorkBatch batch)
             {
-                EventHandler<DerivedWorkProgress> handler = (_, _) => Dispatcher.UIThread.Post(() => _ = Refresh());
+                EventHandler<DerivedWorkProgress> handler = (_, _) =>
+                {
+                    var postedAt = ThumbnailPerformance.Source.HasListeners() ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        using var dispatch = ThumbnailPerformance.Measure("ui.dispatch");
+                        if (postedAt != 0) dispatch?.SetTag("queue.wait.ms", System.Diagnostics.Stopwatch.GetElapsedTime(postedAt).TotalMilliseconds);
+                        _ = Refresh();
+                    });
+                };
                 batch.ProgressChanged += handler;
                 try
                 {

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using System.ComponentModel;
+using LightflowStudio;
 namespace Lightflow.UI;
 
 /// <summary>A realized row owns its detached bitmap. Unload/recycling releases it immediately.</summary>
@@ -32,7 +33,22 @@ internal sealed class BrowserThumbnailCell : Border
             Release();
             if (value?.Path is { } path)
             {
-                try { using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); _bitmap = new Bitmap(stream); Interlocked.Increment(ref _retained); _path = path; _image.Source = _bitmap; }
+                try
+                {
+                    using var timing = ThumbnailPerformance.Measure("ui.bitmap.assign", _id); using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); _bitmap = new Bitmap(stream); Interlocked.Increment(ref _retained); _path = path; _image.Source = _bitmap;
+                    if (ThumbnailPerformance.Source.HasListeners())
+                    {
+                        var expected = _bitmap;
+                        TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ =>
+                        {
+                            if (_attached && ReferenceEquals(_bitmap, expected))
+                            {
+                                using var presented = ThumbnailPerformance.Measure("ui.present.next_frame", _id);
+                                presented?.SetTag("presentation", "next render-frame callback");
+                            }
+                        });
+                    }
+                }
                 catch (Exception error) when (error is IOException or ArgumentException or NotSupportedException) { _state.Text = "Preview unavailable"; }
             }
         }

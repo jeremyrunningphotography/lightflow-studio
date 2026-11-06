@@ -351,3 +351,16 @@ Validation checks original-content preservation, unique source identifiers, loca
 - [Phase A audit](../qualification/browser-thumbnail-foundation-036-phase-a.md), preserved at `ea8f3242bf68d153880c2cef7775f2ea60675bc8`.
 - [Phase B implementation report](../qualification/browser-thumbnail-foundation-036-phase-b.md), in this implementation's source tree; immutable final source/package stamps are in its generated artifact handoff.
 - Evidence boundary: implementation and local Mac automated qualification only. Owner hands-on acceptance, independent Windows execution, merge and release are not established by this entry.
+
+
+### H036-Acceptance — Retained Mac acceptance workflow
+
+- [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481) and
+  [Draft PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486):
+  owner-authorized workflow scope; preceding Mac functional acceptance reported at
+  `666505ef81310a62dffd13b514cf562084487c13`, not merge authorization.
+- [Mac workflow handoff](../qualification/mac-acceptance-workflow-036.md), root AGENTS
+  and task-only bootstrap/preflight in the same PR. Exact final commit/build metadata
+  is recorded in generated evidence, not self-referentially embedded in this entry.
+- Evidence boundary: branch implementation/local validation report; owner workflow
+  acceptance, independent Windows qualification, merge and release are not established.

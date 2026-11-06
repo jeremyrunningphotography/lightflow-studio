@@ -337,3 +337,16 @@ later Grid, Details, query or metadata-parity issues. The [qualification report]
 distinguishes Mac automated evidence from outstanding owner acceptance and independent
 Windows qualification. The implementation is not yet an accepted, merged or released
 milestone. [H036](SOURCES.md#h036--browser-thumbnail-foundation-implementation).
+
+
+### November 5 — Retained Mac acceptance data separated from disposable validation
+
+**Implementation report; not merged or released.** LF-MAC-DEV-036 establishes a
+stable task-owned Lightflow Test Catalog reused by compatible Mac acceptance packages,
+while automated tests and package smoke checks retain disposable roots. Supported
+creation and conservative compatibility preflight preserve ordinary Catalog admission,
+recovery and single-writer authority; retained data is excluded from evidence ZIPs.
+The convention is documented in root agent instructions and the Mac handoff. Owner
+functional acceptance of the preceding Mac implementation is reported; acceptance
+of this workflow, independent Windows qualification and merge remain separate gates.
+[H036-Acceptance](SOURCES.md#h036-acceptance--retained-mac-acceptance-workflow)

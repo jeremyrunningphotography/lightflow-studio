@@ -17,7 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Phase B accepted Mac behavior retained; audio visibility parity correction in review; LF-WIN-TST-037 revalidation/qualification and merge pending |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Mac functionality owner-accepted at 666505ef; persistent acceptance workflow in review; LF-WIN-TST-037 qualification, exact-head CI and merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -959,3 +959,17 @@ Owner focused Mac acceptance, independent LF-WIN-TST-037 Gate A revalidation/ful
 qualification, exact-head CI/review and explicit merge authorization remain gates.
 No new issue, agent, PR, #482 work or #460 historical-specification edit.
 Historical maintenance: **Not warranted** for this bounded parity correction.
+
+
+## Assignment 036 persistent Mac acceptance workflow — 2026-11-05
+
+Owner reports all Mac functionality accepted at `666505ef`, including Audio visibility.
+The same assignment/branch now establishes a retained, task-owned Lightflow Test
+Catalog outside packages, supported initialization and conservative package-bound
+preflight, with separate disposable tests/smoke roots. Production code and schemas
+remain unchanged. See [workflow handoff](qualification/mac-acceptance-workflow-036.md).
+Owner workflow acceptance, final exact-head CI, LF-WIN-TST-037 qualification and
+explicit merge authorization remain gates. #486 stays Draft, #481 open/In Progress;
+no new agent/issue/PR, #482 work, closure or merge. Historical maintenance: Chronicle
+and Source Index **Updated** for the durable acceptance-data workflow; Development
+History **Not warranted**, as broader product capability is unchanged.

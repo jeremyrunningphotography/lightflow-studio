@@ -17,7 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Mac functionality owner-accepted at 666505ef; persistent acceptance workflow in review; LF-WIN-TST-037 qualification, exact-head CI and merge pending |
+| 037 | LF-WIN-TST-037 | Browser Thumbnail Windows Qualification | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), [PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486) | Done; accepted 93ab479e / ea732bc6 qualified; Gate A/focused/package/Catalog safety PASS; full Release 2,880 passed / 2 skipped; owner Windows 6/6 PASS; original failed attempts retained; implementation merged 4d182639 |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Done; owner Mac/workflow and Windows acceptance PASS; #486 normal merge 4d182639 preserves accepted 93ab479e / ea732bc6; independent LF-WIN-TST-037 PASS; exact-head/post-merge CI PASS; #481 Completed |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -973,3 +974,35 @@ explicit merge authorization remain gates. #486 stays Draft, #481 open/In Progre
 no new agent/issue/PR, #482 work, closure or merge. Historical maintenance: Chronicle
 and Source Index **Updated** for the durable acceptance-data workflow; Development
 History **Not warranted**, as broader product capability is unchanged.
+
+
+## Assignments 036 / 037 final acceptance and closeout — 2026-11-05
+
+**LF-MAC-DEV-036 — Done. LF-WIN-TST-037 — Done.** Owner explicitly accepted
+Mac functionality and the issue-scoped persistent Catalog workflow, Windows
+hands-on behavior (six checks), and independent Windows qualification. Accepted
+implementation `93ab479e8826cbbc1655c3a1340cbca163def0f0`, tree
+`ea732bc6adb04b5e89e9cbd01bfc764b7e59bfec`, merged normally in #486 as
+`4d182639f5ef2efef2e9c7e1e259f44af566ddd6` with exactly that tree.
+Exact-head CI [42134062812](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/42134062812)
+and post-merge full CI [42141610019](https://github.com/jeremyrunningphotography/lightflow-studio/actions/runs/42141610019)
+passed. #481 is Completed; Project #4 Done/Browser/priority unset. #480 remains
+open/Backlog with one of five children complete; #482–#485 unstarted. #395/#366
+remain open, native hierarchy unchanged. No wider R4/Mac Compatibility completion.
+
+Original Windows qualification evidence independently matches accepted commit/tree:
+Gate A 120 passed; focused retry 1,386 passed / 1 skipped; full Release retry
+2,880 passed / 2 skipped; package/dependency/startup/Catalog-safety PASS; no confirmed
+Windows regression. Original failed prerequisite/input-desktop attempts and their
+dispositions remain preserved. Exact same-source cross-platform frame reproduction
+remains the original documented limitation, not a fabricated PASS.
+
+037's existing owner allocation/reservation was previously recorded in #486 and
+its local qualification patch; this reconciliation integrates that historical ID,
+not a new allocation. Its DARKMATTER workspace/branch are not modified here.
+Both issue-scoped acceptance Catalogs remain retained for troubleshooting; neither
+may be reset/deleted without owner authorization or carried into #482. See the
+[closeout record](qualification/browser-thumbnail-foundation-036-closeout.md).
+Final administrative merge/CI/cleanup provenance is recorded in #481/#486 and the
+portable closeout ZIP rather than rewriting the accepted implementation tree.
+Earlier historical and qualification checkpoints remain preserved.

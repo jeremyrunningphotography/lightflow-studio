@@ -18,13 +18,14 @@
 
 ## Implementation handoff convention
 
-- Routine implementations and functional fixes use a self-contained, copyable Markdown completion report; screenshots, Computer Use and ZIP evidence packages are not mandatory.
+- Owner handoffs are ZIP-first: place the complete self-contained Markdown report, provenance, validation, launch instructions, manifest/hashes and outstanding gates in one portable evidence ZIP that can be reviewed independently. Keep Codex chat output minimal and link the ZIP; do not duplicate the full report in chat. Runnable applications may remain outside the ZIP when their exact paths and provenance are identified. Screenshots and Computer Use are optional unless visual uncertainty warrants them.
 - Significant visual redesigns or material visual uncertainty warrant screenshots and an evidence package. Always obtain explicit owner permission before controlling the visible desktop.
 - Reports must include exact source/build provenance, a runnable isolated launch command, focused owner acceptance instructions, validation results and outstanding gates.
 - Owner hands-on acceptance, appropriate automated tests, independent Windows qualification where applicable, exact-head CI and explicit merge authorization remain required. This convention changes handoff format only; all storage isolation, packaging and other safety requirements below still apply.
 
 ## Mac owner acceptance data
 
+- Scope retained acceptance Catalogs to one implementation issue on each platform. Reuse them across compatible packages within that issue only; after closeout retain them for troubleshooting/qualification. Never carry them into the next issue: initialize a separate acceptance environment.
 - Reuse a stable task-owned `acceptance/persistent` data root and supported-created
   **Lightflow Test** Catalog across compatible Mac packages. This retained owner
   data is independent of package directories; never delete, overwrite, reset,

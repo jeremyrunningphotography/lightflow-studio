@@ -150,3 +150,26 @@ Owner acceptance of this workflow; final exact-head CI/review; LF-WIN-TST-037
 qualification against final accepted source; explicit merge authorization. Owner Mac
 functional acceptance remains established for starting production code, not automatic
 acceptance of the new workflow. Stop for owner review; no merge, closure or #482.
+
+
+## Owner-approved closeout convention — 2026-11-05
+
+The retained Mac and Windows acceptance Catalogs belong to **#481 only**. Reuse
+across compatible #481 packages is accepted. After closeout retain both Catalogs
+for possible troubleshooting/qualification; never delete/reset without explicit
+owner authorization and never carry either into #482. Future issues initialize
+separate task-owned acceptance environments. Disposable automated/smoke roots
+remain separate. No Catalog data is part of portable evidence.
+
+Owner handoffs are **ZIP-first**: the complete independently understandable report,
+source/package provenance, copyable launch commands, test results, manifest/hashes
+and remaining gates belong inside one evidence ZIP. Runnable applications may
+remain outside it when their exact paths/provenance are recorded. Codex chat should
+only report concise disposition and the ZIP path, without duplicating the report.
+
+Owner has now accepted the Mac implementation/workflow, Windows hands-on behavior
+and independent LF-WIN-TST-037 qualification at `93ab479e8826cbbc1655c3a1340cbca163def0f0`
+(tree `ea732bc6adb04b5e89e9cbd01bfc764b7e59bfec`). Implementation merged normally
+as `4d182639f5ef2efef2e9c7e1e259f44af566ddd6`, preserving that exact tree. Earlier
+pending checkpoints above are historical. Final post-merge CI and administrative
+closeout receipts are recorded in #481/#486 and the generated closeout evidence.

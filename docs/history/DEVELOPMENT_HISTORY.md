@@ -188,3 +188,15 @@ Historical maintenance belongs to normal development validation, like documentat
 Preserve source identifiers, immutable provenance, accepted editions and their cutoffs. Distinguish proposed, implemented, owner-accepted, merged and released work. Before merge, cite the accepted source and PR when final merge provenance is unavailable; record final merge details in the PR or issue discussion instead of creating a follow-up documentation PR solely for that purpose. Keep AI-authored attribution and evidence limitations, and do not invent personal motivations or private conversations. Private transcripts and sensitive source material retain their explicit owner-review requirement.
 
 The [repository policy](../../AGENTS.md#historical-documentation-maintenance) makes these responsibilities durable for future assignments.
+
+
+### November 5 implementation checkpoint: derived-media sharing
+
+**AI-authored continuation; review pending.** The Browser thumbnail work for #481
+extends the shared Mac Browser foundation into derived media: existing Preview cache
+and scheduling policies now sit below the Windows and Mac presentation layers, with
+platform decoders kept at the edges. The minimal Mac thumbnail surface makes that
+foundation testable before the separately planned Grid and Details work. This is an
+implementation checkpoint, not owner acceptance, merge or distribution. See the
+[Chronicle checkpoint](CHRONICLE.md#november-5--shared-browser-thumbnail-foundation-implemented-for-review)
+and [H036 evidence](SOURCES.md#h036--browser-thumbnail-foundation-implementation).

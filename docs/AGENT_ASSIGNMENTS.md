@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Mac functionality owner-accepted at 666505ef; persistent acceptance workflow in review; LF-WIN-TST-037 qualification, exact-head CI and merge pending |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
 | 033 | LF-ANY-ADM-033 | Legacy PR Reconciliation | [PR #473](https://github.com/jeremyrunningphotography/lightflow-studio/pull/473), superseded #457/#448 | Done; #473 normal merge 4fb5b3f preserves accepted tree; exact-head/post-merge CI PASS; historical PRs closed without merging and three completed branches deleted; final registry publication pending |
 | 032 | LF-ANY-ADM-032 | GitHub Administrative Reconciliation | [Issue #465](https://github.com/jeremyrunningphotography/lightflow-studio/issues/465), related #395/#366 | Done; native #395 parent and Project Done/Browser/unset Priority verified; three completed task branches deleted; #471 normal merge f9c5529 and required post-merge CI PASS; original CI failure preserved |
@@ -879,3 +880,96 @@ Assignment LF-ANY-ADM-033 is Done; publication of this final registry record use
 a separate registry-only Draft PR and remains subject to required CI and explicit
 owner merge authorization. The earlier preparation/proposed-disposition paragraphs
 remain historical checkpoints. Routine administration warrants no Chronicle entry.
+
+## Assignment 036 reservation — 2026-11-05
+
+Jeremy allocated **LF-MAC-DEV-036 — Browser Thumbnail Foundation** for #481.
+036 was absent from current main, every fetched remote assignment registry, and
+matching GitHub issue/PR searches. Independent full clone:
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-036-BrowserThumbnailFoundation`; branch
+`codex/036-browser-thumbnail-foundation`; independently verified remote main
+`7f755460e36375234281481cea3004f60344325b`. Conversation title matches exactly.
+Phase A only: repository/project hygiene, Windows/Mac parity and thumbnail audit,
+and an unapproved architecture proposal. No production implementation, implementation
+PR, merge, issue closure, release, or additional assignment is authorized.
+#482–#485 remain unallocated and unstarted. Reservation publication is task-owned;
+no routine registry-closeout agent or PR.
+
+
+## Assignment 036 Phase B authorization and implementation — 2026-11-05
+
+The owner explicitly approved the Phase A architecture and authorized implementation
+of #481 in the existing clone and branch. This supersedes the Phase A-only authority
+boundary above; the earlier audit remains historical evidence. Shared schema-4
+Preview services and narrow Windows wrappers, native Mac thumbnail adapters and
+bounded Browser demand are implemented for review. See the [Phase B report](qualification/browser-thumbnail-foundation-036-phase-b.md).
+#481 is In Progress, Browser, priority unset. #480 and #482–#485 remain Backlog;
+no child assignment was allocated. Owner Mac hands-on acceptance, independent
+DARKMATTER Windows qualification, exact-head CI and explicit merge authorization
+remain outstanding. This is not Done, accepted, merged or released.
+
+
+## Assignment 036 performance correction — 2026-11-05
+
+Owner acceptance of #481 was blocked by 20–30+ second DJI video thumbnails on NAS
+and external media. The same assignment/branch investigates the authorized source
+read-only, preserves Phase B evidence, and corrects the Mac resource loader's
+synchronous whole-range delivery. Measured cold-Preview, byte-read, memory and
+same-frame comparisons are in the [performance report](qualification/browser-thumbnail-foundation-036-performance.md).
+No decoder dependency, Preview schema or Windows behavior change is intended.
+PR #486 remains Draft; #481 remains open/In Progress; owner acceptance,
+independent DARKMATTER qualification and explicit merge authorization remain gates.
+No new issue or agent was allocated; #482–#485 remain unstarted.
+
+
+## Assignment 036 cached presentation continuation — 2026-11-05
+
+Owner accepted the corrected video-generation performance and seven functional
+checks at `72729b35`. Remaining warm-navigation latency is addressed in the same
+Draft #486 by provisional existing-Catalog/cache publication before unchanged
+authoritative reconciliation. No schema/index/Windows decoder change. The separate
+last-location behavior predates #481 and needs owner-scoped persistence semantics;
+it is reported rather than silently implemented. See the [cached presentation report](qualification/browser-thumbnail-foundation-036-cached-presentation.md).
+Owner acceptance of the final Mac source must precede independent Windows
+qualification. #481 remains open/In Progress; no merge, #482 or new agent.
+Historical maintenance: **Not warranted** for this bounded correction; earlier
+feature milestone records remain preserved.
+
+
+## Assignment 036 final thumbnail label refinement — 2026-11-05
+
+Owner accepted all six cached-presentation scenarios at `cf6b9145`, retaining prior
+video-generation/functional PASS results. The final requested product change removes
+the visible Cached label in the Mac thumbnail cell only; cached-first publication,
+background verification and genuine failure/unavailable/loading states remain.
+See the [final UI report](qualification/browser-thumbnail-foundation-036-final-ui.md).
+Fresh exact-head Mac package acceptance precedes independent Windows qualification;
+#481 remains open/In Progress, #486 Draft, and merge requires explicit authorization.
+Historical maintenance: **Not warranted** for a minor presentation refinement.
+
+
+## Assignment 036 audio Browser visibility parity — 2026-11-05
+
+LF-WIN-TST-037 stopped at Gate A with the owner-confirmed Audio visibility mismatch.
+The same #481 / Draft #486 continuation aligns all Mac Browser projections with
+Windows StillImage/RawImage/Video categories while preserving shared Audio
+classification, Catalog admission, stable/authored records and accepted Preview/UI
+behavior. See the [audio visibility report](qualification/browser-thumbnail-foundation-036-audio-visibility.md).
+Owner focused Mac acceptance, independent LF-WIN-TST-037 Gate A revalidation/full
+qualification, exact-head CI/review and explicit merge authorization remain gates.
+No new issue, agent, PR, #482 work or #460 historical-specification edit.
+Historical maintenance: **Not warranted** for this bounded parity correction.
+
+
+## Assignment 036 persistent Mac acceptance workflow — 2026-11-05
+
+Owner reports all Mac functionality accepted at `666505ef`, including Audio visibility.
+The same assignment/branch now establishes a retained, task-owned Lightflow Test
+Catalog outside packages, supported initialization and conservative package-bound
+preflight, with separate disposable tests/smoke roots. Production code and schemas
+remain unchanged. See [workflow handoff](qualification/mac-acceptance-workflow-036.md).
+Owner workflow acceptance, final exact-head CI, LF-WIN-TST-037 qualification and
+explicit merge authorization remain gates. #486 stays Draft, #481 open/In Progress;
+no new agent/issue/PR, #482 work, closure or merge. Historical maintenance: Chronicle
+and Source Index **Updated** for the durable acceptance-data workflow; Development
+History **Not warranted**, as broader product capability is unchanged.

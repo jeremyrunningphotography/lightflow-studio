@@ -1,6 +1,6 @@
 namespace LightflowStudio;
 
-internal static class BrowserPreviewReuse
+public static class BrowserPreviewReuse
 {
     // Failed replacement retains the prior artifact; its warning remains independently visible.
     public static bool HasRetainedThumbnail(PreviewRecord preview, IPreviewStoreService store)
@@ -8,10 +8,10 @@ internal static class BrowserPreviewReuse
         if (preview.ThumbnailRelativePath is null) return false;
         if (preview.ThumbnailState == PreviewComponentState.Current) return true;
         if (preview.ThumbnailState != PreviewComponentState.Failed ||
-            preview.ThumbnailGeneratorVersion != ThumbnailGenerationService.CurrentGeneratorVersion) return false;
+            preview.ThumbnailGeneratorVersion != SharedThumbnailGenerationService.CurrentGeneratorVersion) return false;
         // A failed attempt after source/Color/version invalidation must not revive an obsolete artifact.
         var expected = store.GetArtifactPath(preview.AssetId, PreviewArtifactKind.Thumbnail,
-            ThumbnailGenerationService.CurrentGeneratorVersion, preview.Source, "jpg",
+            SharedThumbnailGenerationService.CurrentGeneratorVersion, preview.Source, "jpg",
             preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original);
         return string.Equals(System.IO.Path.GetFileName(expected),
             System.IO.Path.GetFileName(preview.ThumbnailRelativePath), StringComparison.OrdinalIgnoreCase);

@@ -23,6 +23,26 @@
 - Reports must include exact source/build provenance, a runnable isolated launch command, focused owner acceptance instructions, validation results and outstanding gates.
 - Owner hands-on acceptance, appropriate automated tests, independent Windows qualification where applicable, exact-head CI and explicit merge authorization remain required. This convention changes handoff format only; all storage isolation, packaging and other safety requirements below still apply.
 
+## Mac owner acceptance data
+
+- Reuse a stable task-owned `acceptance/persistent` data root and supported-created
+  **Lightflow Test** Catalog across compatible Mac packages. This retained owner
+  data is independent of package directories; never delete, overwrite, reset,
+  silently migrate or repair it without explicit owner authorization.
+- Keep automated tests, migration/recovery experiments, package dependency/smoke
+  checks and fresh-start acceptance in separate disposable roots. They must never
+  target retained acceptance data or normal user storage.
+- Before a new package uses retained data, verify exact package/source provenance,
+  data-root configuration, Catalog identity/schema, Preview compatibility, local
+  admission, recovery evidence and single-writer availability. Refuse uncertain or
+  incompatible state; investigate a disposable clone instead. Production admission
+  remains authoritative after advisory preflight.
+- Give both a primary persistent-root Terminal launch command and a separate
+  fresh-root command, always with `--data-root`. Record package timestamp/hashes,
+  source SHA/tree, Catalog ID/location and disposable roots. Never include live
+  Catalogs, retained databases, private media or caches in portable evidence ZIPs.
+  See [Mac acceptance workflow](docs/qualification/mac-acceptance-workflow-036.md).
+
 ## Release and maintenance branches
 
 - Normal issues and features start from and target `main`, the development trunk.

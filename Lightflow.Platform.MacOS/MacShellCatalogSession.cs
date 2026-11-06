@@ -4,7 +4,7 @@ using LightflowStudio;
 namespace Lightflow.Platform.MacOS;
 
 /// <summary>Thin shell composition adapter; CatalogLifecycle retains admission, configuration and resource ownership.</summary>
-public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession
+public sealed partial class MacShellCatalogSession(string dataRoot, IThumbnailImageCodec? thumbnailCodec = null, Action<MacThumbnailObservation>? thumbnailObserved = null) : IShellCatalogSession, IBrowserDiscoverySession, IBrowserRecursiveScopeSession, IBrowserThumbnailSession, IBrowserCachedFolderSession
 {
     public string DataRoot { get; } = Path.GetFullPath(dataRoot);
     private readonly SemaphoreSlim _requests = new(1, 1);
@@ -71,6 +71,17 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     private MacBrowserMediaEffects MediaEffects(CatalogLifecycle owner) => new([
         owner.Locations.CatalogDirectory, owner.Locations.PreviewsDirectory, owner.Locations.TemporaryDirectory]);
 
+    // Match Windows BrowserGridModel.PresentableCategories. Recognition/admission is broader
+    // than Browser presentation: Audio stays known and cataloged, but is not a visual asset.
+    private static bool IsBrowserPresentable(MediaTypeClassification type) =>
+        type.Category is MediaTypeCategory.StillImage or MediaTypeCategory.RawImage or MediaTypeCategory.Video;
+
+    private static IReadOnlyList<MediaAsset> BrowserAssets(IReadOnlyList<MediaAsset> assets)
+    {
+        var types = MediaTypeRegistry.CreateDefault();
+        return assets.Where(asset => IsBrowserPresentable(types.Classify(new(asset.RelativePath)))).ToArray();
+    }
+
     public Task<BrowserCatalogSnapshot> ReadBrowserCatalogAsync(Guid? rootId = null, string folder = "",
         bool recursive = false, CancellationToken cancellationToken = default) => BorrowAsync(async owner =>
     {
@@ -79,7 +90,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         var assets = rootId is { } id
             ? await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(id, folder, recursive, cancellationToken).ConfigureAwait(false)
             : Array.Empty<MediaAsset>();
-        return new BrowserCatalogSnapshot(owner.CatalogSession.Identity.CatalogId, roots, assets,
+        return new BrowserCatalogSnapshot(owner.CatalogSession.Identity.CatalogId, roots, BrowserAssets(assets),
             await new CatalogBrowserRecursiveRootRepository(() => owner.Session).ListAsync(cancellationToken).ConfigureAwait(false));
     }, cancellationToken);
 
@@ -95,12 +106,27 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
             .EnumerateAsync(new(rootId, folder), token);
     }, token);
 
-    public Task<BrowserFolderSnapshot> ReadBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(owner =>
+    public Task<BrowserFolderSnapshot> ReadBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(async owner =>
     {
         var effects = MediaEffects(owner);
         var folders = new CatalogMediaFolderEnumerator(Roots(owner), MediaTypeRegistry.CreateDefault(), effects, effects);
-        return new BrowserCatalogReader(new CatalogMediaAssetRepository(() => owner.Session),
-            new CatalogBrowserRecursiveRootRepository(() => owner.Session), folders).ReadAsync(rootId, folder, token);
+        var content = await new BrowserCatalogReader(new CatalogMediaAssetRepository(() => owner.Session),
+            new CatalogBrowserRecursiveRootRepository(() => owner.Session), folders).ReadAsync(rootId, folder, token).ConfigureAwait(false);
+        return content with { Assets = BrowserAssets(content.Assets) };
+    }, token);
+
+    public Task<BrowserFolderSnapshot> ReadCachedBrowserFolderAsync(Guid rootId, string folder, CancellationToken token = default) => BorrowAsync(async owner =>
+    {
+        using var timing = BrowserPerformance.Measure("mac.catalog.known");
+        if (folder.Length > 0 && !PortablePathIdentityValidator.ValidateRelativePath(folder, token).IsSafe)
+            throw new ArgumentException("This relative folder needs review.", nameof(folder));
+        var scopes = await new CatalogBrowserRecursiveRootRepository(() => owner.Session).ListAsync(token).ConfigureAwait(false);
+        var recursive = BrowserRecursiveRootLogic.IsEffectivelyRecursive(scopes, rootId, folder);
+        var known = await new CatalogMediaAssetRepository(() => owner.Session).ListScopeAsync(rootId, folder, recursive, token).ConfigureAwait(false);
+        var types = MediaTypeRegistry.CreateDefault();
+        return new BrowserFolderSnapshot(rootId, folder, recursive, MediaFolderEnumerationStatus.Succeeded, [],
+            known.Where(asset => asset.SourceStatus == MediaAssetSourceStatus.Available && IsBrowserPresentable(types.Classify(new(asset.RelativePath)))).ToArray(),
+            RecursiveRoots: scopes);
     }, token);
 
     public Task<bool> IsBrowserSourceAvailableAsync(Guid rootId, Guid assetId, CancellationToken token = default) => BorrowAsync(async owner =>
@@ -177,7 +203,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         // Missing records and failed recursive descendants remain in Catalog, outside this visible set.
         var reconciled = result.Items.Where(item => item.Status is CatalogReconciliationItemStatus.New or CatalogReconciliationItemStatus.Unchanged or CatalogReconciliationItemStatus.Changed)
             .Select(item => CatalogRelativePaths.RelativePathKey(item.RelativePath)).ToHashSet(StringComparer.Ordinal);
-        var visiblePaths = visible.Where(entry => !entry.IsDirectory && entry.MediaType.IsKnown && entry.IsAvailable)
+        var visiblePaths = visible.Where(entry => !entry.IsDirectory && IsBrowserPresentable(entry.MediaType) && entry.IsAvailable)
             .Select(entry => entry.RelativePathKey).Where(reconciled.Contains).ToHashSet(StringComparer.Ordinal);
         using var projectionTiming = BrowserPerformance.Measure("mac.catalog.projection");
         // Reuse the post-reconciliation listing for the tree projection. The old reader repeated
@@ -186,7 +212,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
         return new BrowserFolderSnapshot(rootId, folder, recursive, listing.Status,
             listing.Entries.Where(entry => entry.IsDirectory).ToArray(),
             content.Where(asset => asset.SourceStatus != MediaAssetSourceStatus.Missing &&
-                visiblePaths.Contains(asset.RelativePathKey) && mediaTypes.Classify(new(asset.RelativePath)).IsKnown).ToArray(),
+                visiblePaths.Contains(asset.RelativePathKey) && IsBrowserPresentable(mediaTypes.Classify(new(asset.RelativePath)))).ToArray(),
             result.Diagnostic, result.UnavailableSourceCount, scopeRoots, catalogRoots);
 
     }, token);
@@ -255,6 +281,7 @@ public sealed class MacShellCatalogSession(string dataRoot) : IShellCatalogSessi
     }
     private async Task RetireAsync()
     {
+        await RetirePreviewsAsync().ConfigureAwait(false);
         var owner = _owner;
         _owner = null;
         if (owner is not null) await owner.DisposeAsync(Console.Error.WriteLine).ConfigureAwait(false);

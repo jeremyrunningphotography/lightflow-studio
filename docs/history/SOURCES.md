@@ -342,3 +342,25 @@ Each document below is anchored to integrated source. A document can preserve a 
 **H035-PUBLICATION:** the [repository release API](https://api.github.com/repos/jeremyrunningphotography/lightflow-studio/releases) was inspected on November 4 before the checkpoint. It returned the same six application publications indexed in the original edition, latest [v1.0.2](https://github.com/jeremyrunningphotography/lightflow-studio/releases/tag/v1.0.2), plus the separate FFmpeg dependency mirror. No Mac application publication was present. The API is mutable; the observation is dated, and the original R102 immutable source/tag provenance is preserved above.
 
 Validation checks original-content preservation, unique source identifiers, local Markdown paths/heading targets, referenced immutable objects and repository paths, PR/merge dates and changed-file scope. It establishes documentary consistency, not fresh runtime qualification. Raw API responses and validation aids remain untracked in the owning task clone. No private transcripts, local media identifiers or new private artifact paths are included in the continuation. Later #475/#476 events are outside this historical checkpoint and require a dated follow-up.
+
+
+### H036 — Browser thumbnail foundation implementation
+
+- [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481): owner-approved implementation scope; parent #480, then #395/#366.
+- Accepted starting main: `7f755460e36375234281481cea3004f60344325b`.
+- [Phase A audit](../qualification/browser-thumbnail-foundation-036-phase-a.md), preserved at `ea8f3242bf68d153880c2cef7775f2ea60675bc8`.
+- [Phase B implementation report](../qualification/browser-thumbnail-foundation-036-phase-b.md), in this implementation's source tree; immutable final source/package stamps are in its generated artifact handoff.
+- Evidence boundary: implementation and local Mac automated qualification only. Owner hands-on acceptance, independent Windows execution, merge and release are not established by this entry.
+
+
+### H036-Acceptance — Retained Mac acceptance workflow
+
+- [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481) and
+  [Draft PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486):
+  owner-authorized workflow scope; preceding Mac functional acceptance reported at
+  `666505ef81310a62dffd13b514cf562084487c13`, not merge authorization.
+- [Mac workflow handoff](../qualification/mac-acceptance-workflow-036.md), root AGENTS
+  and task-only bootstrap/preflight in the same PR. Exact final commit/build metadata
+  is recorded in generated evidence, not self-referentially embedded in this entry.
+- Evidence boundary: branch implementation/local validation report; owner workflow
+  acceptance, independent Windows qualification, merge and release are not established.

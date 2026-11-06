@@ -17,7 +17,7 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1
 sh "$TASK_REPO/scripts/Build-MacIcon.sh" "$OUTPUT"
 cp "$OUTPUT/LightflowStudio.icns" "$BUNDLE/Contents/Resources/LightflowStudio.icns"
 python3 - "$BUNDLE" <<'PY'
-import hashlib,json,plistlib,shutil,subprocess,sys
+import datetime,hashlib,json,plistlib,shutil,subprocess,sys
 from pathlib import Path
 bundle=Path(sys.argv[1]); contents=bundle/'Contents'
 (contents/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleExecutable='LightflowStudio.Mac',CFBundleIdentifier='studio.lightflow.mac.development',CFBundleName='Lightflow Studio',CFBundleDisplayName='Lightflow Studio',CFBundlePackageType='APPL',CFBundleIconFile='LightflowStudio.icns',CFBundleVersion=subprocess.check_output(['git','rev-list','--count','HEAD'],text=True).strip(),CFBundleShortVersionString='1.0.0',NSHighResolutionCapable=True,LSArchitecturePriority=['arm64'])))
@@ -36,7 +36,7 @@ for framework in lock['dependencies'].values():
             if source.is_file() and ('license' in source.name.lower() or 'notice' in source.name.lower() or source.suffix=='.nuspec'):
                 target=licenses/name/version/source.relative_to(package_root); target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
 files={str(p.relative_to(bundle)):hashlib.sha256(p.read_bytes()).hexdigest() for p in bundle.rglob('*') if p.is_file()}
-provenance=dict(head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),branch=subprocess.check_output(['git','branch','--show-current'],text=True).strip(),dirty=bool(subprocess.check_output(['git','status','--porcelain'],text=True)),files=files)
+provenance=dict(tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),buildUtc=datetime.datetime.now(datetime.timezone.utc).isoformat(),trackedDirty=bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],text=True)),head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),branch=subprocess.check_output(['git','branch','--show-current'],text=True).strip(),dirty=bool(subprocess.check_output(['git','status','--porcelain'],text=True)),files=files)
 (bundle.parent/'provenance.json').write_text(json.dumps(provenance,indent=2)+'\n')
 PY
 python3 scripts/Verify-MacIcon.py "$BUNDLE" "$OUTPUT/icon-verification"

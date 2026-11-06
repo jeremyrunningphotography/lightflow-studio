@@ -57,8 +57,12 @@ Focused tests exercise 20,000-item lazy row projection; column/gutter boundaries
 10,000-item real virtualized control, mode changes, resize, keyboard, end scroll,
 Refresh identity and visual bounds; shared range/toggle selection and Refresh.
 Existing bitmap retention/detach, cache priority, stale-result cancellation,
-Locations, shell and Catalog/Preview regression tests also run. Exact results and
-native package observations are in the evidence ZIP; passing local tests do not
+Locations, shell and Catalog/Preview regression tests also run. Local UI 100/100, native Mac 64/64 and shared Application 141/141 passed.
+Packaged GUI verified all modes, Ready still/video thumbnails, 6-to-4 column
+Right Panel reflow, selection stability and scrolling using synthetic media in
+a disposable Catalog; normal quit returned 0. The final accessibility refinement
+replaces a technical row record label with human-readable media item ranges.
+Exact results and native package observations are in the evidence ZIP; passing local tests do not
 claim independent Windows execution or full required hosted CI.
 
 Create the issue's new retained **Lightflow Test** Catalog through the existing

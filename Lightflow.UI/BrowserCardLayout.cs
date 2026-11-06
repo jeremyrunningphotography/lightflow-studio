@@ -32,7 +32,10 @@ public static class BrowserCardLayout
         }, 0, count - 1);
 }
 
-internal sealed record BrowserCardRow(IReadOnlyList<MediaAsset> Assets, int Start, int Count);
+internal sealed record BrowserCardRow(IReadOnlyList<MediaAsset> Assets, int Start, int Count)
+{
+    public override string ToString() => $"Media items {Start + 1}–{Start + Count}";
+}
 
 /// <summary>O(1) row projection over the existing snapshot, even on resize of a large folder.</summary>
 internal sealed class BrowserCardRows(IReadOnlyList<MediaAsset> assets, int columns) : IList

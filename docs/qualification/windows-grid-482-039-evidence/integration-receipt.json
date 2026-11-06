@@ -1,0 +1,12 @@
+{
+  "originalZipName": "LF-WIN-TST-039-Windows-Qualification(1).zip",
+  "originalZipSha256": "cdc67f28e749b306c657e848be268c86dbbeb6ca7cb8afc272c6a68cb1c9ec2f",
+  "entries": 151,
+  "zipCrcVerified": true,
+  "evidenceManifestEntriesVerified": 150,
+  "acceptedCommit": "e941fabefde207878d88690000a624bab8853cae",
+  "acceptedTree": "ef16701a7522a215962657716d047251128a6f9b",
+  "originalReportSha256": "dab91d704bb61adf7a58cc8307117844054c19d4753225b7fb77f9ab9a4dd530",
+  "gitTextNormalization": "UTF-8, CRLF normalized to LF, terminal newline; original ZIP retained byte-for-byte in portable closeout evidence",
+  "sourceBundleSha256": "e9caddd10e8778c9a6381a364c56d3a9515a995190d601ada67b8b860fcf28b8"
+}

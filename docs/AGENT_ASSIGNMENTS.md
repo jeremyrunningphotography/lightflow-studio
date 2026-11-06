@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 038 | LF-MAC-DEV-038 | Mac Browser Grid Cards | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | In Progress; local-first workflow reconciliation; no PR/merge/release authorized |
 | 037 | LF-WIN-TST-037 | Browser Thumbnail Windows Qualification | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), [PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486) | Done; accepted 93ab479e / ea732bc6 qualified; Gate A/focused/package/Catalog safety PASS; full Release 2,880 passed / 2 skipped; owner Windows 6/6 PASS; original failed attempts retained; implementation merged 4d182639 |
 | 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Done; owner Mac/workflow and Windows acceptance PASS; #486 normal merge 4d182639 preserves accepted 93ab479e / ea732bc6; independent LF-WIN-TST-037 PASS; exact-head/post-merge CI PASS; #481 Completed |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
@@ -1006,3 +1007,10 @@ may be reset/deleted without owner authorization or carried into #482. See the
 Final administrative merge/CI/cleanup provenance is recorded in #481/#486 and the
 portable closeout ZIP rather than rewriting the accepted implementation tree.
 Earlier historical and qualification checkpoints remain preserved.
+
+
+## Assignment 038 reservation — 2026-11-05
+
+LF-MAC-DEV-038 — Mac Browser Grid Cards. Owner authorizes local implementation of #482 after orientation and policy reconciliation. Independent full clone `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-038-MacBrowserGridCards`, branch `codex/038-mac-browser-grid-cards`; fetched origin/main `1b37d62fe1bb153e6988661ce65453648d937551`. Number absent from all fetched remote registries and matching GitHub assignment search. 036/037 are Done; outstanding historical 022 partial delivery, 023 portability research limits and reserved/concurrent entries remain preserved. The 034 row is stale relative to closed/completed #475; this assignment does not rewrite its separately owned record.
+
+Native #366 → #395 → #480 → #482 and completed #481 independently verified. Project #482 Backlog / Browser / unset priority read from authenticated Project #4 during orientation. No invented blocking edge. First modification reconciles root AGENTS.md; no production edits precede it. Local implementation/validation/package/ZIP precede owner acceptance, independent Windows qualification and one eventual implementation PR. No Draft PR, merge, closure, release, later slice or qualifier allocation authorized now. New issue-scoped Catalog only; #481 retained data untouched.

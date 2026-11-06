@@ -26,10 +26,10 @@ public sealed partial class BrowserPane
     }
     private (string Signature, Guid[] Visible, Guid[] Overscan) Viewport()
     {
-        var realized = _assets.GetVisualDescendants().OfType<ListBoxItem>().Where(x => x.DataContext is MediaAsset).ToArray();
+        var realized = _assets.GetVisualDescendants().OfType<BrowserGridCard>().ToArray();
         var visible = realized.Where(x => x.TranslatePoint(default, _assets) is { } top && top.Y + x.Bounds.Height >= 0 && top.Y < _assets.Bounds.Height)
-            .Select(x => (MediaAsset)x.DataContext!).ToArray();
-        var ids = visible.Select(x => x.AssetId).Distinct().Take(64).ToArray();
+            .Select(x => x.AssetId).ToArray();
+        var ids = visible.Distinct().Take(64).ToArray();
         if (ids.Length == 0) return ("", [], []);
         if (!ReferenceEquals(_viewportAssets, _model.Assets)) { _viewportAssets = _model.Assets; _viewportIndices = _model.Assets.Select((a, i) => (a.AssetId, i)).ToDictionary(x => x.AssetId, x => x.i); }
         var index = _viewportIndices.GetValueOrDefault(ids[0]);

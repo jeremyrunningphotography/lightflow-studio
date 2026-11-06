@@ -1,0 +1,200 @@
+[
+  {
+    "file": "trx/Lightflow.Application.Tests-lf039-neutral.trx",
+    "sha256": "5fcd0c28bbcafcb16f9439e35372c406ddca54bfac37665e2893869619dc7baf",
+    "counters": {
+      "total": "141",
+      "executed": "141",
+      "passed": "141",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "trx/Lightflow.Catalog.Tests-lf039-neutral.trx",
+    "sha256": "de6ef68b087bdcdf739a9d4c01f3e442f992b8aae120ae82552c52aaad96507b",
+    "counters": {
+      "total": "67",
+      "executed": "67",
+      "passed": "67",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "trx/Lightflow.UI.Tests-lf039-neutral.trx",
+    "sha256": "427d9d5c4ada37ecd48c93b414efc8dd7f2609ca8ee28814edc4d5432d3762ff",
+    "counters": {
+      "total": "102",
+      "executed": "102",
+      "passed": "102",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "trx/LightflowStudio.Tests-lf039-focused.trx",
+    "sha256": "7904843c0969d1ba4150498e1b50c269c03d4ed9497b151d635557db1178b699",
+    "counters": {
+      "total": "606",
+      "executed": "606",
+      "passed": "606",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "trx/LightflowStudio.Tests-lf039-full-release.trx",
+    "sha256": "874b747c52ede1579716871afdfaa757a4626d38787862186219d447f880d6e0",
+    "counters": {
+      "total": "2882",
+      "executed": "2880",
+      "passed": "2764",
+      "failed": "116",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "trx/LightflowStudio.Tests-lf039-full-unlocked.trx",
+    "sha256": "281711c546a0f104c6bfdb35d4536acf6084ad80e3ec2c47d78b0a068d63175f",
+    "counters": {
+      "total": "2882",
+      "executed": "2880",
+      "passed": "2879",
+      "failed": "1",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "initial-missing-prerequisites.trx",
+    "sha256": "874b747c52ede1579716871afdfaa757a4626d38787862186219d447f880d6e0",
+    "counters": {
+      "total": "2882",
+      "executed": "2880",
+      "passed": "2764",
+      "failed": "116",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "lf039-baseline-catalog.trx",
+    "sha256": "0bab69fed6ae4dd5a6e3797f0a418627cf8ca21498b163b5f2283c9fe82d4528",
+    "counters": {
+      "total": "407",
+      "executed": "406",
+      "passed": "406",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  },
+  {
+    "file": "lf039-baseline-restore.trx",
+    "sha256": "83dc06f3466c0867c2b1b090570733f7101b30f9d3a9d139c87f4ea325b23373",
+    "counters": {
+      "total": "14",
+      "executed": "14",
+      "passed": "14",
+      "failed": "0",
+      "error": "0",
+      "timeout": "0",
+      "aborted": "0",
+      "inconclusive": "0",
+      "passedButRunAborted": "0",
+      "notRunnable": "0",
+      "notExecuted": "0",
+      "disconnected": "0",
+      "warning": "0",
+      "completed": "0",
+      "inProgress": "0",
+      "pending": "0"
+    }
+  }
+]

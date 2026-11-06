@@ -1,0 +1,142 @@
+[
+  {
+    "Path": "ffmpeg\\bin\\ffmpeg.exe",
+    "Length": 113536512,
+    "SHA256": "6099366f31293cdc6c283ea44ffb32f07e3139cd0caf6d0db652a7d064d089cb"
+  },
+  {
+    "Path": "ffmpeg\\bin\\ffprobe.exe",
+    "Length": 113330688,
+    "SHA256": "4c2f730969c9551aec21c5ca07eb73f63bb0920204c9cd6c9a6e7be6be0458d2"
+  },
+  {
+    "Path": "ffmpeg\\ffmpeg-package.json",
+    "Length": 558,
+    "SHA256": "5231b2f26e2a9386180ba7f4bce175b45fad3900683f877dca804517c9ba21e7"
+  },
+  {
+    "Path": "ffmpeg\\licenses\\LICENSE.txt",
+    "Length": 7651,
+    "SHA256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+  },
+  {
+    "Path": "ffmpeg\\SOURCE-AND-LICENSE.txt",
+    "Length": 663,
+    "SHA256": "94c7a93d24dccd6b67bef5f7875ec3a936135bedf9ddbf0c9f6e55770db59785"
+  },
+  {
+    "Path": "flyleaf-fast-seek.md",
+    "Length": 1651,
+    "SHA256": "56c9bac5b15079fd89986f6a18e51b26efe7f3c87cd682dd5f3d6b4c628dfb1f"
+  },
+  {
+    "Path": "flyleaf-package.json",
+    "Length": 618,
+    "SHA256": "4602cf89e88d15f45402c3cfdff2be3ba00b86ef79f0db437319b90d7a7ffb43"
+  },
+  {
+    "Path": "licenses\\README.md",
+    "Length": 759,
+    "SHA256": "d4b22d9315df98d05a1921da6f71486755900fbf2ca5b9eada16c6b923e541c0"
+  },
+  {
+    "Path": "licenses\\SQLitePCLRaw-LICENSE.TXT",
+    "Length": 11560,
+    "SHA256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
+  },
+  {
+    "Path": "licenses\\SQLitePCLRaw-NOTICE.TXT",
+    "Length": 9962,
+    "SHA256": "601e57b1f54503e43d4682ec42963fb9e49f2364e7305d03a3425466a8dffad9"
+  },
+  {
+    "Path": "LightflowStudio.exe",
+    "Length": 197754866,
+    "SHA256": "8e725c89d9707089fb77fa3a0b601357b6e6ff42bacb9472a9ef6e9a60865ee5"
+  },
+  {
+    "Path": "LightflowStudio.ico",
+    "Length": 92042,
+    "SHA256": "2a20e879577b4a21eacb9502d460b93fbcf1aa59bb4dba41965b4d7e442e2772"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\avcodec-63.dll",
+    "Length": 71069184,
+    "SHA256": "40c288d969589ff7f2f00338857c1a5a756fe41283fed0cb31fc118f51837e68"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\avdevice-63.dll",
+    "Length": 3923968,
+    "SHA256": "753001a5872614d0008fa7fa93a03c78fb6677315b5a574550628cb2053d8f68"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\avfilter-12.dll",
+    "Length": 30014976,
+    "SHA256": "1f8566b1cecb54eae39dab87615043c915779252726ddda66e486cd95a55a22d"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\avformat-63.dll",
+    "Length": 22153728,
+    "SHA256": "6e5e274b89423fe52b772fc2b0c51a9d77a57a8a2663aac97ac88286e4509c58"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\avutil-61.dll",
+    "Length": 2939392,
+    "SHA256": "532ea8e8b5864bfc1714d6c37cccf483aa3633965f7e0b647c4141e5dc297538"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\ffmpeg.exe",
+    "Length": 538112,
+    "SHA256": "4c7f8a53bb415a2c6a22877b1bd2cd4567e8ce8d053ec702729230457bd37ed9"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\ffprobe.exe",
+    "Length": 227328,
+    "SHA256": "ad2da768b955a0012deb328be8ce37bd818508e96801835f148b285194e96519"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\swresample-7.dll",
+    "Length": 722944,
+    "SHA256": "847dfe44bd80e1fa8e469447858a47a4bd4a88a386ce456ba1ed246d6b58b0d0"
+  },
+  {
+    "Path": "playback\\ffmpeg\\bin\\swscale-10.dll",
+    "Length": 2479616,
+    "SHA256": "6e43504825fb3148d207f418714e1b2e090988e059e0bfdd9e2a7a20bb694938"
+  },
+  {
+    "Path": "playback\\ffmpeg\\ffmpeg-playback-package.json",
+    "Length": 879,
+    "SHA256": "65820a6b04ae4049b3596f49a5fc97c694a7a1c1f6049ae0ae542ab3f6aad93b"
+  },
+  {
+    "Path": "playback\\ffmpeg\\licenses\\LICENSE.txt",
+    "Length": 7651,
+    "SHA256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+  },
+  {
+    "Path": "playback\\ffmpeg\\SOURCE-AND-LICENSE.txt",
+    "Length": 989,
+    "SHA256": "2312f67a8c88bfb7520ed63a255ec04307188402fdd9850df460383e46b5a44d"
+  },
+  {
+    "Path": "PremiereCompanion\\LightflowStudio.ccx",
+    "Length": 106809,
+    "SHA256": "e94b86b69ad124075a20ec384e43d95a89a7c5816cb2f7fcfdc52503b18a575e"
+  },
+  {
+    "Path": "PremiereHelper\\Export-V1-Clips.jsx",
+    "Length": 1772,
+    "SHA256": "04fda393ccbdd70b2d3d5b8317c3d8430fa03c279c8285a215f0f78e258e3568"
+  },
+  {
+    "Path": "PremiereHelper\\README.txt",
+    "Length": 684,
+    "SHA256": "3476113bd73b885e3f75707118b3356c0547bad8b2a7e7a1800eb2da09183b22"
+  },
+  {
+    "Path": "THIRD-PARTY-NOTICES.md",
+    "Length": 6504,
+    "SHA256": "2565f688b4ea3b2733330357c499b9ab34bfecb70d4a0ca63e16734ce9a490a4"
+  }
+]

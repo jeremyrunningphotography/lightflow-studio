@@ -350,3 +350,30 @@ The convention is documented in root agent instructions and the Mac handoff. Own
 functional acceptance of the preceding Mac implementation is reported; acceptance
 of this workflow, independent Windows qualification and merge remain separate gates.
 [H036-Acceptance](SOURCES.md#h036-acceptance--retained-mac-acceptance-workflow)
+
+### November 5 — Local-first acceptance and a single implementation PR
+
+**Local implementation checkpoint, not accepted or merged.** LF-MAC-DEV-038
+reconciles the owner-directed workflow: local source, validation, runnable package
+and portable evidence precede hands-on acceptance and independent Windows
+qualification; routine implementation, qualification, registry and history then
+share one PR. Exact-head CI, explicit merge authorization, post-merge CI and
+issue-scoped retained Catalog protection remain required. The same assignment
+implements native Mac Preview/Info/Hybrid Grid composition over the existing
+shared selection and Preview foundation; later Browser slices remain separate.
+[H038](SOURCES.md#h038--local-first-grid-implementation)
+
+### November 6 — Native Mac Grid modes reach owner acceptance
+
+**Owner-accepted, integration pending; not a release.** LF-MAC-DEV-038's accepted
+`e941fabefde207878d88690000a624bab8853cae` supplies Preview, Info and Hybrid Grid
+compositions, responsive virtualized rows and stable shared selection/Preview state.
+Two local acceptance iterations finalized keyboard selection chrome and permanent
+bottom-right mode controls. The owner accepted all eight final Mac checks, preserving
+nine earlier accepted behaviors. Independent LF-WIN-TST-039 Windows qualification
+and six owner Windows checks were accepted with a documented inconclusive Catalog
+exception; the original full Release failure remains in qualification evidence.
+The same implementation PR will carry workflow, tests, qualification, registry and
+history, with exact-head CI and post-merge verification still required. Details,
+query/filter/sort and complete indicator parity remain later Browser slices; R4 and
+Mac compatibility are not completed. [H038-Accepted](SOURCES.md#h038-accepted--native-grid-owner-acceptance)

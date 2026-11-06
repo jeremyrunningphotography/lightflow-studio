@@ -1,0 +1,11 @@
+{
+  "Source": "e941fabefde207878d88690000a624bab8853cae",
+  "Tree": "ef16701a7522a215962657716d047251128a6f9b",
+  "Executable": "C:\\Git\\Agents\\LF-WIN-TST-039-MacGridWindowsQualification\\artifacts\\release\\LightflowStudio\\LightflowStudio.exe",
+  "ExecutableTimestampUtc": "2026-11-06T20:21:06.8792691Z",
+  "CommitTimestamp": "2026-11-06T07:34:59.0000000-08:00",
+  "ExecutableSHA256": "8E725C89D9707089FB77FA3A0B601357B6E6FF42BACB9472A9EF6E9A60865EE5",
+  "Files": 28,
+  "TotalBytes": 558942066.0,
+  "TimestampNewerThanCommit": true
+}

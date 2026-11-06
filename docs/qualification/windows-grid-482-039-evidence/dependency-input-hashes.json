@@ -1,0 +1,14 @@
+[
+  {
+    "Path": "C:\\Git\\Agents\\LF-WIN-TST-039-MacGridWindowsQualification\\dependencies\\ffmpeg.json",
+    "Hash": "5231B2F26E2A9386180BA7F4BCE175B45FAD3900683F877DCA804517C9BA21E7"
+  },
+  {
+    "Path": "C:\\Git\\Agents\\LF-WIN-TST-039-MacGridWindowsQualification\\dependencies\\ffmpeg-playback.json",
+    "Hash": "65820A6B04AE4049B3596F49A5FC97C694A7A1C1F6049AE0AE542AB3F6AAD93B"
+  },
+  {
+    "Path": "C:\\Git\\Agents\\LF-WIN-TST-039-MacGridWindowsQualification\\LightflowStudio\\packages.lock.json",
+    "Hash": "CAD1FC02A9E1283F4E1A9BBB2F56FF7670EB0056B0BCA71BD6A3E8812772C5EA"
+  }
+]

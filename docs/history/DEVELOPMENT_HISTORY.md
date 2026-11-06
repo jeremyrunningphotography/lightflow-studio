@@ -200,3 +200,22 @@ foundation testable before the separately planned Grid and Details work. This is
 implementation checkpoint, not owner acceptance, merge or distribution. See the
 [Chronicle checkpoint](CHRONICLE.md#november-5--shared-browser-thumbnail-foundation-implemented-for-review)
 and [H036 evidence](SOURCES.md#h036--browser-thumbnail-foundation-implementation).
+
+### November 6 accepted checkpoint: a native Mac media Grid
+
+**AI-authored continuation; owner acceptance recorded, integration pending.** After
+shared discovery and thumbnail foundations, the Mac Browser gained the Windows Grid's
+three distinct presentations: image-focused Preview, inset Info and media-large Hybrid.
+Responsive virtualized rows used existing asset identity, selection and Preview policy;
+this advanced native presentation without creating another media engine or changing
+Windows production behavior. Local owner review refined keyboard selection styling and
+moved mode controls to their permanent status-bar home before final acceptance.
+
+The accepted Grid also exercised the simpler development workflow: local source,
+runnable packages and portable evidence were reviewed before independent Windows
+qualification and a single implementation PR. All eight final Mac checks and six
+Windows hands-on checks passed; the Windows qualification carried an explicitly
+approved, inconclusive Catalog-test exception, preserved in its engineering record.
+Acceptance did not itself establish a merge or release. Details/presentation sizing,
+query refinement, fuller metadata indicators and the wider migration remained separate
+work. [H038-Accepted](SOURCES.md#h038-accepted--native-grid-owner-acceptance)

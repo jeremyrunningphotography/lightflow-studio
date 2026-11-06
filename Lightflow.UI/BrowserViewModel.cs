@@ -44,6 +44,8 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     public string Message { get; private set; } = "Choose a location to browse Catalog content.";
     public string SourceMessage { get; private set; } = "Select an asset to see its Catalog details.";
     public Guid? SelectedAssetId => _selection.Snapshot().Select(key => Guid.Parse(key)).Cast<Guid?>().FirstOrDefault();
+    public bool IsAssetSelected(Guid id) => _selection.IsSelected(id.ToString("D"));
+    public IReadOnlySet<string> SelectedAssetKeys => _selection.Snapshot();
     public MediaAsset? SelectedAsset => Assets.FirstOrDefault(asset => asset.AssetId == SelectedAssetId);
     public bool CanGoUp => Location is { AbsolutePath: not null } file ? file.AbsolutePath != "/" : Location is { RelativeFolder.Length: > 0 };
     public long Epoch => _epoch;
@@ -167,6 +169,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
             if (generation == _generation && !token.IsCancellationRequested) Location = PresentedNode(node);
             if(generation!=_generation || token.IsCancellationRequested) return;
             var retainAssetId = refreshing || IsProvisional ? SelectedAssetId : null;
+            var retainedKeys = _selection.Snapshot();
             if(content.CatalogRoots is { } catalogRoots)_catalogRoots=catalogRoots;
             if(content.RecursiveRoots is { } scopeRoots)_recursiveRoots=scopeRoots;
             if (IsProvisional)
@@ -177,7 +180,13 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
                 if (generation != _generation || token.IsCancellationRequested) return;
             }
             IsProvisional=false; Assets=content.Assets; Recursive=content.Recursive; _hasSubfolders=content.Folders.Count>0;
-            if (retainAssetId is { } selected && Assets.Any(asset => asset.AssetId == selected)) await SelectAsync(selected);
+            if (retainAssetId is not null && Assets.FirstOrDefault(asset => retainedKeys.Contains(asset.AssetId.ToString("D"))) is { } surviving)
+            {
+                await SelectAsync(surviving.AssetId);
+                if (generation != _generation || token.IsCancellationRequested) return;
+                _selection.Restore(retainedKeys.Intersect(Assets.Select(a => a.AssetId.ToString("D"))), null);
+                _selection.ResetAnchor();
+            }
             else { _selection.Clear(); SourceMessage="Select an asset to see its Catalog details."; }
             if (generation != _generation || token.IsCancellationRequested) return;
             Message=content.Status!=MediaFolderEnumerationStatus.Succeeded ? Unavailable(content.Status) : "";
@@ -268,6 +277,28 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         catch(OperationCanceledException) { if(generation==_selectionGeneration && scope==_generation) SourceMessage="Source check stopped. Retry selection or reconnect its media location."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_selectionGeneration && scope==_generation) SourceMessage="Source availability couldn't be verified. Retry or reconnect the location; the Catalog record is preserved."; }
         if(generation==_selectionGeneration && scope==_generation) Notify();
+    }
+    /// <summary>Desktop selection reuses the shared Windows selection owner; no card-local selection set.</summary>
+    public async Task SelectGridAsync(Guid id, bool toggle = false, bool range = false)
+    {
+        var index = -1;
+        for (var i = 0; i < Assets.Count; i++) if (Assets[i].AssetId == id) { index = i; break; }
+        if (index < 0) return;
+        if (!toggle && !range) { await SelectAsync(id); return; }
+        _selectionRead?.Cancel(); _selectionGeneration++;
+        if (range)
+        {
+            var anchor = Math.Clamp(_selection.AnchorIndex ?? index, 0, Assets.Count - 1);
+            _selection.SelectRange(Assets.Skip(Math.Min(index, anchor)).Take(Math.Abs(index - anchor) + 1).Select(a => a.AssetId.ToString("D")).ToArray());
+        }
+        else _selection.ToggleCtrl(id.ToString("D"), index);
+        SourceMessage = $"{_selection.Snapshot().Count} selected"; Notify();
+    }
+    public void SelectAllGrid()
+    {
+        _selectionRead?.Cancel(); _selectionGeneration++;
+        _selection.SelectAll(Assets.Select(a => a.AssetId.ToString("D")));
+        SourceMessage = $"{Assets.Count} selected"; Notify();
     }
     public async Task RefreshAsync()
     {

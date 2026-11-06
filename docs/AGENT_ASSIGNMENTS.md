@@ -17,6 +17,8 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 039 | LF-WIN-TST-039 | Mac Grid Windows Qualification | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done; accepted e941fabef / ef16701a independently qualified with owner-approved inconclusive Catalog exception; focused 606 PASS, full 2879 passed / 1 failed / 2 skipped; Windows owner 6/6 PASS; implementation integration/CI/merge tracked by 038 |
+| 038 | LF-MAC-DEV-038 | Mac Browser Grid Cards | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done through accepted implementation/qualification; Mac I02 8/8 and Windows 6/6 accepted at e941fabef / ef16701a; final single-PR CI/merge/post-merge gates remain pending at record preparation |
 | 037 | LF-WIN-TST-037 | Browser Thumbnail Windows Qualification | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), [PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486) | Done; accepted 93ab479e / ea732bc6 qualified; Gate A/focused/package/Catalog safety PASS; full Release 2,880 passed / 2 skipped; owner Windows 6/6 PASS; original failed attempts retained; implementation merged 4d182639 |
 | 036 | LF-MAC-DEV-036 | Browser Thumbnail Foundation | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), parent #480 / #395 / #366 | Done; owner Mac/workflow and Windows acceptance PASS; #486 normal merge 4d182639 preserves accepted 93ab479e / ea732bc6; independent LF-WIN-TST-037 PASS; exact-head/post-merge CI PASS; #481 Completed |
 | 034 | LF-WIN-DEV-034 | Documentation CI & Workflow Simplification | [Issue #475](https://github.com/jeremyrunningphotography/lightflow-studio/issues/475), parent #290 | In Progress; independent DARKMATTER implementation; owner review and explicit merge authorization required |
@@ -1006,3 +1008,48 @@ may be reset/deleted without owner authorization or carried into #482. See the
 Final administrative merge/CI/cleanup provenance is recorded in #481/#486 and the
 portable closeout ZIP rather than rewriting the accepted implementation tree.
 Earlier historical and qualification checkpoints remain preserved.
+
+
+## Assignment 038 reservation — 2026-11-05
+
+LF-MAC-DEV-038 — Mac Browser Grid Cards. Owner authorizes local implementation of #482 after orientation and policy reconciliation. Independent full clone `/Users/jeremyrunning/Git/agents/LF-MAC-DEV-038-MacBrowserGridCards`, branch `codex/038-mac-browser-grid-cards`; fetched origin/main `1b37d62fe1bb153e6988661ce65453648d937551`. Number absent from all fetched remote registries and matching GitHub assignment search. 036/037 are Done; outstanding historical 022 partial delivery, 023 portability research limits and reserved/concurrent entries remain preserved. The 034 row is stale relative to closed/completed #475; this assignment does not rewrite its separately owned record.
+
+Native #366 → #395 → #480 → #482 and completed #481 independently verified. Project #482 Backlog / Browser / unset priority read from authenticated Project #4 during orientation. No invented blocking edge. First modification reconciles root AGENTS.md; no production edits precede it. Local implementation/validation/package/ZIP precede owner acceptance, independent Windows qualification and one eventual implementation PR. No Draft PR, merge, closure, release, later slice or qualifier allocation authorized now. New issue-scoped Catalog only; #481 retained data untouched.
+
+
+## Assignment 038 Iteration 02 — 2026-11-06
+
+Owner accepted nine I01 behaviors at `8b3cb49` and confirmed Arrow/Shift+Arrow/Command+Arrow selection semantics. This same assignment makes only the authorized visual focus/selection correction and permanent Windows-equivalent bottom-right mode-control placement. Existing clone, branch and #482 retained Lightflow Test Catalog remain; no new assignment/clone/issue/PR or qualifier allocation. See [I02 report](qualification/mac-grid-482-i02.md). Final UI suite 102 PASS; exact package/provenance, preflight and focused owner checklist are in the local I02 evidence ZIP. Owner I02 feedback remains the next gate; no qualification, PR, merge, closure, release or #483–#485 work. Historical maintenance Not warranted for a bounded visual correction.
+
+
+## Assignment 039 — Windows Grid qualification, 2026-11-06
+
+LF-WIN-TST-039 retains the original Mac Grid Windows Qualification assignment and
+independent DARKMATTER full clone
+`C:\Git\Agents\LF-WIN-TST-039-MacGridWindowsQualification`, branch
+`codex/039-mac-grid-windows-qualification`. Exact owner-accepted LF-MAC-DEV-038
+source `e941fabefde207878d88690000a624bab8853cae`, tree
+`ef16701a7522a215962657716d047251128a6f9b`, imported through a manifest-verified
+complete Git bundle without history rewriting. Earlier missing-source gate resolved.
+
+Engineering qualification is **INCONCLUSIVE**: full Windows Release 2,879 passed /
+1 failed / 2 skipped; the Catalog restore admission refusal did not reproduce in
+accepted focused validation (606/606) or bounded baseline transfer/Catalog runs
+(14/14 and 406 passed / 1 skipped). Cause remains unresolved; no regression or fix
+claimed. Shared Application 141, Catalog 67 and UI 102 tests pass; fresh exact-source
+Windows package/dependency/isolated startup/backup/shutdown checks pass. Owner
+failure disposition and six Windows hands-on checks remain outstanding. See the
+[qualification report](qualification/windows-grid-482-039.md) and its portable ZIP.
+
+This record is prepared for integration by 038 into the single #482 implementation
+PR after gates are satisfied; no qualification PR, merge, issue/Project closure,
+release/tag, #483 or accepted production-source change. #482 remains active and
+#480 incomplete. Historical maintenance: **Not warranted** for bounded qualification
+and registry administration; accepted implementation history remains unchanged.
+
+
+## Assignments 038 / 039 accepted completion — 2026-11-06
+
+Both assignments are Done through owner-accepted implementation and independent qualification. LF-MAC-DEV-038 delivered accepted `e941fabefde207878d88690000a624bab8853cae`, tree `ef16701a7522a215962657716d047251128a6f9b`; Mac I02 8/8 PASS preserves the nine accepted I01 behaviors. LF-WIN-TST-039 independently verified the same source/tree on DARKMATTER: 606 focused Windows tests PASS; full Release **2,879 passed / 1 failed / 2 skipped**, not a clean PASS. Original access-denied Catalog restore failure, subsequent accepted-source PASS and baseline comparisons are preserved. Owner Windows 6/6 PASS and explicit approval dispose qualification as **accepted with a documented inconclusive exception**, without claiming a confirmed regression or correction. This supersedes the original 039 report's pending-owner gate only; original findings remain intact. See [acceptance/closeout preparation](qualification/mac-grid-482-closeout.md) and [original Windows report](qualification/windows-grid-482-039.md).
+
+Owner explicitly authorizes one implementation PR and normal merge once required full exact-head CI succeeds, then post-merge CI and issue/Project cleanup, without another approval round. Production and relevant validation inputs must stay byte-identical to accepted source. This pre-merge record does not claim merge/CI/issue completion; final provenance belongs in #482/PR metadata and portable closeout evidence, never an administrative PR. #480 remains incomplete; #483–#485 unstarted, #395/#366 open. Retain both task workspaces/evidence and issue-scoped acceptance Catalogs; do not reset/delete data or release/tag.

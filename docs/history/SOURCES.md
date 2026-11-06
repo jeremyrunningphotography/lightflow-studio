@@ -364,3 +364,28 @@ Validation checks original-content preservation, unique source identifiers, loca
   is recorded in generated evidence, not self-referentially embedded in this entry.
 - Evidence boundary: branch implementation/local validation report; owner workflow
   acceptance, independent Windows qualification, merge and release are not established.
+
+## H038 — Local-first Grid implementation
+
+- Owner assignment for LF-MAC-DEV-038 and [#482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482).
+- [Workflow reconciliation](../qualification/mac-grid-482-workflow.md), first local
+  policy commit `494d499`, preceding production edits.
+- [Grid implementation checkpoint](../qualification/mac-grid-482.md); complete
+  exact-source/package provenance and validation are in the portable task evidence.
+- Local implementation only: owner acceptance, independent Windows qualification,
+  required CI and merge remain outstanding; no release is claimed.
+
+## H038-Accepted — Native Grid owner acceptance
+
+- Accepted implementation `e941fabefde207878d88690000a624bab8853cae`, tree
+  `ef16701a7522a215962657716d047251128a6f9b`; [I02 details](../qualification/mac-grid-482-i02.md).
+- [Acceptance and integration record](../qualification/mac-grid-482-closeout.md): owner
+  final Mac 8/8, prior accepted nine behaviors, Windows 6/6 and conditional normal-merge
+  authorization. Owner instructions authorize publishing these acceptance outcomes;
+  no private transcript or personal motivation is reproduced.
+- [Original independent Windows report](../qualification/windows-grid-482-039.md) and
+  [integrity receipt](../qualification/windows-grid-482-039-evidence/integration-receipt.json):
+  exact-source qualification; original full-suite failure and subsequent bounded evidence
+  preserved, with later owner disposition distinct from the historical report.
+- Integration/required CI/merge are not claimed by this accepted-source checkpoint.
+  Final immutable merge and post-merge CI provenance belong in #482/PR metadata.

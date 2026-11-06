@@ -1,0 +1,26 @@
+[
+  {
+    "Scope": "Browser",
+    "Passed": 864,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Scope": "Preview|Thumbnail|Derived",
+    "Passed": 274,
+    "Failed": 0,
+    "Skipped": 0
+  },
+  {
+    "Scope": "Catalog",
+    "Passed": 421,
+    "Failed": 1,
+    "Skipped": 1
+  },
+  {
+    "Scope": "Flyleaf|StartupVideo|VideoRotation|Process",
+    "Passed": 85,
+    "Failed": 0,
+    "Skipped": 0
+  }
+]

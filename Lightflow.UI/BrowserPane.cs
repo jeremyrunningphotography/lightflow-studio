@@ -157,7 +157,7 @@ public sealed partial class BrowserPane : UserControl
         _rightSplitter=Splitter("Resize Right Panel"); Grid.SetColumn(_rightSplitter,3);layout.Children.Add(_rightSplitter);
         _panelToggle.Click+=(_,_)=>ToggleRightPanel();
         _right.IsVisible=_rightSplitter.IsVisible=saved.RightOpen;
-        var status=new Grid { ColumnDefinitions=new("Auto,*,Auto,Auto"), VerticalAlignment=VerticalAlignment.Center };
+        var status=new Grid { ColumnDefinitions=new("Auto,*,Auto,Auto,Auto"), VerticalAlignment=VerticalAlignment.Center };
         _progress.Width=28; _progress.VerticalAlignment=VerticalAlignment.Center;
         AutomationProperties.SetName(_progress,"Loading folder"); status.Children.Add(_progress);
         _message.Margin=new Thickness(8,0);
@@ -166,6 +166,9 @@ public sealed partial class BrowserPane : UserControl
         _cancel.Margin=new Thickness(4,0); _cancel.Height=26; Grid.SetColumn(_cancel,2);status.Children.Add(_cancel);
         _count.Margin=new Thickness(8,0,0,0); _count.VerticalAlignment=VerticalAlignment.Center;
         Grid.SetColumn(_count,3); status.Children.Add(_count);
+        var presentationControls = CreatePresentationControls();
+        presentationControls.Margin = new Thickness(14,0,0,0);
+        Grid.SetColumn(presentationControls,4); status.Children.Add(presentationControls);
         StatusView=status;
         _cancel.Click+=(_,_)=>model.CancelNavigation();
         _back.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.BackAsync);

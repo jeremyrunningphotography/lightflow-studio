@@ -12,6 +12,8 @@ namespace Lightflow.UI;
 /// <summary>Native presentation only; shared ViewModel owns identity, selection and Preview demand.</summary>
 internal sealed class BrowserGridCard : Button
 {
+    // Avalonia selectors use StyleKey, not CLR inheritance. Opt into the scoped Button card template.
+    protected override Type StyleKeyOverride => typeof(Button);
     private readonly BrowserViewModel _model;
     private readonly MediaAsset _asset;
     private readonly BrowserThumbnailCell _preview;
@@ -66,7 +68,7 @@ internal sealed class BrowserGridCard : Button
     {
         var selected = _model.IsAssetSelected(AssetId);
         Classes.Set("selected", selected);
-        BorderBrush = Brush(selected || IsKeyboardFocusWithin ? "#FF9A66" : "#2B303A");
+        BorderBrush = Brush(selected ? "#FF9A66" : "#2B303A");
         Background = Brush(selected ? "#282129" : _mode == BrowserCardMode.Info ? "#1B2028" : "#171A20");
         AutomationProperties.SetHelpText(this, $"{_mode} mode{(selected ? ", selected" : "")}. Arrow keys navigate the grid.");
     }

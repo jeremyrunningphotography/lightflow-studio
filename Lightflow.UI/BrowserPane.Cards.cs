@@ -25,17 +25,7 @@ public sealed partial class BrowserPane
 
     private Grid CreateCardGrid()
     {
-        var media = new Grid { RowDefinitions = new("Auto,*") };
-        var modes = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(7) };
-        foreach (var mode in Enum.GetValues<BrowserCardMode>())
-        {
-            var button = new ToggleButton { Content = mode.ToString(), Classes = { "lf-button", "scope" } };
-            AutomationProperties.SetName(button, $"Grid {mode} mode");
-            ToolTip.SetTip(button, $"Grid {mode}");
-            button.Click += (_, _) => SetCardMode(mode);
-            _modeButtons[mode] = button; modes.Children.Add(button);
-        }
-        media.Children.Add(modes);
+        var media = new Grid();
         _assets.Classes.Add("lf-card-rows");
         _assets.Padding = new Thickness(7);
         ScrollViewer.SetHorizontalScrollBarVisibility(_assets, ScrollBarVisibility.Disabled);
@@ -59,11 +49,55 @@ public sealed partial class BrowserPane
         AutomationProperties.SetName(_assets, "Media grid in current folder");
         AutomationProperties.SetHelpText(_assets, "Arrow keys move through cards. Home and End move to the first and last asset. Page Up and Page Down move a page.");
         SetCardMode(BrowserCardMode.Preview);
-        Grid.SetRow(_assets, 1); media.Children.Add(_assets);
+        media.Children.Add(_assets);
         _gridEmpty.HorizontalAlignment = HorizontalAlignment.Center; _gridEmpty.VerticalAlignment = VerticalAlignment.Center;
         _gridEmpty.TextWrapping = TextWrapping.Wrap; _gridEmpty.MaxWidth = 360; _gridEmpty.IsHitTestVisible = false;
-        Grid.SetRow(_gridEmpty, 1); media.Children.Add(_gridEmpty);
+        media.Children.Add(_gridEmpty);
         return media;
+    }
+
+    /// <summary>Permanent Windows status presentation group; #483 appends size controls to the trailing slot.</summary>
+    private Control CreatePresentationControls()
+    {
+        var presentation = new Grid { ColumnDefinitions = new("Auto,Auto"), VerticalAlignment = VerticalAlignment.Center };
+        AutomationProperties.SetAutomationId(presentation, "BrowserPresentationControls");
+        var modes = new StackPanel { Orientation = Orientation.Horizontal };
+        AutomationProperties.SetName(modes, "Grid presentation mode");
+        foreach (var mode in Enum.GetValues<BrowserCardMode>())
+        {
+            var button = new ToggleButton { Classes = { "lf-grid-mode" } };
+            button.Content = ModeIcon(mode, button);
+            AutomationProperties.SetName(button, $"{mode} view");
+            AutomationProperties.SetAutomationId(button, $"Browser{mode}ViewButton");
+            ToolTip.SetTip(button, $"{mode} view");
+            button.Click += (_, _) => SetCardMode(mode);
+            _modeButtons[mode] = button; modes.Children.Add(button);
+        }
+        presentation.Children.Add(modes);
+        // Windows orders modes, separator, regeneration, then thumbnail size at the right edge.
+        // Keep this trailing integration slot empty until #483; no fake slider or layout controls.
+        var sizeControls = new ContentControl { IsVisible = false };
+        AutomationProperties.SetAutomationId(sizeControls, "BrowserThumbnailSizeSlot");
+        Grid.SetColumn(sizeControls, 1); presentation.Children.Add(sizeControls);
+        SetCardMode(_cardMode);
+        return presentation;
+    }
+
+    private static Control ModeIcon(BrowserCardMode mode, ToggleButton button)
+    {
+        var icon = new Avalonia.Controls.Shapes.Path
+        {
+            Width = 16, Height = 14, Stretch = Stretch.None, IsHitTestVisible = false,
+            StrokeThickness = mode == BrowserCardMode.Info ? 1 : 1.5,
+            Data = Geometry.Parse(mode switch
+            {
+                BrowserCardMode.Preview => "M2,1 L14,1 Q15,1 15,2 L15,12 Q15,13 14,13 L2,13 Q1,13 1,12 L1,2 Q1,1 2,1 Z",
+                BrowserCardMode.Info => "M2,1 L14,1 Q15,1 15,2 L15,12 Q15,13 14,13 L2,13 Q1,13 1,12 L1,2 Q1,1 2,1 Z M3,4 L13,4 L13,10 L3,10 Z M3,2 L13,2 M3,12 L13,12",
+                _ => "M2,1 L14,1 Q15,1 15,2 L15,12 Q15,13 14,13 L2,13 Q1,13 1,12 L1,2 Q1,1 2,1 Z M3,4 L8,4 M3,7 L10,7"
+            })
+        };
+        icon.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, new Avalonia.Data.Binding(nameof(Foreground)) { Source = button });
+        return icon;
     }
 
     public void SetCardMode(BrowserCardMode mode)

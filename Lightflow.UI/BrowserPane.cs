@@ -145,37 +145,7 @@ public sealed partial class BrowserPane : UserControl
 
         var toolbarContent=new StackPanel { Children={toolbar,scope} };
         var toolbarPanel=Panel(toolbarContent);toolbarPanel.Classes.Add("toolbar");center.Children.Add(toolbarPanel);
-        var media=new Grid { RowDefinitions=new("28,*") };
-        var columns=new Grid { ColumnDefinitions=new("72,*,74,90"), Margin=new Thickness(12,0) };
-        foreach(var (label,index) in new[] { ("Name",1), ("Kind",2), ("Size",3) })
-        { var text=Text(label,"muted"); text.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(text,index); columns.Children.Add(text); }
-        media.Children.Add(columns);
-        _assets.ItemTemplate=new FuncDataTemplate<MediaAsset>((asset,_)=>
-        {
-            if(asset is null)return new TextBlock();
-            var row=new Grid { ColumnDefinitions=new("72,*,74,90"), Margin=new Thickness(8,2), MinHeight=54 };
-            row.Children.Add(new BrowserThumbnailCell(model,asset.AssetId));
-            var name=Text(asset.RelativePath.Split('/')[^1]); name.TextWrapping=TextWrapping.NoWrap; name.TextTrimming=TextTrimming.CharacterEllipsis;
-            Grid.SetColumn(name,1);row.Children.Add(name);
-            var kind=Text(asset.MediaType,"muted"); Grid.SetColumn(kind,2); row.Children.Add(kind);
-            var size=Text($"{asset.FileSizeBytes:N0} bytes","muted"); size.HorizontalAlignment=HorizontalAlignment.Right; Grid.SetColumn(size,3); row.Children.Add(size);
-            ToolTip.SetTip(row,asset.RelativePath);
-            AutomationProperties.SetName(row,$"{asset.RelativePath}, {asset.MediaType}, {asset.FileSizeBytes:N0} bytes");
-            return row;
-        });
-        _assets.ContainerPrepared += (_, e) =>
-        {
-            if (e.Index >= 0 && e.Index < model.Assets.Count)
-            {
-                var asset = model.Assets[e.Index];
-                AutomationProperties.SetName(e.Container, $"{asset.RelativePath}, {asset.MediaType}, {asset.FileSizeBytes:N0} bytes");
-            }
-        };
-        _assets.SelectionChanged+=async (_,_)=> { if(!_updating)await model.SelectAsync((_assets.SelectedItem as MediaAsset)?.AssetId); };
-        AutomationProperties.SetAutomationId(_assets,"CatalogAssets");
-        AutomationProperties.SetName(_assets,"Media in current folder");
-        AutomationProperties.SetHelpText(_address,"Enter or Go opens the edited path. Escape restores the current path. Navigation replaces the draft.");
-        Grid.SetRow(_assets,1);media.Children.Add(_assets);
+        var media=CreateCardGrid();
         var mediaPanel=Panel(media,false); Grid.SetRow(mediaPanel,2); center.Children.Add(mediaPanel); Grid.SetColumn(center,2);layout.Children.Add(center);
         var details=new StackPanel { Spacing=12, Children={_source,_summary} };
         var rightContent=new Grid { RowDefinitions=new("32,*") };
@@ -321,7 +291,7 @@ public sealed partial class BrowserPane : UserControl
         LightflowTheme.State(_recursive,"active",_model.Recursive);
         AutomationProperties.SetHelpText(_recursive,_model.Recursive ? "Include Subfolders on" : "Include Subfolders off");
         _progress.IsVisible=_model.IsLoading;
-        _count.Text=$"{_model.Assets.Count:N0} {(_model.Assets.Count==1 ? "item" : "items")}"+(_model.SelectedAsset is null ? "" : " · 1 selected");
+        _count.Text=$"{_model.Assets.Count:N0} {(_model.Assets.Count==1 ? "item" : "items")}"+(_model.SelectedAssetKeys.Count == 0 ? "" : $" · {_model.SelectedAssetKeys.Count:N0} selected");
         var currentPath=_model.Location?.AbsolutePath ?? "";
         // Focus is not evidence of an edit. Only navigation replaces an uncommitted draft;
         // selection/progress publications must leave intentional text alone.
@@ -346,15 +316,7 @@ public sealed partial class BrowserPane : UserControl
         _updating=true;
         try
         {
-            if(!ReferenceEquals(_shownAssets,_model.Assets))
-            {
-                var scroll=_assets.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-                var offset=scroll?.Offset;
-                _shownAssets=_model.Assets;_assets.ItemsSource=_model.Assets;
-                if(scroll is not null && offset is { } previous)
-                    Dispatcher.UIThread.Post(()=>scroll.Offset=previous, DispatcherPriority.Loaded);
-            }
-            _assets.SelectedItem=_model.SelectedAsset;
+            UpdateCardRows();
         }
         finally { _updating=false; }
         _source.Text=_model.SelectedAsset is null ? "Select an item to see its file information." : _model.SourceMessage;

@@ -91,6 +91,11 @@
   <Style Selector="ListBox.lf-assets ListBoxItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="1"/></Style>
   <Style Selector="ListBox.lf-assets ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/></Style>
   <Style Selector="ListBox.lf-assets ListBoxItem:focus-visible"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="2"/></Style>
+  <Style Selector="ListBox.lf-card-rows ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0"/><Setter Property="BorderThickness" Value="0"/><Setter Property="FocusAdorner" Value="{x:Null}"/></Style>
+  <Style Selector="ListBox.lf-card-rows ListBoxItem /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/></Style>
+  <Style Selector="Button.lf-grid-card"><Setter Property="FocusAdorner" Value="{x:Null}"/><Setter Property="Template"><ControlTemplate><Border Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}"><ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top"/></Border></ControlTemplate></Setter></Style>
+  <Style Selector="Button.lf-grid-card:pointerover /template/ Border#Chrome"><Setter Property="BorderBrush" Value="{DynamicResource LightflowMuted}"/></Style>
+  <Style Selector="Button.lf-grid-card:focus-visible /template/ Border#Chrome"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="2"/></Style>
   <Style Selector="ProgressBar.lf-progress"><Setter Property="Foreground" Value="{DynamicResource LightflowAccent}"/></Style>
   <Style Selector="GridSplitter.lf-splitter"><Setter Property="Background" Value="{DynamicResource LightflowCanvas}"/></Style>
   <Style Selector="GridSplitter.lf-splitter:focus-visible"><Setter Property="Background" Value="{DynamicResource LightflowFocus}"/></Style>

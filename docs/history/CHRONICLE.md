@@ -350,3 +350,15 @@ The convention is documented in root agent instructions and the Mac handoff. Own
 functional acceptance of the preceding Mac implementation is reported; acceptance
 of this workflow, independent Windows qualification and merge remain separate gates.
 [H036-Acceptance](SOURCES.md#h036-acceptance--retained-mac-acceptance-workflow)
+
+### November 5 — Local-first acceptance and a single implementation PR
+
+**Local implementation checkpoint, not accepted or merged.** LF-MAC-DEV-038
+reconciles the owner-directed workflow: local source, validation, runnable package
+and portable evidence precede hands-on acceptance and independent Windows
+qualification; routine implementation, qualification, registry and history then
+share one PR. Exact-head CI, explicit merge authorization, post-merge CI and
+issue-scoped retained Catalog protection remain required. The same assignment
+implements native Mac Preview/Info/Hybrid Grid composition over the existing
+shared selection and Preview foundation; later Browser slices remain separate.
+[H038](SOURCES.md#h038--local-first-grid-implementation)

@@ -364,3 +364,13 @@ Validation checks original-content preservation, unique source identifiers, loca
   is recorded in generated evidence, not self-referentially embedded in this entry.
 - Evidence boundary: branch implementation/local validation report; owner workflow
   acceptance, independent Windows qualification, merge and release are not established.
+
+## H038 — Local-first Grid implementation
+
+- Owner assignment for LF-MAC-DEV-038 and [#482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482).
+- [Workflow reconciliation](../qualification/mac-grid-482-workflow.md), first local
+  policy commit `494d499`, preceding production edits.
+- [Grid implementation checkpoint](../qualification/mac-grid-482.md); complete
+  exact-source/package provenance and validation are in the portable task evidence.
+- Local implementation only: owner acceptance, independent Windows qualification,
+  required CI and merge remain outstanding; no release is claimed.

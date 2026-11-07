@@ -77,6 +77,8 @@ public sealed partial class BrowserTests
         header.ContextMenu.Close();header.Focus();
         header.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Enter});
         Assert.True(header.ContextMenu.IsOpen);header.ContextMenu.Close();
+        header.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.True(header.ContextMenu.IsOpen);header.ContextMenu.Close();
         var grip=pane.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.Thumb>().Single(t=>Avalonia.Automation.AutomationProperties.GetName(t)=="Resize Name");
         grip.Focus();grip.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Right});
         Assert.Equal(248,pane.DetailsColumns.Single(c=>c.Id=="name").Width);

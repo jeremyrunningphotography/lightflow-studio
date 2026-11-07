@@ -143,6 +143,7 @@ public sealed partial class BrowserPane
                 menu.Items.Add(item);
             }
             label.ContextMenu=menu;
+            label.Click+=(_,_)=>menu.Open(label); // Semantic accessibility Invoke; pointer drag is handled above.
             label.AddHandler(KeyDownEvent,(_,e)=>
             {
                 if(e.Key is Key.Enter or Key.Space or Key.Apps || (e.Key==Key.F10 && e.KeyModifiers==KeyModifiers.Shift))

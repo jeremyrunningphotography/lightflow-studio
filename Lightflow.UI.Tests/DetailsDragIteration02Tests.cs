@@ -43,6 +43,7 @@ public sealed partial class BrowserTests
             window.MouseMove(origin);window.MouseDown(origin,MouseButton.Left);window.MouseMove(drop);Layout();
             var marker=pane.GetVisualDescendants().OfType<Border>().Single(b=>AutomationProperties.GetAutomationId(b)=="BrowserColumnDropIndicator");
             Assert.True(marker.IsVisible);Assert.Contains("Move",AutomationProperties.GetName(marker));
+            CaptureColumnEvidence(window,$"drag-{source}-to-{target}.png");
             window.MouseUp(drop,MouseButton.Left);Layout();Assert.False(marker.IsVisible);
             Assert.True(Header(source).IsFocused);Assert.Equal(selection,model.SelectedAssetKeys.Order());
             Assert.Equal(expectedOrder.Split(','),pane.DetailsColumns.Where(c=>c.Visible).Select(c=>c.Id));
@@ -109,9 +110,17 @@ public sealed partial class BrowserTests
             var marker=pane.GetVisualDescendants().OfType<Border>().Single(b=>AutomationProperties.GetAutomationId(b)=="BrowserColumnDropIndicator");
             Assert.True(marker.IsVisible);Assert.True(Math.Abs(marker.TranslatePoint(default,window)!.Value.X-capture.TranslatePoint(default,window)!.Value.X)<=2,$"marker X={marker.TranslatePoint(default,window)!.Value.X}, capture X={capture.TranslatePoint(default,window)!.Value.X}, pointer X={to.X}, offset={scroll.Offset.X}, margin={marker.Margin.Left}, {AutomationProperties.GetName(marker)}");
             window.MouseMove(new Point(to.X,10));Layout();Assert.Equal("Column cannot be dropped here",AutomationProperties.GetName(marker));
+            CaptureColumnEvidence(window,"drag-invalid-destination.png");
             name.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Escape});Layout();Assert.False(marker.IsVisible);
             window.MouseUp(to,MouseButton.Left);Assert.Equal(order,pane.DetailsColumns);
         }
         finally {window.Close();}
     }
+    private static void CaptureColumnEvidence(Window window,string name)
+    {
+        if(Environment.GetEnvironmentVariable("LIGHTFLOW_DETAILS_I02_EVIDENCE") is not { } directory)return;
+        Directory.CreateDirectory(directory);AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        window.CaptureRenderedFrame()!.Save(Path.Combine(directory,name));
+    }
+
 }

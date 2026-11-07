@@ -29,6 +29,8 @@ public sealed partial class BrowserPane
         var realized = _assets.GetVisualDescendants().OfType<BrowserGridCard>().ToArray();
         var visible = realized.Where(x => x.TranslatePoint(default, _assets) is { } top && top.Y + x.Bounds.Height >= 0 && top.Y < _assets.Bounds.Height)
             .Select(x => x.AssetId).ToArray();
+        if (_presentation==BrowserLayoutMode.Details)
+            visible=RealizedDetails.Where(x=>x.TranslatePoint(default,_assets) is { } top && top.Y+x.Bounds.Height>=0 && top.Y<_assets.Bounds.Height).Select(x=>x.AssetId).ToArray();
         var ids = visible.Distinct().Take(64).ToArray();
         if (ids.Length == 0) return ("", [], []);
         if (!ReferenceEquals(_viewportAssets, _model.Assets)) { _viewportAssets = _model.Assets; _viewportIndices = _model.Assets.Select((a, i) => (a.AssetId, i)).ToDictionary(x => x.AssetId, x => x.i); }

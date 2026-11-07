@@ -389,3 +389,12 @@ Validation checks original-content preservation, unique source identifiers, loca
   preserved, with later owner disposition distinct from the historical report.
 - Integration/required CI/merge are not claimed by this accepted-source checkpoint.
   Final immutable merge and post-merge CI provenance belong in #482/PR metadata.
+
+## H040 — Mac Details local implementation
+
+- Owner-assigned LF-MAC-DEV-040 for [#483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483),
+  native parent #480; sizing split into [#489](https://github.com/jeremyrunningphotography/lightflow-studio/issues/489).
+- [Architecture, Windows column inventory and restoration semantics](../qualification/mac-details-483-040.md).
+- Exact local source/tree, test logs and package integrity are recorded in the task's
+  portable evidence ZIP. No owner acceptance, Windows qualification, PR or merge is
+  claimed by this local checkpoint.

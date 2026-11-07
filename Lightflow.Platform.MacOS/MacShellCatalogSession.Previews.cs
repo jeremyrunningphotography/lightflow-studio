@@ -60,6 +60,7 @@ public sealed partial class MacShellCatalogSession
             var assets = await new CatalogMediaAssetRepository(() => owner.Session).GetManyAsync(ids.ToArray(), token).ConfigureAwait(false);
             var preferred = new CatalogPreferredPreviewFrameStore(() => owner.Session);
             var rotations = await new CatalogAssetVideoRotationStore(() => owner.Session).GetAsync(ids.ToArray(), token).ConfigureAwait(false);
+            var classifications = await new CatalogAssetClassificationStore(() => owner.Session).GetAsync(ids.ToArray(), token).ConfigureAwait(false);
             var result = new Dictionary<Guid, BrowserThumbnail>();
             foreach (var (id, record) in records)
             {
@@ -73,8 +74,14 @@ public sealed partial class MacShellCatalogSession
                 var state = !sameSource || !sameVisual ? "Loading" : record.ThumbnailState == PreviewComponentState.Failed ? record.ThumbnailFailureReason switch
                 { PreviewFailureReason.CodecUnavailable => "Unsupported", PreviewFailureReason.DependencyUnavailable => "LUT unavailable", _ => "Preview failed" }
                     : asset?.SourceStatus == MediaAssetSourceStatus.Missing || record.SourceAvailability is PreviewSourceAvailability.Missing or PreviewSourceAvailability.Unavailable ? "Unavailable" : path is null ? "Loading" : "Ready";
-                result[id] = new(id, path, state, rotations.TryGetValue(id, out var rotation) ? rotation.Rotation.Degrees : 0);
+                DerivedMediaMetadata? metadata = null;
+                if (sameSource && record.MetadataState == PreviewComponentState.Current)
+                    DerivedMediaMetadataService.TryDeserialize(record.MetadataJson, out metadata);
+                result[id] = new(id, path, state, rotations.TryGetValue(id, out var rotation) ? rotation.Rotation.Degrees : 0,
+                    Metadata: metadata, Classification: classifications.GetValueOrDefault(id));
             }
+            foreach(var id in ids.Where(id=>!result.ContainsKey(id)))
+                result[id]=new(id,null,"Loading",Classification:classifications.GetValueOrDefault(id));
             return result;
         }, token);
     private async Task RetirePreviewsAsync()

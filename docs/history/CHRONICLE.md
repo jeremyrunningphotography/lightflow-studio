@@ -377,3 +377,14 @@ The same implementation PR will carry workflow, tests, qualification, registry a
 history, with exact-head CI and post-merge verification still required. Details,
 query/filter/sort and complete indicator parity remain later Browser slices; R4 and
 Mac compatibility are not completed. [H038-Accepted](SOURCES.md#h038-accepted--native-grid-owner-acceptance)
+
+### November 7 — Mac Details and presentation persistence implemented locally
+
+**Local implementation checkpoint; not accepted, merged or released.** LF-MAC-DEV-040
+adds custom retained Details rows over the existing shared Browser snapshot,
+selection and Preview services, with Grid/Details switching and profile presentation
+preferences. Conservative last-location restoration uses exact Catalog/root mapping
+and cached records, deferring reconciliation to explicit Refresh. Native hierarchy
+and Project reconciliation place the separately scoped unified thumbnail sizing
+issue #489 under #480; sizing remains outside #483. Owner Mac acceptance and subsequent
+independent Windows qualification precede one implementation PR. [H040](SOURCES.md#h040--mac-details-local-implementation)

@@ -94,7 +94,11 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         }
         catch (OperationCanceledException) { if(epoch == _epoch) Message="Catalog content loading stopped. Refresh to retry. Records are preserved."; }
         catch (Exception error) { Console.Error.WriteLine(error); if(epoch == _epoch) Message="Catalog content couldn't be loaded. Retry, or use Catalog to check its availability."; }
-        if(epoch == _epoch) { IsLoading=false; Notify(); }
+        if(epoch == _epoch)
+        {
+            if(IsAvailable)await RestoreLocationAsync(epoch);
+            if(epoch==_epoch) {IsLoading=false; Notify();}
+        }
     }
     public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false)
     {
@@ -197,6 +201,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
             }
             else if (content.UnavailableSourceCount > 0)
                 Message = $"{Assets.Count} supported media shown · {content.UnavailableSourceCount} sources unavailable locally. Make them available outside Lightflow, then retry; no automatic download was requested.";
+            if(content.Status==MediaFolderEnumerationStatus.Succeeded)RememberLocation();
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message=error is IOException ? $"{error.Message} Catalog records are preserved. Retry after resolving the source location." : "This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }

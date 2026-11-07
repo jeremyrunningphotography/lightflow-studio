@@ -48,15 +48,16 @@ public sealed partial class BrowserPane
         AutomationProperties.SetAutomationId(_assets, "CatalogAssets");
         AutomationProperties.SetName(_assets, "Media grid in current folder");
         AutomationProperties.SetHelpText(_assets, "Arrow keys move through cards. Home and End move to the first and last asset. Page Up and Page Down move a page.");
-        SetCardMode(BrowserCardMode.Preview);
+        SetCardMode(_cardMode,persist:false);
         media.Children.Add(_assets);
         _gridEmpty.HorizontalAlignment = HorizontalAlignment.Center; _gridEmpty.VerticalAlignment = VerticalAlignment.Center;
         _gridEmpty.TextWrapping = TextWrapping.Wrap; _gridEmpty.MaxWidth = 360; _gridEmpty.IsHitTestVisible = false;
         media.Children.Add(_gridEmpty);
+        InitializeDetails(media);
         return media;
     }
 
-    /// <summary>Permanent Windows status presentation group; #483 appends size controls to the trailing slot.</summary>
+    /// <summary>Permanent Windows status presentation group; #489 appends size controls to the trailing slot.</summary>
     private Control CreatePresentationControls()
     {
         var presentation = new Grid { ColumnDefinitions = new("Auto,Auto"), VerticalAlignment = VerticalAlignment.Center };
@@ -71,15 +72,16 @@ public sealed partial class BrowserPane
             AutomationProperties.SetAutomationId(button, $"Browser{mode}ViewButton");
             ToolTip.SetTip(button, $"{mode} view");
             button.Click += (_, _) => SetCardMode(mode);
+            button.IsEnabled=_presentation==BrowserLayoutMode.Grid;
             _modeButtons[mode] = button; modes.Children.Add(button);
         }
         presentation.Children.Add(modes);
         // Windows orders modes, separator, regeneration, then thumbnail size at the right edge.
-        // Keep this trailing integration slot empty until #483; no fake slider or layout controls.
+        // Keep this trailing integration slot empty until #489; no fake slider or layout controls.
         var sizeControls = new ContentControl { IsVisible = false };
         AutomationProperties.SetAutomationId(sizeControls, "BrowserThumbnailSizeSlot");
         Grid.SetColumn(sizeControls, 1); presentation.Children.Add(sizeControls);
-        SetCardMode(_cardMode);
+        SetCardMode(_cardMode,persist:false);
         return presentation;
     }
 
@@ -100,7 +102,7 @@ public sealed partial class BrowserPane
         return icon;
     }
 
-    public void SetCardMode(BrowserCardMode mode)
+    public void SetCardMode(BrowserCardMode mode,bool persist=true)
     {
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         _cardMode = mode;
@@ -111,6 +113,7 @@ public sealed partial class BrowserPane
         foreach (var panel in _assets.GetVisualDescendants().OfType<StackPanel>().Where(x => x.DataContext is BrowserCardRow))
             panel.Height = BrowserCardLayout.Height(mode) + BrowserCardLayout.Gap;
         KeepCardVisible(focus: false);
+        if(persist)SavePresentation();
     }
 
     private void ReflowCards()
@@ -119,6 +122,7 @@ public sealed partial class BrowserPane
         var columns = BrowserCardLayout.Columns(Math.Max(0, _assets.Bounds.Width - 14 - 20));
         if (columns == _cardColumns) return;
         _cardColumns = columns;
+        if(_presentation==BrowserLayoutMode.Details)return;
         RebuildCardRows();
         KeepCardVisible(_assets.IsKeyboardFocusWithin);
     }
@@ -142,7 +146,7 @@ public sealed partial class BrowserPane
     private void RebuildCardRows()
     {
         var updating = _updating; _updating = true;
-        try { _assets.ItemsSource = new BrowserCardRows(_model.Assets, _cardColumns); }
+        try { _assets.ItemsSource = new BrowserCardRows(_model.Assets, PresentationColumns); }
         finally { _updating = updating; }
     }
 
@@ -159,8 +163,8 @@ public sealed partial class BrowserPane
         if ((e.KeyModifiers & ~KeyModifiers.Shift) != 0 || e.Key is not (Key.Left or Key.Right or Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)) return;
         e.Handled = true;
         var current = _focusedCard is { } focused ? IndexOfAsset(focused) : _model.SelectedAsset is { } selected ? IndexOfAsset(selected.AssetId) : 0;
-        var next = BrowserCardLayout.Move(current, _model.Assets.Count, _cardColumns, e.Key,
-            Math.Max(1, (int)(_assets.Bounds.Height / (BrowserCardLayout.Height(_cardMode) + BrowserCardLayout.Gap))));
+        var next = BrowserCardLayout.Move(current, _model.Assets.Count, PresentationColumns, e.Key,
+            Math.Max(1, (int)(_assets.Bounds.Height / PresentationRowHeight)));
         if (next < 0) return;
         _focusedCard = _model.Assets[next].AssetId;
         await _model.SelectGridAsync(_focusedCard.Value, range: (e.KeyModifiers & KeyModifiers.Shift) != 0);
@@ -173,8 +177,11 @@ public sealed partial class BrowserPane
         var id = _focusedCard ?? _model.SelectedAssetId;
         var index = id is { } value ? IndexOfAsset(value) : -1;
         if (index < 0) return;
-        _assets.ScrollIntoView(index / _cardColumns);
+        _assets.ScrollIntoView(index / PresentationColumns);
         if (focus) Dispatcher.UIThread.Post(() =>
-            _assets.GetVisualDescendants().OfType<BrowserGridCard>().FirstOrDefault(x => x.AssetId == id)?.Focus(NavigationMethod.Directional), DispatcherPriority.Loaded);
+        {
+            if(_presentation==BrowserLayoutMode.Details) RealizedDetails.FirstOrDefault(x=>x.AssetId==id)?.Focus(NavigationMethod.Directional);
+            else _assets.GetVisualDescendants().OfType<BrowserGridCard>().FirstOrDefault(x => x.AssetId == id)?.Focus(NavigationMethod.Directional);
+        }, DispatcherPriority.Loaded);
     }
 }

@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 040 | LF-MAC-DEV-040 | Mac Browser Details | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Local implementation; owner package acceptance and independent Windows qualification precede one implementation PR |
 | 039 | LF-WIN-TST-039 | Mac Grid Windows Qualification | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done; accepted e941fabef / ef16701a independently qualified with owner-approved inconclusive Catalog exception; focused 606 PASS, full 2879 passed / 1 failed / 2 skipped; Windows owner 6/6 PASS; implementation integration/CI/merge tracked by 038 |
 | 038 | LF-MAC-DEV-038 | Mac Browser Grid Cards | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done through accepted implementation/qualification; Mac I02 8/8 and Windows 6/6 accepted at e941fabef / ef16701a; final single-PR CI/merge/post-merge gates remain pending at record preparation |
 | 037 | LF-WIN-TST-037 | Browser Thumbnail Windows Qualification | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), [PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486) | Done; accepted 93ab479e / ea732bc6 qualified; Gate A/focused/package/Catalog safety PASS; full Release 2,880 passed / 2 skipped; owner Windows 6/6 PASS; original failed attempts retained; implementation merged 4d182639 |
@@ -1053,3 +1054,16 @@ and registry administration; accepted implementation history remains unchanged.
 Both assignments are Done through owner-accepted implementation and independent qualification. LF-MAC-DEV-038 delivered accepted `e941fabefde207878d88690000a624bab8853cae`, tree `ef16701a7522a215962657716d047251128a6f9b`; Mac I02 8/8 PASS preserves the nine accepted I01 behaviors. LF-WIN-TST-039 independently verified the same source/tree on DARKMATTER: 606 focused Windows tests PASS; full Release **2,879 passed / 1 failed / 2 skipped**, not a clean PASS. Original access-denied Catalog restore failure, subsequent accepted-source PASS and baseline comparisons are preserved. Owner Windows 6/6 PASS and explicit approval dispose qualification as **accepted with a documented inconclusive exception**, without claiming a confirmed regression or correction. This supersedes the original 039 report's pending-owner gate only; original findings remain intact. See [acceptance/closeout preparation](qualification/mac-grid-482-closeout.md) and [original Windows report](qualification/windows-grid-482-039.md).
 
 Owner explicitly authorizes one implementation PR and normal merge once required full exact-head CI succeeds, then post-merge CI and issue/Project cleanup, without another approval round. Production and relevant validation inputs must stay byte-identical to accepted source. This pre-merge record does not claim merge/CI/issue completion; final provenance belongs in #482/PR metadata and portable closeout evidence, never an administrative PR. #480 remains incomplete; #483–#485 unstarted, #395/#366 open. Retain both task workspaces/evidence and issue-scoped acceptance Catalogs; do not reset/delete data or release/tag.
+
+
+## Assignment 040 reservation — 2026-11-07
+
+Owner-assigned LF-MAC-DEV-040 — Mac Browser Details, independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-040-MacBrowserDetails`, branch
+`codex/040-mac-browser-details`, verified main `cc64f725aefb461c1b1a798cf2dfffa04658befd`.
+040 absent from current/fetched remote registries and matching GitHub issue/PR search.
+Native #366 → #395 → #480 with all six children verified; #489 parent and Project
+#4 membership reconciled/read back Backlog/Browser/unset Priority. #481/#482 Done;
+#483 In Progress at implementation start, read back Browser/unset Priority; parents remain open. No blocking edges
+introduced. Local implementation/package/ZIP only; no PR, later sizing/query/metadata
+work, qualifier allocation, release or merge. New issue-scoped acceptance data only.

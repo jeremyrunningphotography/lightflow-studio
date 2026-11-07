@@ -183,7 +183,7 @@ public sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService, 
         return new(status, TryDeserialize(existing?.MetadataJson, out var retained) ? retained : null, diagnostic);
     }
 
-    private static bool TryDeserialize(string? json, out DerivedMediaMetadata? metadata)
+    public static bool TryDeserialize(string? json, out DerivedMediaMetadata? metadata)
     {
         metadata = null;
         if (string.IsNullOrWhiteSpace(json)) return false;

@@ -121,6 +121,10 @@ public sealed partial class BrowserPane : UserControl
         InitializeThumbnailDemand();
         var saved=(savedLayout ?? new()).Validated();
         _preferred=saved;
+        _columns=BrowserDetailsLayout.Normalize(saved.DetailsColumns);
+        _cardMode=saved.CardMode;
+        model.RestoreLocation=saved.LastLocation;
+        model.LocationRemembered+=bookmark=> { _preferred=_preferred with { LastLocation=bookmark }; LayoutChanged?.Invoke(_preferred); };
         var layout=_layout=new Grid { ColumnDefinitions=new("280,8,*,0,0") };
         var side=new StackPanel { Spacing=6, Children={Text("Locations","panel-heading"), _roots} };
         _sideScroll=new ScrollViewer { Content=side, HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
@@ -138,10 +142,11 @@ public sealed partial class BrowserPane : UserControl
         ToolTip.SetTip(_go,"Open folder path"); AutomationProperties.SetName(_go,"Open folder path");
         _address.MinWidth=70; _address.Height=32; _address.Classes.Add("lf-input");
         AutomationProperties.SetName(_address,"Current folder path");
-        var scope=new Grid { ColumnDefinitions=new("*,Auto") };
+        var scope=new Grid { ColumnDefinitions=new("Auto,*,Auto") };
         _location.TextTrimming=TextTrimming.CharacterEllipsis; _location.TextWrapping=TextWrapping.NoWrap;
-        _location.VerticalAlignment=VerticalAlignment.Center; scope.Children.Add(_location);
-        Grid.SetColumn(_recursive,1); scope.Children.Add(_recursive);
+        _location.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(_location,1); scope.Children.Add(_location);
+        scope.Children.Add(CreateLayoutControls());
+        Grid.SetColumn(_recursive,2); scope.Children.Add(_recursive);
 
         var toolbarContent=new StackPanel { Children={toolbar,scope} };
         var toolbarPanel=Panel(toolbarContent);toolbarPanel.Classes.Add("toolbar");center.Children.Add(toolbarPanel);

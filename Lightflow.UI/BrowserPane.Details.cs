@@ -120,7 +120,9 @@ public sealed partial class BrowserPane
             label.AddHandler(PointerPressedEvent,(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } },Avalonia.Interactivity.RoutingStrategies.Tunnel);
             label.AddHandler(PointerReleasedEvent,(_,e)=>
             {
-                if(start is null)return; // Right-button release belongs to the header context menu.
+                if(e.InitialPressMouseButton==MouseButton.Right)
+                { label.ContextMenu?.Open(label);e.Handled=true;return; }
+                if(start is null)return;
                 if(start is { } origin && Math.Abs(e.GetPosition(_detailsHeaders).X-origin.X)>8)
                 {
                     var x=e.GetPosition(_detailsHeaders).X;var target=0;double end=0;

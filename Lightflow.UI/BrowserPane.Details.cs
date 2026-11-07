@@ -13,9 +13,10 @@ namespace Lightflow.UI;
 public sealed partial class BrowserPane
 {
     private BrowserLayoutMode _presentation;
-    private IReadOnlyList<BrowserColumnPreference> _columns = BrowserDetailsLayout.Normalize(null);
-    private readonly Grid _detailsHeaders = new();
-    private readonly ScrollViewer _headerScroll = new() { HorizontalScrollBarVisibility=ScrollBarVisibility.Hidden,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,IsVisible=false };
+    private readonly BrowserDetailsColumnState _columnState = new();
+    private IReadOnlyList<BrowserColumnPreference> _columns => _columnState.Columns;
+    private readonly Grid _detailsHeaders = new() {HorizontalAlignment=HorizontalAlignment.Left};
+    private readonly ScrollViewer _headerScroll = new() { HorizontalScrollBarVisibility=ScrollBarVisibility.Hidden,VerticalScrollBarVisibility=ScrollBarVisibility.Disabled,HorizontalContentAlignment=HorizontalAlignment.Left,IsVisible=false };
     private readonly Dictionary<BrowserLayoutMode,ToggleButton> _layoutButtons=[];
     private IDataTemplate? _gridTemplate;
     private long _presentationRevision;
@@ -49,17 +50,43 @@ public sealed partial class BrowserPane
         media.Children.Add(_headerScroll);
         _assets.AddHandler(ScrollViewer.ScrollChangedEvent,(_,_)=>
         {
-            if(_presentation==BrowserLayoutMode.Details && AssetScroll is { } scroll)
-                _headerScroll.Offset=new Vector(scroll.Offset.X,0);
+            SynchronizeDetailsHeader();
         });
+        _assets.LayoutUpdated+=(_,_)=>SynchronizeDetailsHeader();
         RebuildDetailsHeaders();
         SetPresentation(_preferred.Presentation,persist:false);
+    }
+    private void SynchronizeDetailsHeader()
+    {
+        if(_presentation!=BrowserLayoutMode.Details || AssetScroll is not { } scroll || scroll.Viewport.Width<=0)return;
+        // Match the body viewport, including its vertical scrollbar gutter, at the rightmost offset too.
+        var gutter=Math.Max(0,_assets.Bounds.Width-scroll.Viewport.Width);
+        if(Math.Abs(_headerScroll.Margin.Right-gutter)>.1)_headerScroll.Margin=new Thickness(0,0,gutter,0);
+        _headerScroll.Offset=new Vector(scroll.Offset.X,0);
+    }
+    private void RevealHeader(string id)
+    {
+        Dispatcher.UIThread.Post(()=>
+        {
+            if(_presentation!=BrowserLayoutMode.Details || _columnDrag is not null || AssetScroll is not { } scroll)return;
+            double left=0;
+            foreach(var column in _columns.Where(c=>c.Visible))
+            {
+                if(column.Id==id)
+                {
+                    var x=left<scroll.Offset.X ? left : left+column.Width>scroll.Offset.X+scroll.Viewport.Width ? left+column.Width-scroll.Viewport.Width : scroll.Offset.X;
+                    scroll.Offset=new Vector(x,scroll.Offset.Y);SynchronizeDetailsHeader();return;
+                }
+                left+=column.Width;
+            }
+        },DispatcherPriority.Loaded);
     }
     private ScrollViewer? AssetScroll => _assets.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
     private IEnumerable<BrowserDetailsRow> RealizedDetails => _assets.GetVisualDescendants().OfType<BrowserDetailsRow>();
     public void SetPresentation(BrowserLayoutMode mode,bool persist=true)
     {
         if(!Enum.IsDefined(mode))throw new ArgumentOutOfRangeException(nameof(mode));
+        CancelColumnDrag();
         var revision=++_presentationRevision; var snapshot=_model.Assets; var epoch=_model.Epoch;
         var focus=_assets.IsKeyboardFocusWithin;
         var top=AssetScroll is { } old ? (int)(old.Offset.Y/PresentationRowHeight)*PresentationColumns : 0;
@@ -69,7 +96,7 @@ public sealed partial class BrowserPane
         _assets.Padding=mode==BrowserLayoutMode.Details ? new Thickness(0) : new Thickness(7);
         ScrollViewer.SetHorizontalScrollBarVisibility(_assets,mode==BrowserLayoutMode.Details ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled);
         _assets.ItemTemplate=mode==BrowserLayoutMode.Details
-            ? new FuncDataTemplate<BrowserCardRow>((row,_)=> row is null ? null : new BrowserDetailsRow(_model,row.Assets[row.Start],_columns,SelectCardAsync))
+            ? new FuncDataTemplate<BrowserCardRow>((row,_)=> row is null ? null : new BrowserDetailsRow(_model,row.Assets[row.Start],_columnState,SelectCardAsync))
             : _gridTemplate;
         foreach(var (value,button) in _layoutButtons)button.IsChecked=value==mode;
         foreach(var button in _modeButtons.Values)button.IsEnabled=mode==BrowserLayoutMode.Grid;
@@ -92,17 +119,20 @@ public sealed partial class BrowserPane
     }
     public void ConfigureDetailsColumns(IReadOnlyList<BrowserColumnPreference> columns)
     {
-        _columns=BrowserDetailsLayout.Normalize(columns); RebuildDetailsHeaders();
-        foreach(var row in RealizedDetails)row.UpdateColumns(_columns);
+        CancelColumnDrag();
+        var focused=_detailsHeaders.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>c.IsFocused);
+        var focusedId=focused is null ? null : AutomationProperties.GetAutomationId(focused);
+        _columnState.Set(columns); RebuildDetailsHeaders();
+        if(focusedId is not null)
+            _detailsHeaders.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>AutomationProperties.GetAutomationId(c)==focusedId)?.Focus(NavigationMethod.Directional);
         SavePresentation();
     }
     private void ResizeColumn(string id,double delta)
     {
-        _columns=_columns.Select(c=>c.Id==id ? c with { Width=Math.Clamp(c.Width+delta,40,1200) } : c).ToArray();
+        _columnState.Set(_columns.Select(c=>c.Id==id ? c with { Width=Math.Clamp(c.Width+delta,40,1200) } : c).ToArray());
         var visible=_columns.Where(c=>c.Visible).ToArray();
         for(var i=0;i<visible.Length;i++)_detailsHeaders.ColumnDefinitions[i].Width=new GridLength(visible[i].Width);
         _detailsHeaders.Width=visible.Sum(c=>c.Width);
-        foreach(var row in RealizedDetails)row.ResizeColumns(_columns);
     }
     private void RebuildDetailsHeaders()
     {
@@ -116,25 +146,11 @@ public sealed partial class BrowserPane
             label.Classes.Add("details-header");label.CornerRadius=new CornerRadius(0);label.BorderThickness=new Thickness(0,0,1,1);
             label.HorizontalAlignment=HorizontalAlignment.Stretch;label.HorizontalContentAlignment=HorizontalAlignment.Left;label.Padding=new Thickness(8,6,4,6);label.FontSize=12;
             ToolTip.SetTip(label,"Drag to reorder. Right-click to choose columns. Sorting will be available with Browser sorting.");
-            Point? start=null;
-            label.AddHandler(PointerPressedEvent,(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { label.Focus(NavigationMethod.Pointer);start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } },Avalonia.Interactivity.RoutingStrategies.Tunnel);
-            label.AddHandler(PointerReleasedEvent,(_,e)=>
-            {
-                if(e.InitialPressMouseButton==MouseButton.Right)
-                { label.Focus(NavigationMethod.Pointer);label.ContextMenu?.Open(label);e.Handled=true;return; }
-                if(start is null)return;
-                if(start is { } origin && Math.Abs(e.GetPosition(_detailsHeaders).X-origin.X)>8)
-                {
-                    var x=e.GetPosition(_detailsHeaders).X;var target=0;double end=0;
-                    for(var j=0;j<visible.Length;j++){end+=visible[j].Width;if(x>=end)target=Math.Min(j+1,visible.Length-1);}
-                    var order=visible.Select(c=>c.Id).ToList();order.Remove(column.Id);order.Insert(Math.Clamp(target,0,order.Count),column.Id);
-                    var queue=new Queue<string>(order);var byId=_columns.ToDictionary(c=>c.Id);
-                    e.Pointer.Capture(null);start=null;
-                    ConfigureDetailsColumns(_columns.Select(c=>c.Visible ? byId[queue.Dequeue()] : c).ToArray());
-                }
-                else {e.Pointer.Capture(null);start=null;}
-                e.Handled=true;
-            },Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            AutomationProperties.SetAutomationId(label,"BrowserDetailsHeader-"+column.Id);
+            label.Tag=column.Id;
+            ScrollViewer.SetBringIntoViewOnFocusChange(label,false);
+            label.GotFocus+=(_,e)=> {if(e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional)RevealHeader(column.Id);};
+            WireColumnDrag(label,column.Id);
             var menu=new ContextMenu();
             foreach(var definition in BrowserDetailsLayout.Columns)
             {
@@ -152,12 +168,17 @@ public sealed partial class BrowserPane
             header.Children.Add(label);
             var grip=new Thumb { Width=6,HorizontalAlignment=HorizontalAlignment.Right,Cursor=new Cursor(StandardCursorType.SizeWestEast),Background=Brushes.Transparent,Focusable=true };
             grip.Template=new FuncControlTemplate<Thumb>((_,_)=>new Border {Background=Brushes.Transparent});
+            ScrollViewer.SetBringIntoViewOnFocusChange(grip,false);
+            grip.GotFocus+=(_,e)=> {if(e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional)RevealHeader(column.Id);};
             AutomationProperties.SetName(grip,$"Resize {label.Content}");
+            AutomationProperties.SetAutomationId(grip,"BrowserDetailsResize-"+column.Id);
             grip.AddHandler(PointerPressedEvent,(_,_)=>grip.Focus(NavigationMethod.Pointer),Avalonia.Interactivity.RoutingStrategies.Tunnel);
             grip.DragDelta+=(_,e)=>ResizeColumn(column.Id,e.Vector.X);grip.DragCompleted+=(_,_)=>SavePresentation();
             grip.KeyDown+=(_,e)=> {if(e.Key is Key.Left or Key.Right){ResizeColumn(column.Id,e.Key==Key.Left ? -8 : 8);SavePresentation();e.Handled=true;}};
             header.Children.Add(grip);_detailsHeaders.Children.Add(header);
         }
         _detailsHeaders.Width=visible.Sum(c=>c.Width);
+        Grid.SetColumnSpan(_columnDropIndicator,Math.Max(1,visible.Length));
+        _detailsHeaders.Children.Add(_columnDropIndicator);
     }
 }

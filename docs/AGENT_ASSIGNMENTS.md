@@ -1067,3 +1067,16 @@ Native #366 → #395 → #480 with all six children verified; #489 parent and Pr
 #483 In Progress at implementation start, read back Browser/unset Priority; parents remain open. No blocking edges
 introduced. Local implementation/package/ZIP only; no PR, later sizing/query/metadata
 work, qualifier allocation, release or merge. New issue-scoped acceptance data only.
+
+## Assignment 040 Iteration 02 — 2026-11-07
+
+Owner I01 acceptance at `4a9e5473` / `e0307d1f`: eleven PASS results retained;
+column configuration needs work, unavailable-volume/NAS and real RAW/DJI/NAS
+performance remain NOT TESTED. Same clone/branch and retained #483 Catalog.
+I02 corrects column-state propagation, physical header/cell alignment and drag insertion
+feedback, and reveals the restored Locations ancestor chain without discovery or Catalog
+mutation. Sorting remains #484, sizing #489 and full indicators #485. See
+[I02 report](qualification/mac-details-483-040-i02.md). Local package/evidence and focused
+owner recheck precede independent Windows qualification and one implementation PR.
+No PR/qualifier allocation, issue closure, merge or release. Historical maintenance
+Not warranted for bounded corrections; earlier milestone records are preserved.

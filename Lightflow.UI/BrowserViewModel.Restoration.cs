@@ -8,6 +8,7 @@ public sealed record BrowserLocationBookmark(Guid CatalogId, Guid RootId, string
 public sealed partial class BrowserViewModel
 {
     public BrowserLocationBookmark? RestoreLocation { get; set; }
+    public BrowserFolderNode? RestoredLocation { get; private set; }
     public event Action<BrowserLocationBookmark>? LocationRemembered;
     private void RememberLocation()
     {
@@ -48,6 +49,7 @@ public sealed partial class BrowserViewModel
             Assets=content.Assets;Recursive=content.Recursive;IsProvisional=true;
             Message="Restored Catalog view · Refresh to check for changes.";
             await HydrateNavigationCacheAsync(Assets,provisional:true,generation,token);
+            if(epoch==_epoch && generation==_generation && !token.IsCancellationRequested)RestoredLocation=Location;
         }
         catch(OperationCanceledException) { if(epoch==_epoch && generation==_generation){Location=null;Assets=[];IsProvisional=false;Message=fallback;} }
         catch(Exception error) when(error is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)

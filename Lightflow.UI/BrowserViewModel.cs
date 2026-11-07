@@ -59,6 +59,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
 
     public void Suspend()
     {
+        RestoredLocation=null;
         ClearThumbnailDemand();
         _epoch++; _generation++; _selectionGeneration++; _refreshGeneration++; FolderRefreshRevision++;
         _locationUpdate?.Cancel(); _unavailableVolume=null; _liveVolumeMounts.Clear();
@@ -100,12 +101,12 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
             if(epoch==_epoch) {IsLoading=false; Notify();}
         }
     }
-    public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false)
+    public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false, CancellationToken cancellationToken = default)
     {
         if(!IsAvailable) return [];
         if(node.AbsolutePath is { } unavailable && IsKnownUnmountedPath(unavailable))
             return [new(node.RootId,node.RelativeFolder,VolumeUnavailableMessage,"unavailable",unavailable)];
-        var epoch=_epoch; using var demand=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); demand.CancelAfter(TimeSpan.FromSeconds(15)); var token=demand.Token;
+        var epoch=_epoch; using var demand=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token,cancellationToken); demand.CancelAfter(TimeSpan.FromSeconds(15)); var token=demand.Token;
         try
         {
             if (locations is not null && node.AbsolutePath is { } path)
@@ -127,6 +128,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     public async Task NavigateAsync(BrowserFolderNode node, bool refreshing = false, bool history = true)
     {
         if(!IsAvailable) return;
+        RestoredLocation=null;
         using var navigationTiming = ThumbnailPerformance.Measure("navigation.request");
         _navigation?.Cancel(); _navigation?.Dispose(); _navigation=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();

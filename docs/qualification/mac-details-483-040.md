@@ -110,7 +110,7 @@ retains its preexisting 15-second bound; restoration adds at most two seconds.
 ## Validation and remaining gates
 
 Release Application 141 PASS; Catalog 67 PASS; native Mac 64 PASS. Initial UI 108 PASS;
-final UI results and package/native checks are recorded in the ZIP, including bounded
+final UI 110 PASS (including actual pointer resize/reorder and right-click menu); package/native checks are recorded in the ZIP, including bounded
 stalled-network fallback. Tests use disposable roots, never retained acceptance data.
 Headless checks cover 10,000-item virtualization, horizontal scroll, shared selection,
 keyboard ranges, column normalization/configuration, preferences/reopen, Catalog/path
@@ -132,3 +132,9 @@ Historical maintenance: **Updated** Chronicle and Source Index for the local ret
 Details/presentation persistence milestone, explicitly unaccepted/unmerged. Development
 History update is deferred to a meaningful accepted Browser milestone; this initial
 review checkpoint does not establish broader product delivery.
+
+Native package QA exposed header-release routing and missing Thumb hit-test chrome.
+The same local iteration corrects both and verifies right-click visibility menus,
+keyboard/pointer resizing and drag reorder in the full 110-test UI suite. Original
+failed engineering runs are preserved in the ZIP; no existing-behavior regression
+was confirmed. Final package verification uses the corrected committed source.

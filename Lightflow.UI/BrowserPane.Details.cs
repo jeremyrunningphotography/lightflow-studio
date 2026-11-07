@@ -117,9 +117,10 @@ public sealed partial class BrowserPane
             label.HorizontalAlignment=HorizontalAlignment.Stretch;label.HorizontalContentAlignment=HorizontalAlignment.Left;label.Padding=new Thickness(8,6,4,6);label.FontSize=12;
             ToolTip.SetTip(label,"Drag to reorder. Right-click to choose columns. Sorting will be available with Browser sorting.");
             Point? start=null;
-            label.PointerPressed+=(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } };
-            label.PointerReleased+=(_,e)=>
+            label.AddHandler(PointerPressedEvent,(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } },Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            label.AddHandler(PointerReleasedEvent,(_,e)=>
             {
+                if(start is null)return; // Right-button release belongs to the header context menu.
                 if(start is { } origin && Math.Abs(e.GetPosition(_detailsHeaders).X-origin.X)>8)
                 {
                     var x=e.GetPosition(_detailsHeaders).X;var target=0;double end=0;
@@ -131,7 +132,7 @@ public sealed partial class BrowserPane
                 }
                 else {e.Pointer.Capture(null);start=null;}
                 e.Handled=true;
-            };
+            },Avalonia.Interactivity.RoutingStrategies.Tunnel);
             var menu=new ContextMenu();
             foreach(var definition in BrowserDetailsLayout.Columns)
             {
@@ -141,7 +142,9 @@ public sealed partial class BrowserPane
             }
             label.ContextMenu=menu;header.Children.Add(label);
             var grip=new Thumb { Width=6,HorizontalAlignment=HorizontalAlignment.Right,Cursor=new Cursor(StandardCursorType.SizeWestEast),Background=Brushes.Transparent,Focusable=true };
+            grip.Template=new FuncControlTemplate<Thumb>((_,_)=>new Border {Background=Brushes.Transparent});
             AutomationProperties.SetName(grip,$"Resize {label.Content}");
+            grip.AddHandler(PointerPressedEvent,(_,_)=>grip.Focus(NavigationMethod.Pointer),Avalonia.Interactivity.RoutingStrategies.Tunnel);
             grip.DragDelta+=(_,e)=>ResizeColumn(column.Id,e.Vector.X);grip.DragCompleted+=(_,_)=>SavePresentation();
             grip.KeyDown+=(_,e)=> {if(e.Key is Key.Left or Key.Right){ResizeColumn(column.Id,e.Key==Key.Left ? -8 : 8);SavePresentation();e.Handled=true;}};
             header.Children.Add(grip);_detailsHeaders.Children.Add(header);

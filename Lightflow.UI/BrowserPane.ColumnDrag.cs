@@ -41,7 +41,7 @@ public sealed partial class BrowserPane
             UpdateColumnDrag(drag,e.GetPosition(_detailsHeaders),e.GetPosition(_headerScroll));
             var target=drag.Started ? drag.Target : null;
             CancelColumnDrag();
-            if(target is {Valid:true})ConfigureDetailsColumns(BrowserColumnReorder.Move(_columns,id,target.Boundary));
+            if(target is {Valid:true})ConfigureDetailsColumns(BrowserColumnReorder.Move(_columns,id,target.Boundary),NavigationMethod.Pointer);
             e.Handled=true;
         },RoutingStrategies.Tunnel);
         label.PointerCaptureLost+=(_,_)=> {if(_columnDrag?.Header==label)CancelColumnDrag();};

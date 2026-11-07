@@ -117,14 +117,14 @@ public sealed partial class BrowserPane
         _preferred=_preferred with { Presentation=_presentation,CardMode=_cardMode,DetailsColumns=_columns };
         LayoutChanged?.Invoke(_preferred);
     }
-    public void ConfigureDetailsColumns(IReadOnlyList<BrowserColumnPreference> columns)
+    public void ConfigureDetailsColumns(IReadOnlyList<BrowserColumnPreference> columns, NavigationMethod focusMethod=NavigationMethod.Directional)
     {
         CancelColumnDrag();
         var focused=_detailsHeaders.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>c.IsFocused);
         var focusedId=focused is null ? null : AutomationProperties.GetAutomationId(focused);
         _columnState.Set(columns); RebuildDetailsHeaders();
         if(focusedId is not null)
-            _detailsHeaders.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>AutomationProperties.GetAutomationId(c)==focusedId)?.Focus(NavigationMethod.Directional);
+            _detailsHeaders.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>AutomationProperties.GetAutomationId(c)==focusedId)?.Focus(focusMethod);
         SavePresentation();
     }
     private void ResizeColumn(string id,double delta)

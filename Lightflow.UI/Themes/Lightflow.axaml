@@ -134,4 +134,12 @@
   <Style Selector="Button.lf-details-row.selected:pointerover /template/ Border#Chrome"><Setter Property="Background" Value="{DynamicResource LightflowSelection}"/></Style>
   <Style Selector="Button.lf-details-row:focus-visible /template/ Border#Chrome"><Setter Property="BorderBrush" Value="{DynamicResource LightflowFocus}"/><Setter Property="BorderThickness" Value="1"/></Style>
   <Style Selector="Button.details-header"><Setter Property="Background" Value="{DynamicResource LightflowSurface}"/></Style>
+  <Style Selector="Border.lf-preview-pulse.generating">
+    <Style.Animations>
+      <Animation Duration="0:0:0.65" IterationCount="INFINITE" PlaybackDirection="Alternate">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0.25"/></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
 </Styles>

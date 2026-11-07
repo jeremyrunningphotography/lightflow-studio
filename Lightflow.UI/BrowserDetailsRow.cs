@@ -49,7 +49,7 @@ internal sealed class BrowserDetailsRow : Button
             _cells.ColumnDefinitions[i].Width=new GridLength(column.Width);
             if(!_content.TryGetValue(column.Id,out var cell))
             {
-                cell=column.Id=="preview" ? new BrowserThumbnailCell(_model,AssetId) { Width=double.NaN,Height=54,HorizontalAlignment=HorizontalAlignment.Stretch }
+                cell=column.Id=="preview" ? new BrowserThumbnailCell(_model,AssetId,details:true) { Width=double.NaN,Height=54,HorizontalAlignment=HorizontalAlignment.Stretch }
                     : LightflowTheme.Text("","metadata");
                 cell.Margin=new Thickness(8,0,6,0); cell.VerticalAlignment=VerticalAlignment.Center;
                 cell.Tag=column.Id;

@@ -23,7 +23,23 @@ internal sealed class BrowserThumbnailCell : Border
         var grid = new Grid(); grid.Children.Add(_image); grid.Children.Add(_state); grid.Children.Add(_activity); Child = grid;
         Avalonia.Automation.AutomationProperties.SetAutomationId(_activity, "BrowserPreviewActivity");
         Avalonia.Automation.AutomationProperties.SetName(_activity, "Generating Preview");
-        AttachedToVisualTree += (_, _) => { _attached = true; _model.PropertyChanged += Changed; Apply(); };
+        AttachedToVisualTree += (_, _) =>
+        {
+            _attached = true; _model.PropertyChanged += Changed; Apply();
+            if (ThumbnailPerformance.Source.HasListeners())
+            {
+                var scope = _model.ThumbnailScopeRevision;
+                TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ =>
+                {
+                    if (_attached && scope == _model.ThumbnailScopeRevision)
+                    {
+                        using var presented = ThumbnailPerformance.Measure("ui.asset.next_frame", _id);
+                        presented?.SetTag("scope", scope);
+                        presented?.SetTag("presentation", "realized asset at next render-frame callback; pixels not GPU-fenced");
+                    }
+                });
+            }
+        };
         DetachedFromVisualTree += (_, _) => { _attached = false; _activity.IsVisible = false; _model.PropertyChanged -= Changed; Release(); };
     }
     private void Changed(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(BrowserViewModel.Thumbnails)) Apply(); }

@@ -22,13 +22,27 @@ public sealed class BrowserDetailsDragFeedbackTests
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
+            // Establish capture availability independently of Lightflow's presenter.
+            var probeButton = new Button { Content = "Stock WPF capture probe" };
+            var probeWindow = new Window { Content = probeButton, Width = 240, Height = 100, Left = 40, Top = 40,
+                ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
+            bool captureAvailable;
+            try
+            {
+                probeWindow.Show(); probeWindow.Activate(); probeButton.Focus();
+                captureAvailable = probeButton.CaptureMouse();
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "lf042-capture-probe.txt"),
+                    $"Stock WPF Button capture: {captureAvailable}; source={source}; boundary={boundary}{Environment.NewLine}");
+                probeButton.ReleaseMouseCapture();
+            }
+            finally { probeWindow.Close(); }
             var view = new GridView();
             for (var i = 0; i < 5; i++)
                 view.Columns.Add(new() { Header = new GridViewColumnHeader { Content = "Column " + i }, Width = 120 });
             var presenter = new BrowserDetailsHeaderPresenter { Columns = view.Columns, AllowsColumnReorder = true };
             var scroll = new ScrollViewer { Content = presenter, HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Height = 32 };
-            var window = new Window { Content = scroll, Width = 410, Height = 100, Left = -32000, Top = -32000,
+            var window = new Window { Content = scroll, Width = 410, Height = 100, Left = 40, Top = 40,
                 ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual };
             window.Resources["ShellFocusBrush"] = new SolidColorBrush(Color.FromRgb(240, 151, 63));
             try
@@ -80,6 +94,36 @@ public sealed class BrowserDetailsDragFeedbackTests
                         Assert.Equal(0, separator.Opacity);
                         presenter.UpdateFeedback(point);
                         Assert.Equal(1, separator.Opacity);
+                    }
+                    var ownFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                    void RaisePaintEvent(string name) => typeof(BrowserDetailsHeaderPresenter).GetMethod(name, ownFlags)!
+                        .Invoke(presenter, [new MouseEventArgs(Mouse.PrimaryDevice, 0)]);
+                    RaisePaintEvent("OnMouseLeave");
+                    Assert.Equal(0, separator.Opacity);
+                    presenter.UpdateFeedback(point);
+                    RaisePaintEvent("OnLostMouseCapture");
+                    Assert.Equal(0, separator.Opacity);
+                    presenter.UpdateFeedback(point);
+                    if (repeat == 1)
+                    {
+                        // Actual WPF capture and owning-Window Escape route, even with row/window focus.
+                        var header = (GridViewColumnHeader)view.Columns[source].Header;
+                        window.Activate();
+                        header.Focus();
+                        Assert.Equal(captureAvailable, header.CaptureMouse());
+                        var escape = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window), 0, Key.Escape)
+                            { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                        window.RaiseEvent(escape);
+                        Assert.Equal(captureAvailable, escape.Handled);
+                        Assert.Null(Mouse.Captured);
+                        if (captureAvailable) Assert.Equal(0, separator.Opacity);
+                        else
+                        {
+                            // The stock control probe establishes that capture is unavailable here.
+                            // No-capture Escape must remain available to the rest of the application.
+                            presenter.CancelFeedback();
+                            Assert.Equal(0, separator.Opacity);
+                        }
                     }
                     Call("FinishHeaderDrag", repeat == 1);
                     Assert.Equal(Visibility.Hidden, separator.Visibility);

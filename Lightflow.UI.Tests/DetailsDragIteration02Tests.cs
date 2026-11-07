@@ -109,12 +109,45 @@ public sealed partial class BrowserTests
             window.MouseMove(from);window.MouseDown(from,MouseButton.Left);window.MouseMove(to);Layout();
             var marker=pane.GetVisualDescendants().OfType<Border>().Single(b=>AutomationProperties.GetAutomationId(b)=="BrowserColumnDropIndicator");
             Assert.True(marker.IsVisible);Assert.True(Math.Abs(marker.TranslatePoint(default,window)!.Value.X-capture.TranslatePoint(default,window)!.Value.X)<=2,$"marker X={marker.TranslatePoint(default,window)!.Value.X}, capture X={capture.TranslatePoint(default,window)!.Value.X}, pointer X={to.X}, offset={scroll.Offset.X}, margin={marker.Margin.Left}, {AutomationProperties.GetName(marker)}");
-            window.MouseMove(new Point(to.X,10));Layout();Assert.Equal("Column cannot be dropped here",AutomationProperties.GetName(marker));
+            window.MouseMove(new Point(to.X,10));Layout();Assert.False(marker.IsVisible);Assert.Equal("Column cannot be dropped here",AutomationProperties.GetName(marker));
+            window.MouseMove(to);Layout();Assert.True(marker.IsVisible);
+            window.MouseMove(new Point(to.X,10));Layout();Assert.False(marker.IsVisible);
             CaptureColumnEvidence(window,"drag-invalid-destination.png");
             name.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Escape});Layout();Assert.False(marker.IsVisible);
             window.MouseUp(to,MouseButton.Left);Assert.Equal(order,pane.DetailsColumns);
         }
         finally {window.Close();}
+    }
+    [AvaloniaTheory]
+    [InlineData("release")]
+    [InlineData("capture")]
+    [InlineData("layout")]
+    [InlineData("detach")]
+    public void InvalidDragExitReentryAndCancellationNeverReorders(string cancellation)
+    {
+        var pane=new BrowserPane(new BrowserViewModel(new FakeBrowser()));var window=new Window{Content=pane,Width=1120,Height=720};LightflowTheme.Apply(window);window.Show();
+        void Layout(){window.UpdateLayout();Dispatcher.UIThread.RunJobs();window.UpdateLayout();}
+        try
+        {
+            pane.SetPresentation(BrowserLayoutMode.Details);Layout();
+            var header=pane.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"name"));
+            var destination=pane.GetVisualDescendants().OfType<Button>().Single(b=>Equals(b.Tag,"capture-date"));
+            var scroll=pane.GetVisualDescendants().OfType<ScrollViewer>().Single(s=>s.Content is Grid g && AutomationProperties.GetName(g)?.StartsWith("Details columns")==true);
+            var origin=header.TranslatePoint(new Point(12,12),window)!.Value;var valid=destination.TranslatePoint(new Point(12,12),window)!.Value;
+            IPointer? pointer=null;header.AddHandler(InputElement.PointerPressedEvent,(_,e)=>pointer=e.Pointer, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            var order=pane.DetailsColumns.ToArray();window.MouseMove(origin);window.MouseDown(origin,MouseButton.Left);window.MouseMove(valid);Layout();
+            var marker=pane.GetVisualDescendants().OfType<Border>().Single(b=>AutomationProperties.GetAutomationId(b)=="BrowserColumnDropIndicator");Assert.True(marker.IsVisible);
+            var top=scroll.TranslatePoint(default,window)!.Value;
+            foreach(var outside in new[]{new Point(valid.X,top.Y-1),new Point(valid.X,top.Y+scroll.Bounds.Height+1),new Point(top.X-1,valid.Y),new Point(top.X+scroll.Bounds.Width+1,valid.Y)})
+            {window.MouseMove(outside);Layout();Assert.False(marker.IsVisible);window.MouseMove(valid);Layout();Assert.True(marker.IsVisible);}
+            var invalid=new Point(valid.X,top.Y-2);window.MouseMove(invalid);Layout();
+            if(cancellation=="release")window.MouseUp(invalid,MouseButton.Left);
+            if(cancellation=="capture")pointer!.Capture(null);
+            if(cancellation=="layout")pane.SetPresentation(BrowserLayoutMode.Grid);
+            if(cancellation=="detach")window.Content=null;
+            Layout();Assert.False(marker.IsVisible);window.MouseUp(valid,MouseButton.Left);Assert.Equal(order,pane.DetailsColumns);
+        }
+        finally{window.Close();}
     }
     private static void CaptureColumnEvidence(Window window,string name)
     {

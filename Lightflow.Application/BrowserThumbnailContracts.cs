@@ -4,6 +4,7 @@ public sealed record BrowserThumbnail(Guid AssetId,string? Path,string State,int
     DerivedMediaMetadata? Metadata=null, Lightflow.Domain.AssetClassification? Classification=null);
 public interface IBrowserThumbnailSession
 {
+    IThumbnailGenerationActivity? ThumbnailActivity => null;
     Task<IDerivedWorkBatch?> DemandThumbnailsAsync(IReadOnlyList<Guid> ids,DerivedWorkPriority priority,CancellationToken token);
     Task<IReadOnlyDictionary<Guid,BrowserThumbnail>> ReadThumbnailsAsync(IReadOnlyList<Guid> ids,CancellationToken token);
 }

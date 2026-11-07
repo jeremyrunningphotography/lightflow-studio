@@ -12,15 +12,19 @@ internal sealed class BrowserThumbnailCell : Border
     private readonly BrowserViewModel _model; private readonly Guid _id;
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock _state = new() { FontSize = 10, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+    private readonly Border _activity = new() { Height = 2, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
+        Background = new SolidColorBrush(Color.Parse("#FF9A66")), IsVisible = false, IsHitTestVisible = false };
     private Bitmap? _bitmap; private string? _path; private bool _attached;
     public static int RetainedBitmaps => Volatile.Read(ref _retained);
     private static int _retained;
     public BrowserThumbnailCell(BrowserViewModel model, Guid id)
     {
         _model = model; _id = id; Width = 64; Height = 48; Background = new SolidColorBrush(Color.Parse("#05070A"));
-        var grid = new Grid(); grid.Children.Add(_image); grid.Children.Add(_state); Child = grid;
+        var grid = new Grid(); grid.Children.Add(_image); grid.Children.Add(_state); grid.Children.Add(_activity); Child = grid;
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_activity, "BrowserPreviewActivity");
+        Avalonia.Automation.AutomationProperties.SetName(_activity, "Generating Preview");
         AttachedToVisualTree += (_, _) => { _attached = true; _model.PropertyChanged += Changed; Apply(); };
-        DetachedFromVisualTree += (_, _) => { _attached = false; _model.PropertyChanged -= Changed; Release(); };
+        DetachedFromVisualTree += (_, _) => { _attached = false; _activity.IsVisible = false; _model.PropertyChanged -= Changed; Release(); };
     }
     private void Changed(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(BrowserViewModel.Thumbnails)) Apply(); }
     private void Release() { _image.Source = null; if (_bitmap is not null) { _bitmap.Dispose(); _bitmap = null; Interlocked.Decrement(ref _retained); } _path = null; }
@@ -28,6 +32,7 @@ internal sealed class BrowserThumbnailCell : Border
     {
         if (!_attached) return;
         var value = _model.Thumbnails.GetValueOrDefault(_id);
+        _activity.IsVisible = _model.IsPreviewGenerating(_id);
         if (_path != value?.Path)
         {
             Release();

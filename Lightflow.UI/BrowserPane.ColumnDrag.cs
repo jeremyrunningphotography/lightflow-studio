@@ -53,9 +53,9 @@ public sealed partial class BrowserPane
         drag.Started=true;
         var inside=viewport.X>=0 && viewport.X<=_headerScroll.Bounds.Width && viewport.Y>=0 && viewport.Y<=_headerScroll.Bounds.Height;
         var target=drag.Target=BrowserColumnReorder.Target(_columns,drag.Id,content.X,inside);
-        _columnDropIndicator.IsVisible=true;
+        _columnDropIndicator.IsVisible=target.Valid;
         _columnDropIndicator.Margin=new Thickness(Math.Clamp(target.X-1,0,Math.Max(0,_detailsHeaders.Width-2)),0,0,0);
-        _columnDropIndicator.Background=new SolidColorBrush(Color.Parse(target.Valid ? "#FF9A66" : "#AAB2BF"));
+        _columnDropIndicator.Background=new SolidColorBrush(Color.Parse("#FF9A66"));
         AutomationProperties.SetAutomationId(_columnDropIndicator,"BrowserColumnDropIndicator");
         AutomationProperties.SetName(_columnDropIndicator,target.Valid ? $"Move {drag.Id} to column boundary {target.Boundary}" : "Column cannot be dropped here");
         drag.Header.Cursor=new Cursor(target.Valid ? StandardCursorType.DragMove : StandardCursorType.No);

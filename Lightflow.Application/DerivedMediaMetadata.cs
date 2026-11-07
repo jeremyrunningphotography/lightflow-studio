@@ -82,6 +82,7 @@ public sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService, 
     // WIC normalization did not change. Only FFprobe-derived metadata needs refreshing.
     public static int ProbeVersionFor(string? mediaType) =>
         string.Equals(mediaType, "image", StringComparison.OrdinalIgnoreCase) ? 1 : CurrentProbeVersion;
+    private readonly Func<string?, int> _probeVersion;
     private readonly TimeProvider _time;
     private readonly IMediaAssetService _assets;
     private readonly IPreviewStoreService _previews;
@@ -90,9 +91,10 @@ public sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService, 
     private readonly IPreviewOperationCoordinator? _operations;
 
     public DerivedMediaMetadataService(IMediaAssetService assets, IPreviewStoreService previews,
-        IMediaMetadataProbe probe, int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null, TimeProvider? time = null)
+        IMediaMetadataProbe probe, int maximumConcurrency = 2, IPreviewOperationCoordinator? operations = null, TimeProvider? time = null, Func<string?, int>? probeVersion = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
+        _probeVersion = probeVersion ?? ProbeVersionFor;
         _time = time ?? TimeProvider.System;
         _assets = assets;
         _previews = previews;
@@ -120,7 +122,7 @@ public sealed class DerivedMediaMetadataService : IDerivedMediaMetadataService, 
             return new(DerivedMetadataStatus.Failed, Diagnostic: observed.Diagnostic ?? "The media source could not be observed.");
 
         var asset = observed.Asset.Asset;
-        var probeVersion = ProbeVersionFor(asset.MediaType);
+        var probeVersion = _probeVersion(asset.MediaType);
         if (asset.Fingerprint is null)
             return new(DerivedMetadataStatus.Failed, Diagnostic: "The media source has no current fingerprint.");
         var source = new PreviewSourceIdentity(asset.FileSizeBytes, asset.LastWriteUtcTicks,

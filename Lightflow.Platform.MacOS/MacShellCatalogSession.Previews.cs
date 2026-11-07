@@ -3,6 +3,8 @@ namespace Lightflow.Platform.MacOS;
 
 public sealed partial class MacShellCatalogSession
 {
+    private readonly ThumbnailGenerationActivity _thumbnailActivity = new();
+    public IThumbnailGenerationActivity ThumbnailActivity => _thumbnailActivity;
     private CatalogPreviewStoreService? _previews;
     private SharedDerivedWorkScheduler? _previewScheduler;
     private PreviewOperationCoordinator? _previewOperations;
@@ -24,13 +26,13 @@ public sealed partial class MacShellCatalogSession
             var colors = new MacPreviewColorSource(owner, guard);
             var preferred = new CatalogPreferredPreviewFrameStore(() => owner.Session);
             var operations = new PreviewOperationCoordinator();
-            var metadata = new DerivedMediaMetadataService(assets, store, renderer);
+            var metadata = new DerivedMediaMetadataService(assets, store, renderer, probeVersion: MacThumbnailRenderer.MetadataProbeVersion);
             var thumbnails = new SharedThumbnailGenerationService(assets, store, owner.Locations, renderer, metadata, operations: operations,
-                colorSource: colors, validate: renderer.Validate, preferredFrames: preferred, pathGuard: path => { guard.GuardAccess(path); return path; });
+                colorSource: colors, validate: renderer.Validate, preferredFrames: preferred, activity: _thumbnailActivity, pathGuard: path => { guard.GuardAccess(path); return path; });
             _previewOperations = operations; _previews = store; _previewColors = colors;
             _previewScheduler = new(assets, store, metadata, thumbnails, ownsGenerators: true, operations: operations, colors: colors,
                 artifactExists: relative => File.Exists(store.ResolveArtifactPath(relative)), preferredFrames: preferred, excludedPath: effects.IsProtected,
-                supportsThumbnail: type => type is "image" or "raw-image" or "video");
+                supportsThumbnail: type => type is "image" or "raw-image" or "video", probeVersion: MacThumbnailRenderer.MetadataProbeVersion);
         }
         catch { _previews = null; _previewColors = null; _previewOperations?.Dispose(); _previewOperations = null; await store.DisposeAsync(); throw; }
     }

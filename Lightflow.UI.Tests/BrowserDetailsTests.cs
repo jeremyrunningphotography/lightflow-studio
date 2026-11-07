@@ -74,7 +74,9 @@ public sealed partial class BrowserTests
         var position=header.TranslatePoint(new Point(20,10),window)!.Value;
         window.MouseDown(position,MouseButton.Right);window.MouseUp(position,MouseButton.Right);Dispatcher.UIThread.RunJobs();
         Assert.NotNull(header.ContextMenu);Assert.True(header.ContextMenu!.IsOpen);
-        header.ContextMenu.Close();
+        header.ContextMenu.Close();header.Focus();
+        header.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Enter});
+        Assert.True(header.ContextMenu.IsOpen);header.ContextMenu.Close();
         var grip=pane.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.Thumb>().Single(t=>Avalonia.Automation.AutomationProperties.GetName(t)=="Resize Name");
         grip.Focus();grip.RaiseEvent(new KeyEventArgs {RoutedEvent=InputElement.KeyDownEvent,Key=Key.Right});
         Assert.Equal(248,pane.DetailsColumns.Single(c=>c.Id=="name").Width);

@@ -117,11 +117,11 @@ public sealed partial class BrowserPane
             label.HorizontalAlignment=HorizontalAlignment.Stretch;label.HorizontalContentAlignment=HorizontalAlignment.Left;label.Padding=new Thickness(8,6,4,6);label.FontSize=12;
             ToolTip.SetTip(label,"Drag to reorder. Right-click to choose columns. Sorting will be available with Browser sorting.");
             Point? start=null;
-            label.AddHandler(PointerPressedEvent,(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } },Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            label.AddHandler(PointerPressedEvent,(_,e)=> { if(e.GetCurrentPoint(label).Properties.IsLeftButtonPressed) { label.Focus(NavigationMethod.Pointer);start=e.GetPosition(_detailsHeaders);e.Pointer.Capture(label);e.Handled=true; } },Avalonia.Interactivity.RoutingStrategies.Tunnel);
             label.AddHandler(PointerReleasedEvent,(_,e)=>
             {
                 if(e.InitialPressMouseButton==MouseButton.Right)
-                { label.ContextMenu?.Open(label);e.Handled=true;return; }
+                { label.Focus(NavigationMethod.Pointer);label.ContextMenu?.Open(label);e.Handled=true;return; }
                 if(start is null)return;
                 if(start is { } origin && Math.Abs(e.GetPosition(_detailsHeaders).X-origin.X)>8)
                 {
@@ -142,7 +142,13 @@ public sealed partial class BrowserPane
                 item.Click+=(_,_)=> { var current=_columns.Single(c=>c.Id==definition.Id); if(current.Visible && _columns.Count(c=>c.Visible)==1)return; ConfigureDetailsColumns(_columns.Select(c=>c.Id==definition.Id ? c with { Visible=!c.Visible } : c).ToArray()); };
                 menu.Items.Add(item);
             }
-            label.ContextMenu=menu;header.Children.Add(label);
+            label.ContextMenu=menu;
+            label.AddHandler(KeyDownEvent,(_,e)=>
+            {
+                if(e.Key is Key.Enter or Key.Space or Key.Apps || (e.Key==Key.F10 && e.KeyModifiers==KeyModifiers.Shift))
+                { menu.Open(label);e.Handled=true; }
+            },Avalonia.Interactivity.RoutingStrategies.Tunnel);
+            header.Children.Add(label);
             var grip=new Thumb { Width=6,HorizontalAlignment=HorizontalAlignment.Right,Cursor=new Cursor(StandardCursorType.SizeWestEast),Background=Brushes.Transparent,Focusable=true };
             grip.Template=new FuncControlTemplate<Thumb>((_,_)=>new Border {Background=Brushes.Transparent});
             AutomationProperties.SetName(grip,$"Resize {label.Content}");

@@ -17,6 +17,7 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 042 | LF-WIN-DEV-042 | Windows Details Presentation Parity | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Local bounded Windows presentation correction from accepted b5694012 / 741442a9; fresh validation and focused owner acceptance required; no PR/merge/release |
 | 040 | LF-MAC-DEV-040 | Mac Browser Details | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Local implementation; owner package acceptance and independent Windows qualification precede one implementation PR |
 | 039 | LF-WIN-TST-039 | Mac Grid Windows Qualification | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done; accepted e941fabef / ef16701a independently qualified with owner-approved inconclusive Catalog exception; focused 606 PASS, full 2879 passed / 1 failed / 2 skipped; Windows owner 6/6 PASS; implementation integration/CI/merge tracked by 038 |
 | 038 | LF-MAC-DEV-038 | Mac Browser Grid Cards | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done through accepted implementation/qualification; Mac I02 8/8 and Windows 6/6 accepted at e941fabef / ef16701a; final single-PR CI/merge/post-merge gates remain pending at record preparation |
@@ -1080,3 +1081,18 @@ mutation. Sorting remains #484, sizing #489 and full indicators #485. See
 owner recheck precede independent Windows qualification and one implementation PR.
 No PR/qualifier allocation, issue closure, merge or release. Historical maintenance
 Not warranted for bounded corrections; earlier milestone records are preserved.
+
+## Assignment 042 reservation — 2026-11-07
+
+Owner-assigned LF-WIN-DEV-042 — Windows Details Presentation Parity, bounded
+#483 correction with parent #480. Independent full clone
+`C:\Git\Agents\LF-WIN-DEV-042-WindowsDetailsParity`, branch
+`codex/042-windows-details-parity`. Current remote main verified as
+`cc64f725aefb461c1b1a798cf2dfffa04658befd`; 042 absent from its registry.
+Exact accepted source transferred through an independent no-hardlinks full clone
+from 041 without modifying that workspace: `b5694012ec7ad15d35fa8de6d640d478222447de`,
+tree `741442a96ca3fb9fcba4fe73e75004ca9d3ad849`. Local Windows implementation,
+validation and package only; no PR, merge, closure or release. Accepted Mac code
+and retained 041 Catalog untouched. Fresh corrected-source qualification and focused
+owner acceptance remain required. Historical maintenance Not warranted for bounded
+presentation corrections.

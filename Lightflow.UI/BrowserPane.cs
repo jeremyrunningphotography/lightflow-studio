@@ -54,9 +54,12 @@ public sealed partial class BrowserPane : UserControl
         public bool Expanded;
         public long Generation;
         public IReadOnlyList<BrowserFolderNode> Folders = [];
+        public bool ChildrenLoaded, RevealOnly;
+        public CancellationToken RevealToken;
+        public Task Loading = Task.CompletedTask;
     }
     private readonly Dictionary<string, FolderRow> _rows = [];
-    private sealed record LocationGroup(StackPanel View, StackPanel Children);
+    private sealed record LocationGroup(StackPanel View, StackPanel Children, Action? Reveal = null);
     private readonly Dictionary<string, LocationGroup> _groups = [];
     private LocationGroup Group(string key, string name, bool server = false)
     {
@@ -66,6 +69,7 @@ public sealed partial class BrowserPane : UserControl
         label.TextWrapping=TextWrapping.NoWrap; label.TextTrimming=TextTrimming.CharacterEllipsis;
         label.VerticalAlignment=VerticalAlignment.Center;
         var view=new StackPanel { Spacing=0 };
+        Action? reveal=null;
         if(!server)
         {
             // Permanent section headings have no disclosure, input handler or collapse state.
@@ -88,8 +92,10 @@ public sealed partial class BrowserPane : UserControl
             button.HorizontalAlignment=HorizontalAlignment.Stretch; button.HorizontalContentAlignment=HorizontalAlignment.Stretch;
             ToolTip.SetTip(button,name); AutomationProperties.SetName(button,$"Collapse {name}");
             var expanded=true;
+            reveal=()=> { expanded=true; children.IsVisible=true; disclosure.Data=BrowserPresentation.Icon("down").Data; AutomationProperties.SetName(button,$"Collapse {name}"); AutomationProperties.SetHelpText(button,"Expanded"); };
             button.Click+=(_,_)=>
             {
+                CancelRestoredFolderRevealForUser();
                 expanded=!expanded; children.IsVisible=expanded;
                 disclosure.Data=BrowserPresentation.Icon(expanded ? "down" : "right").Data;
                 AutomationProperties.SetName(button,$"{(expanded ? "Collapse" : "Expand")} {name}");
@@ -98,7 +104,7 @@ public sealed partial class BrowserPane : UserControl
             view.Children.Add(button);
         }
         view.Children.Add(children);
-        var group=new LocationGroup(view,children); _groups.Add(key,group);
+        var group=new LocationGroup(view,children,reveal); _groups.Add(key,group);
         return group;
     }
     private static void Reconcile(StackPanel panel, IReadOnlyList<Control> desired)
@@ -121,6 +127,10 @@ public sealed partial class BrowserPane : UserControl
         InitializeThumbnailDemand();
         var saved=(savedLayout ?? new()).Validated();
         _preferred=saved;
+        _columnState.Set(BrowserDetailsLayout.Normalize(saved.DetailsColumns));
+        _cardMode=saved.CardMode;
+        model.RestoreLocation=saved.LastLocation;
+        model.LocationRemembered+=bookmark=> { _preferred=_preferred with { LastLocation=bookmark }; LayoutChanged?.Invoke(_preferred); };
         var layout=_layout=new Grid { ColumnDefinitions=new("280,8,*,0,0") };
         var side=new StackPanel { Spacing=6, Children={Text("Locations","panel-heading"), _roots} };
         _sideScroll=new ScrollViewer { Content=side, HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled };
@@ -138,10 +148,11 @@ public sealed partial class BrowserPane : UserControl
         ToolTip.SetTip(_go,"Open folder path"); AutomationProperties.SetName(_go,"Open folder path");
         _address.MinWidth=70; _address.Height=32; _address.Classes.Add("lf-input");
         AutomationProperties.SetName(_address,"Current folder path");
-        var scope=new Grid { ColumnDefinitions=new("*,Auto") };
+        var scope=new Grid { ColumnDefinitions=new("Auto,*,Auto") };
         _location.TextTrimming=TextTrimming.CharacterEllipsis; _location.TextWrapping=TextWrapping.NoWrap;
-        _location.VerticalAlignment=VerticalAlignment.Center; scope.Children.Add(_location);
-        Grid.SetColumn(_recursive,1); scope.Children.Add(_recursive);
+        _location.VerticalAlignment=VerticalAlignment.Center; Grid.SetColumn(_location,1); scope.Children.Add(_location);
+        scope.Children.Add(CreateLayoutControls());
+        Grid.SetColumn(_recursive,2); scope.Children.Add(_recursive);
 
         var toolbarContent=new StackPanel { Children={toolbar,scope} };
         var toolbarPanel=Panel(toolbarContent);toolbarPanel.Classes.Add("toolbar");center.Children.Add(toolbarPanel);
@@ -185,12 +196,15 @@ public sealed partial class BrowserPane : UserControl
         _refresh.Click+=async(_,_)=>await NavigateFromToolbarAsync(model.RefreshAsync);
         model.PropertyChanged+=(_,_)=> { if(Dispatcher.UIThread.CheckAccess())Update();else Dispatcher.UIThread.Post(Update); };
         layout.SizeChanged+=(_,_)=>ApplyPaneLayout();
+        DetachedFromVisualTree+=(_,_)=> { _treeReveal?.Cancel();CancelColumnDrag(); };
         Content=layout; ApplyPaneLayout(); Update();
     }
-    private FolderRow Folder(BrowserFolderNode node, string ancestry = "")
+    private FolderRow Folder(BrowserFolderNode node, string ancestry = "", bool allowPrefetch = true)
     {
         var key = ancestry + ">" + node.Key;
-        if (_rows.TryGetValue(key, out var retained)) { retained.Node = node with { CanPrefetch=node.CanPrefetch || retained.Node.CanPrefetch }; SetFolderContent(retained); return retained; }
+        if (_rows.TryGetValue(key, out var retained)) { retained.Node = node with { CanPrefetch=(allowPrefetch && node.CanPrefetch) || retained.Node.CanPrefetch }; SetFolderContent(retained); return retained; }
+        // Automatically revealing a path must not authorize later prefetch of its unvisited siblings.
+        if(!allowPrefetch)node=node with {CanPrefetch=false};
         var children=new StackPanel { Margin=new Thickness(12,2,0,2), Spacing=0, IsVisible=false };
         var choose=Action(node.Name);
         choose.HorizontalAlignment=HorizontalAlignment.Stretch; choose.HorizontalContentAlignment=HorizontalAlignment.Left;
@@ -207,34 +221,48 @@ public sealed partial class BrowserPane : UserControl
         choose.Click+=async(_,_)=> { await _model.NavigateAsync(state.Node); await LoadRowAsync(state, userInitiated: true); };
         toggle.Click+=async(_,_)=>
         {
+            CancelRestoredFolderRevealForUser();
             state.Expanded=!state.Expanded;
             state.Children.IsVisible=state.Expanded;
             SetDisclosure(state);
             if(state.Expanded) await LoadRowAsync(state, userInitiated: true);
         };
-        _ = LoadRowAsync(state);
+        if(allowPrefetch)_ = LoadRowAsync(state);
         return state;
     }
-    private async Task LoadRowAsync(FolderRow row, bool userInitiated = false)
+    private Task LoadRowAsync(FolderRow row, bool userInitiated = false, bool revealing = false, CancellationToken token = default)
     {
-        if (!userInitiated && !row.Node.CanPrefetch) return;
+        if(revealing) { row.RevealOnly=true;row.RevealToken=token; }
+        else row.RevealOnly=false;
+        if(!revealing && !userInitiated && !row.Node.CanPrefetch)return Task.CompletedTask;
+        if(revealing && !row.Loading.IsCompleted)return row.Loading.WaitAsync(token);
+        if(revealing && row.ChildrenLoaded) { ShowFolderChildren(row,allowPrefetch:false);return Task.CompletedTask; }
+        return row.Loading=LoadFolderRowAsync(row,userInitiated,revealing,token);
+    }
+    private async Task LoadFolderRowAsync(FolderRow row,bool userInitiated,bool revealing,CancellationToken token)
+    {
         var generation=++row.Generation; var tree=_treeGeneration; var epoch=_model.Epoch;
-        var folders=await _model.ExpandAsync(row.Node, userInitiated);
-        if(generation!=row.Generation || tree!=_treeGeneration || epoch!=_model.Epoch)return;
+        var folders=await _model.ExpandAsync(row.Node,userInitiated,token).WaitAsync(token);
+        if(token.IsCancellationRequested || (row.RevealOnly && row.RevealToken.IsCancellationRequested) || generation!=row.Generation || tree!=_treeGeneration || epoch!=_model.Epoch)return;
         row.Folders=folders;
-        if (userInitiated && folders.All(folder=>folder.Availability!="unavailable"))
-            row.Node=row.Node with { CanPrefetch=true };
+        row.ChildrenLoaded=folders.All(folder=>folder.Availability!="unavailable");
+        if (userInitiated && row.ChildrenLoaded)row.Node=row.Node with { CanPrefetch=true };
         SetFolderContent(row);
         ToolTip.SetTip(row.Choose,row.Node.AbsolutePath ?? $"{row.Node.Name} /{row.Node.RelativeFolder}");
-        // Failure is retryable through disclosure; a known leaf has no affordance or filler text.
         row.Toggle.IsVisible=folders.Count>0;
         SetDisclosure(row);
         row.Children.IsVisible=row.Expanded;
+        ShowFolderChildren(row,allowPrefetch:!revealing);
+    }
+    private void ShowFolderChildren(FolderRow row,bool allowPrefetch)
+    {
+        row.Children.IsVisible=row.Expanded;SetDisclosure(row);
         if(!row.Expanded)return;
-        var desired=folders.Select(folder=>folder.Availability=="unavailable"
-            ? (Control)Text(folder.Name,"muted") : Folder(folder,row.TreeKey).Group).ToArray();
+        allowPrefetch &= !row.RevealOnly;
+        var desired=row.Folders.Select(folder=>folder.Availability=="unavailable"
+            ? (Control)Text(folder.Name,"muted") : Folder(folder,row.TreeKey,allowPrefetch).Group).ToArray();
         Reconcile(row.Children,desired);
-        var liveKeys=folders.Where(folder=>folder.Availability!="unavailable").Select(folder=>row.TreeKey+">"+folder.Key).ToArray();
+        var liveKeys=row.Folders.Where(folder=>folder.Availability!="unavailable").Select(folder=>row.TreeKey+">"+folder.Key).ToArray();
         foreach(var old in _rows.Values.Where(old=>old.TreeKey.StartsWith(row.TreeKey+">",StringComparison.Ordinal) &&
             !liveKeys.Any(key=>old.TreeKey==key || old.TreeKey.StartsWith(key+">",StringComparison.Ordinal))).ToArray())
         { old.Generation++; _rows.Remove(old.TreeKey); }
@@ -302,15 +330,16 @@ public sealed partial class BrowserPane : UserControl
         _up.IsEnabled=_model.CanGoUp; _refresh.IsEnabled=_model.CanRefresh;
         _location.Text=_model.Location?.Name ?? "Choose a location";
         ToolTip.SetTip(_location,_model.Location?.AbsolutePath);
-        _message.Text=_model.Message; _message.IsVisible=!string.IsNullOrEmpty(_model.Message); ToolTip.SetTip(_message,_model.Message);
+        UpdateBrowserMessage();
         if(!ReferenceEquals(_shownRoots,_model.Roots))
         {
             var refreshFolders=_shownFolderRefreshRevision!=_model.FolderRefreshRevision;
             _shownFolderRefreshRevision=_model.FolderRefreshRevision;
             _shownRoots=_model.Roots;
             if (!_model.IsAvailable) { _treeGeneration++; _rows.Clear(); _groups.Clear(); _roots.Children.Clear(); }
-            else _ = RefreshTreeAsync(refreshFolders);
+            else _treeRefresh=RefreshTreeAsync(refreshFolders);
         }
+        RequestRestoredFolderReveal();
         foreach (var row in _rows.Values)
         {
             LightflowTheme.State(row.Choose,"active",_model.Location?.Key==row.Node.Key);
@@ -328,6 +357,7 @@ public sealed partial class BrowserPane : UserControl
     }
     private void SetFolderContent(FolderRow row)
     {
+        LightflowTheme.State(row.Choose,"active",_model.Location?.Key==row.Node.Key);
         var kind=row.Node.Kind switch
         {
             BrowserLocationKind.Home=>"home", BrowserLocationKind.Desktop=>"desktop",

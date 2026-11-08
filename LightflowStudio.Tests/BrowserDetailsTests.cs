@@ -79,12 +79,14 @@ public sealed class BrowserDetailsTests
                 new() { Id = "rating", Width = 42, Visible = false }]);
             var asset = Guid.NewGuid();
             var service = new WorkspaceStateService(path);
+            service.SetBrowserViewMode(BrowserViewMode.Hybrid);
             service.SetBrowserDetails(BrowserLayoutMode.Details, columns);
             service.SetContinuation(new() { Query = new() { SortMode = BrowserSortMode.FrameRate, SortDescending = true },
                 Grid = new() { SelectedAssetIds = [asset], AnchorAssetId = asset, TopAssetId = asset, HorizontalOffset = 128 } });
             service.Save();
             var restored = WorkspaceStateStore.Load(path);
             Assert.Equal(BrowserLayoutMode.Details, restored.Layout!.BrowserLayoutMode);
+            Assert.Equal(BrowserViewMode.Hybrid, new WorkspaceStateService(path).GetBrowserViewMode());
             Assert.Equal(columns, restored.Layout.BrowserDetailsColumns);
             Assert.Equal("rating", columns[0].Id);
             Assert.Equal(134, columns[0].Width);
@@ -181,9 +183,46 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 var first = model.Tiles[0];
                 var query = model.Query;
                 var watch = Stopwatch.StartNew();
+                Assert.True(window.BrowserPreviewViewButton.IsEnabled);
+                Assert.True(window.BrowserInfoViewButton.IsEnabled);
+                Assert.True(window.BrowserHybridViewButton.IsEnabled);
+                window.BrowserHybridViewButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(window.BrowserHybridViewButton.IsChecked);
                 window.ApplyBrowserLayout(BrowserLayoutMode.Details, true);
+                Assert.False(window.BrowserPreviewViewButton.IsEnabled);
+                Assert.False(window.BrowserInfoViewButton.IsEnabled);
+                Assert.False(window.BrowserHybridViewButton.IsEnabled);
+                // Even a direct routed command cannot change the remembered Grid card mode.
+                window.BrowserPreviewViewButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(window.BrowserHybridViewButton.IsChecked);
                 await Pump();
                 output.WriteLine($"Grid → Details, 10,000 assets: {watch.Elapsed.TotalMilliseconds:F1} ms");
+                // Native WPF drag state, rendered with the shipping dark header style and real data rows.
+                var nativeHeaderType = typeof(GridViewHeaderRowPresenter);
+                var nativeFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var firstHeader = (GridViewColumnHeader)window.BrowserDetailsColumns[0].Header;
+                nativeHeaderType.GetMethod("PrepareHeaderDrag", nativeFlags)!.Invoke(window.BrowserDetailsHeaders,
+                    [firstHeader, new Point(10, 10), new Point(10, 10), false]);
+                nativeHeaderType.GetField("_currentPos", nativeFlags)!.SetValue(window.BrowserDetailsHeaders, new Point(20, 10));
+                nativeHeaderType.GetMethod("StartHeaderDrag", nativeFlags)!.Invoke(window.BrowserDetailsHeaders, null);
+                try
+                {
+                    nativeHeaderType.GetField("_desColumnIndex", nativeFlags)!.SetValue(window.BrowserDetailsHeaders, 2);
+                    var separator = Children(window.BrowserDetailsHeaders).OfType<Separator>().Single();
+                    separator.Visibility = Visibility.Visible;
+                    window.BrowserDetailsHeaders.UpdateFeedback(new Point(80, 10));
+                    window.BrowserDetailsHeaders.InvalidateMeasure();
+                    await Pump();
+                    var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)window.ActualWidth,
+                        (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+                    bitmap.Render(window);
+                    using var file = File.Create(Path.Combine(AppContext.BaseDirectory, "lf042-dark-details.png"));
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap)); encoder.Save(file);
+                    window.BrowserDetailsHeaders.CancelFeedback();
+                    Assert.Equal(0, separator.Opacity);
+                }
+                finally { nativeHeaderType.GetMethod("FinishHeaderDrag", nativeFlags)!.Invoke(window.BrowserDetailsHeaders, [true]); }
                 Assert.Same(query, model.Query);
                 Assert.Equal(selection, model.SelectedAssetIdsInBrowserOrder);
                 Assert.Equal(anchor, model.SelectionAnchorAssetId);
@@ -240,10 +279,26 @@ public sealed class BrowserDetailsWpfTests(ITestOutputHelper output)
                 window.ApplyBrowserLayout(BrowserLayoutMode.Grid, true);
                 await Pump();
                 output.WriteLine($"Details → Grid, 10,000 assets: {watch.Elapsed.TotalMilliseconds:F1} ms");
+                Assert.True(window.BrowserPreviewViewButton.IsEnabled);
+                Assert.True(window.BrowserInfoViewButton.IsEnabled);
+                Assert.True(window.BrowserHybridViewButton.IsEnabled);
+                Assert.True(window.BrowserHybridViewButton.IsChecked);
+                Assert.All(model.Tiles, tile => Assert.Equal(BrowserViewMode.Hybrid, tile.ViewMode));
                 Assert.True(model.Query.SortDescending);
                 Assert.Equal(selection.Order(), model.SelectedAssetIdsInBrowserOrder.Order());
                 Assert.Equal(anchor, model.SelectionAnchorAssetId);
+                Assert.True(window.BrowserPreviewViewButton.IsEnabled);
+                Assert.True(window.BrowserInfoViewButton.IsEnabled);
+                Assert.True(window.BrowserHybridViewButton.IsEnabled);
+                window.BrowserHybridViewButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(window.BrowserHybridViewButton.IsChecked);
                 window.ApplyBrowserLayout(BrowserLayoutMode.Details, true);
+                Assert.False(window.BrowserPreviewViewButton.IsEnabled);
+                Assert.False(window.BrowserInfoViewButton.IsEnabled);
+                Assert.False(window.BrowserHybridViewButton.IsEnabled);
+                // Even a direct routed command cannot change the remembered Grid card mode.
+                window.BrowserPreviewViewButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(window.BrowserHybridViewButton.IsChecked);
                 await Pump();
                 Assert.Equal(310, name.Width);
                 Assert.Same(name, window.BrowserDetailsColumns[3]);

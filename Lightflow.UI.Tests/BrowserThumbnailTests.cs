@@ -40,8 +40,43 @@ public sealed partial class BrowserTests
             window.Close();model.Suspend();Assert.Equal(0,BrowserThumbnailCell.RetainedBitmaps);
         }finally{Directory.Delete(root,true);}
     }
+    [AvaloniaTheory]
+    [Xunit.InlineData(BrowserLayoutMode.Grid)]
+    [Xunit.InlineData(BrowserLayoutMode.Details)]
+    public async Task AuthoritativeGenerationActivityAndLateDimensionsFollowRealizedPresentation(BrowserLayoutMode mode)
+    {
+        var service=new ThumbnailBrowser();var model=new BrowserViewModel(service);await model.OpenAsync(service.CatalogId);
+        var load=model.NavigateAsync(model.Roots[0]);var asset=Asset(service.RootId,"known.mov");
+        service.Folders[""].SetResult(new(service.RootId,"",false,MediaFolderEnumerationStatus.Succeeded,[],[asset]));await load;
+        var values=new Dictionary<Guid,BrowserThumbnail>{{asset.AssetId,new(asset.AssetId,null,"Loading")}};service.Read.SetResult(values);
+        var pane=new BrowserPane(model);var window=new Avalonia.Controls.Window{Content=pane,Width=1440,Height=800};LightflowTheme.Apply(window);window.Show();
+        void Layout(){window.UpdateLayout();Avalonia.Threading.Dispatcher.UIThread.RunJobs();window.UpdateLayout();}
+        try
+        {
+            pane.SetPresentation(mode);Layout();await model.SetThumbnailViewportAsync([asset.AssetId],[]);Layout();
+            Avalonia.Controls.Border Marker()=>Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(pane).OfType<Avalonia.Controls.Border>().Single(b=>Avalonia.Automation.AutomationProperties.GetAutomationId(b)=="BrowserPreviewActivity");
+            Assert.False(Marker().IsVisible); // Pending/Loading is not active generation.
+            using(var lease=service.Activity.Begin(asset.AssetId))
+            {
+                Layout();Assert.True(Marker().IsVisible);
+                pane.SetPresentation(mode==BrowserLayoutMode.Grid?BrowserLayoutMode.Details:BrowserLayoutMode.Grid);Layout();Assert.True(Marker().IsVisible);
+            }
+            Layout();Assert.False(Marker().IsVisible);
+            using(service.Activity.Begin(asset.AssetId)){} // Rapid completion has no stale flash.
+            Layout();Assert.False(Marker().IsVisible);
+            values[asset.AssetId]=values[asset.AssetId] with {Metadata=new(DerivedMediaKind.Video,"mov",3,null,100,null,new("",null,4096,2160,null,null,null,null,null,null),null,null)};
+            await model.SetThumbnailViewportAsync([asset.AssetId],[]);pane.SetPresentation(BrowserLayoutMode.Details);Layout();
+            Assert.Equal("4096 × 2160",Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(pane).OfType<Avalonia.Controls.TextBlock>().Single(t=>Equals(t.Tag,"dimensions")).Text);
+            pane.SetPresentation(BrowserLayoutMode.Grid);Layout();pane.SetPresentation(BrowserLayoutMode.Details);Layout();
+            Assert.Equal("4096 × 2160",Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(pane).OfType<Avalonia.Controls.TextBlock>().Single(t=>Equals(t.Tag,"dimensions")).Text);
+            using(var lease=service.Activity.Begin(asset.AssetId)){Layout();Assert.True(Marker().IsVisible);model.Suspend();Layout();Assert.False(model.IsPreviewGenerating(asset.AssetId));}
+        }
+        finally{window.Close();model.Suspend();}
+    }
     private sealed class ThumbnailBrowser:FakeBrowser,IBrowserThumbnailSession
     {
+        public ThumbnailGenerationActivity Activity=new();
+        public IThumbnailGenerationActivity ThumbnailActivity=>Activity;
         public List<CancellationToken> Tokens=[];
         public List<(DerivedWorkPriority Priority,int Count)> Demands=[];
         public TaskCompletionSource<IReadOnlyDictionary<Guid,BrowserThumbnail>> Read=new(TaskCreationOptions.RunContinuationsAsynchronously);

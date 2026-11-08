@@ -471,6 +471,7 @@
      <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/></Trigger>
      <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellSelectionBrush}"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter Property="Foreground" Value="{StaticResource ShellFocusBrush}"/></Trigger>
      <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.4"/><Setter Property="Cursor" Value="Arrow"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
   </Style>
@@ -771,6 +772,7 @@
            </DataTemplate>
   <local:BrowserDetailsTextConverter x:Key="BrowserDetailsTextConverter"/>
   <Style x:Key="BrowserDetailsHeaderStyle" TargetType="GridViewColumnHeader">
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
    <Setter Property="Background" Value="{StaticResource ShellSurfaceBrush}"/>
    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
    <Setter Property="BorderBrush" Value="{StaticResource ShellDividerBrush}"/>
@@ -785,6 +787,7 @@
     </Grid>
     <ControlTemplate.Triggers>
      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource ShellRaisedBrush}"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource ShellFocusBrush}"/><Setter TargetName="Chrome" Property="BorderThickness" Value="1"/></Trigger>
      <Trigger Property="Role" Value="Padding"><Setter TargetName="PART_HeaderGripper" Property="Visibility" Value="Collapsed"/></Trigger>
     </ControlTemplate.Triggers>
    </ControlTemplate></Setter.Value></Setter>
@@ -1334,7 +1337,7 @@
         <Grid Background="Transparent">
          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
          <ScrollViewer x:Name="BrowserDetailsHeaderScroll" Visibility="Collapsed" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Margin="0,0,20,0" Focusable="False" PreviewMouseLeftButtonDown="BrowserDetailsHeader_MouseDown">
-          <GridViewHeaderRowPresenter x:Name="BrowserDetailsHeaders" AllowsColumnReorder="True" ColumnHeaderContainerStyle="{StaticResource BrowserDetailsHeaderStyle}"/>
+          <local:BrowserDetailsHeaderPresenter x:Name="BrowserDetailsHeaders" AllowsColumnReorder="True" ColumnHeaderContainerStyle="{StaticResource BrowserDetailsHeaderStyle}"/>
          </ScrollViewer>
          <ItemsControl Grid.Row="1" ItemTemplate="{StaticResource BrowserThumbnailRowsTemplate}" x:Name="BrowserGridRows" Background="Transparent" Focusable="True" KeyDown="BrowserGridRows_KeyDown"
           PreviewMouseMove="BrowserGridRows_PreviewMouseMove"

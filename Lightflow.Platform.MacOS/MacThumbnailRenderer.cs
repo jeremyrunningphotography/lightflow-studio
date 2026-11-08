@@ -10,6 +10,8 @@ public sealed record MacThumbnailObservation(string Source, double RequestedSeco
 public sealed class MacThumbnailRenderer(IThumbnailImageCodec codec, Action<MacThumbnailObservation>? observed = null)
     : IThumbnailRenderer, IMediaMetadataProbe
 {
+    // Host-specific cache identity refreshes old duration-only/unsupported records on normal demand.
+    public static int MetadataProbeVersion(string? type) => 3;
     [StructLayout(LayoutKind.Sequential)]
     private struct Info
     {
@@ -76,10 +78,15 @@ public sealed class MacThumbnailRenderer(IThumbnailImageCodec codec, Action<MacT
 
     public Task<MediaProbeResult> ProbeAsync(string source, string type, long size, CancellationToken token = default) => Task.Run(() =>
     {
-        if (type != "video") return new MediaProbeResult(DerivedMetadataStatus.Unsupported, Diagnostic: "Native metadata is limited to video duration in this slice.");
-        var (status, info) = Native(source, 0, 0, "", token); token.ThrowIfCancellationRequested();
-        return status == 0 ? new(DerivedMetadataStatus.Succeeded, new(DerivedMediaKind.Video, Path.GetExtension(source), info.Duration > 0 ? info.Duration : null, null, size, null, null, null, null))
-            : new MediaProbeResult(status == 2 ? DerivedMetadataStatus.SourceMissing : DerivedMetadataStatus.Unsupported, Diagnostic: Failure(status).Diagnostic);
+        if (type is not ("image" or "raw-image" or "video")) return new MediaProbeResult(DerivedMetadataStatus.Unsupported);
+        var (status, info) = Native(source, type == "video" ? 0 : 3, 0, "", token); token.ThrowIfCancellationRequested();
+        if (status != 0) return new MediaProbeResult(status == 2 ? DerivedMetadataStatus.SourceMissing : DerivedMetadataStatus.Unsupported, Diagnostic: Failure(status).Diagnostic);
+        var video = type == "video" && info.Width > 0 && info.Height > 0
+            ? new DerivedVideoMetadata("", null, info.Width, info.Height, null, null, null, null, null, null) : null;
+        var image = type != "video" && info.Width > 0 && info.Height > 0
+            ? new DerivedImageMetadata(Path.GetExtension(source), info.Width, info.Height, null, info.Orientation > 0 ? info.Orientation : null, null, null, null, null) : null;
+        return new MediaProbeResult(DerivedMetadataStatus.Succeeded, new(type == "video" ? DerivedMediaKind.Video : DerivedMediaKind.Image,
+            Path.GetExtension(source), info.Duration > 0 ? info.Duration : null, null, size, null, video, null, image));
     }, token);
     private static (int, Info) Native(string source, int mode, double position, string destination, CancellationToken token)
     {

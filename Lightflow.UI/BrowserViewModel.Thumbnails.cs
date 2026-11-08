@@ -6,6 +6,10 @@ public sealed partial class BrowserViewModel
 {
     private CancellationTokenSource? _thumbnailDemand;
     private long _thumbnailGeneration;
+    private IThumbnailGenerationActivity? _thumbnailActivity;
+    public bool IsPreviewGenerating(Guid id) => _thumbnailActivity?.IsGenerating(id) == true;
+    private void PreviewActivityChanged(object? sender, ThumbnailGenerationActivityChanged change) =>
+        Dispatcher.UIThread.Post(() => { if (_thumbnails.ContainsKey(change.AssetId)) OnThumbnailChanged(); });
     private readonly Dictionary<Guid, BrowserThumbnail> _thumbnails = [];
     public IReadOnlyDictionary<Guid, BrowserThumbnail> Thumbnails => _thumbnails;
     public long ThumbnailScopeRevision => _generation;
@@ -13,6 +17,8 @@ public sealed partial class BrowserViewModel
     public void ClearThumbnailDemand()
     {
         _thumbnailGeneration++; _thumbnailDemand?.Cancel(); _thumbnailDemand?.Dispose(); _thumbnailDemand = null;
+        if (_thumbnailActivity is not null) _thumbnailActivity.Changed -= PreviewActivityChanged;
+        _thumbnailActivity = null;
         _thumbnails.Clear(); OnThumbnailChanged();
     }
     private void OnThumbnailChanged() => PropertyChanged?.Invoke(this, new(nameof(Thumbnails)));
@@ -33,6 +39,12 @@ public sealed partial class BrowserViewModel
             var second = await previews.DemandThumbnailsAsync(overscan.Where(id => ids.Contains(id) && !visible.Contains(id)).Distinct().ToArray(), DerivedWorkPriority.Normal, token);
             if (!Current()) { first?.Cancel(); second?.Cancel(); return; }
             prior?.Cancel(); prior?.Dispose(); prior = null;
+            if (!ReferenceEquals(_thumbnailActivity, previews.ThumbnailActivity))
+            {
+                if (_thumbnailActivity is not null) _thumbnailActivity.Changed -= PreviewActivityChanged;
+                _thumbnailActivity = previews.ThumbnailActivity;
+                if (_thumbnailActivity is not null) _thumbnailActivity.Changed += PreviewActivityChanged;
+            }
             var reading = false; var again = false;
             async Task Refresh()
             {
@@ -64,6 +76,7 @@ public sealed partial class BrowserViewModel
                     {
                         using var dispatch = ThumbnailPerformance.Measure("ui.dispatch");
                         if (postedAt != 0) dispatch?.SetTag("queue.wait.ms", System.Diagnostics.Stopwatch.GetElapsedTime(postedAt).TotalMilliseconds);
+                        if (Current()) OnThumbnailChanged();
                         _ = Refresh();
                     });
                 };

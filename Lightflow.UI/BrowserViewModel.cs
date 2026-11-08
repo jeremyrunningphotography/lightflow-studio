@@ -59,6 +59,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
 
     public void Suspend()
     {
+        RestoredLocation=null;
         ClearThumbnailDemand();
         _epoch++; _generation++; _selectionGeneration++; _refreshGeneration++; FolderRefreshRevision++;
         _locationUpdate?.Cancel(); _unavailableVolume=null; _liveVolumeMounts.Clear();
@@ -94,14 +95,18 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
         }
         catch (OperationCanceledException) { if(epoch == _epoch) Message="Catalog content loading stopped. Refresh to retry. Records are preserved."; }
         catch (Exception error) { Console.Error.WriteLine(error); if(epoch == _epoch) Message="Catalog content couldn't be loaded. Retry, or use Catalog to check its availability."; }
-        if(epoch == _epoch) { IsLoading=false; Notify(); }
+        if(epoch == _epoch)
+        {
+            if(IsAvailable)await RestoreLocationAsync(epoch);
+            if(epoch==_epoch) {IsLoading=false; Notify();}
+        }
     }
-    public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false)
+    public async Task<IReadOnlyList<BrowserFolderNode>> ExpandAsync(BrowserFolderNode node, bool userInitiated = false, CancellationToken cancellationToken = default)
     {
         if(!IsAvailable) return [];
         if(node.AbsolutePath is { } unavailable && IsKnownUnmountedPath(unavailable))
             return [new(node.RootId,node.RelativeFolder,VolumeUnavailableMessage,"unavailable",unavailable)];
-        var epoch=_epoch; using var demand=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); demand.CancelAfter(TimeSpan.FromSeconds(15)); var token=demand.Token;
+        var epoch=_epoch; using var demand=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token,cancellationToken); demand.CancelAfter(TimeSpan.FromSeconds(15)); var token=demand.Token;
         try
         {
             if (locations is not null && node.AbsolutePath is { } path)
@@ -123,6 +128,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
     public async Task NavigateAsync(BrowserFolderNode node, bool refreshing = false, bool history = true)
     {
         if(!IsAvailable) return;
+        RestoredLocation=null;
         using var navigationTiming = ThumbnailPerformance.Measure("navigation.request");
         _navigation?.Cancel(); _navigation?.Dispose(); _navigation=CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         var token=_navigation.Token; var generation=++_generation; _selectionGeneration++; _selectionRead?.Cancel();
@@ -197,6 +203,7 @@ public sealed partial class BrowserViewModel(IBrowserFolderSession session, IBro
             }
             else if (content.UnavailableSourceCount > 0)
                 Message = $"{Assets.Count} supported media shown · {content.UnavailableSourceCount} sources unavailable locally. Make them available outside Lightflow, then retry; no automatic download was requested.";
+            if(content.Status==MediaFolderEnumerationStatus.Succeeded)RememberLocation();
         }
         catch(OperationCanceledException) { if(generation==_generation) Message="Loading stopped. Retry or choose another folder. Catalog records are preserved."; }
         catch(Exception error) { Console.Error.WriteLine(error); if(generation==_generation) Message=error is IOException ? $"{error.Message} Catalog records are preserved. Retry after resolving the source location." : "This folder couldn't be loaded. Retry, reconnect its media location, or check Catalog availability. Records are preserved."; }

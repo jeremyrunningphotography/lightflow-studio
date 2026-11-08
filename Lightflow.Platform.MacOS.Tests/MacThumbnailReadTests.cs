@@ -60,6 +60,43 @@ public sealed class MacThumbnailReadTests
         }
         finally{Directory.Delete(root,true);}
     }
+    [Fact]
+    public async Task ExistingNativeMetadataProbeReturnsSourceVideoDimensionsWithoutPosterDecode()
+    {
+        if(!OperatingSystem.IsMacOS())return;
+        var root=Path.Combine(Path.GetTempPath(),"lf040-i03-metadata-"+Guid.NewGuid());Directory.CreateDirectory(root);
+        try
+        {
+            var movie=await MakePaddedMovie(root);
+            var renderer=new MacThumbnailRenderer(null!);
+            var result=await renderer.ProbeAsync(movie,"video",new FileInfo(movie).Length);
+            Assert.Equal(LightflowStudio.DerivedMetadataStatus.Succeeded,result.Status);
+            Assert.Equal(320,result.Metadata!.Video!.Width);Assert.Equal(180,result.Metadata.Video.Height);
+            Assert.Null(result.Metadata.Image);
+            var unsupported=await renderer.ProbeAsync(movie,"unknown",0);
+            Assert.Equal(LightflowStudio.DerivedMetadataStatus.Unsupported,unsupported.Status);
+        }
+        finally{Directory.Delete(root,true);}
+    }
+    [Fact]
+    public async Task ImagePropertiesReturnOriginalDimensionsAndMalformedInputStaysUnknown()
+    {
+        if(!OperatingSystem.IsMacOS())return;
+        var root=Path.Combine(Path.GetTempPath(),"lf040-i03-image-"+Guid.NewGuid());Directory.CreateDirectory(root);
+        try
+        {
+            var path=Path.Combine(root,"known.png");
+            // Existing public fixture: one-pixel PNG, not owner media.
+            File.WriteAllBytes(path,Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="));
+            var renderer=new MacThumbnailRenderer(null!);
+            var result=await renderer.ProbeAsync(path,"image",new FileInfo(path).Length);
+            Assert.Equal(LightflowStudio.DerivedMetadataStatus.Succeeded,result.Status);
+            Assert.Equal(1,result.Metadata!.Image!.Width);Assert.Equal(1,result.Metadata.Image.Height);
+            var raw=Path.Combine(root,"unsupported.nef");File.WriteAllText(raw,"invalid raw fixture");
+            Assert.Null((await renderer.ProbeAsync(raw,"raw-image",19)).Metadata);
+        }
+        finally{Directory.Delete(root,true);}
+    }
     private static async Task<string> MakePaddedMovie(string root)
     {
         var original=Path.Combine(root,"original.mp4");Assert.Equal(0,await Task.Run(()=>lf_test_thumbnail_video(original)));

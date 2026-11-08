@@ -377,3 +377,27 @@ The same implementation PR will carry workflow, tests, qualification, registry a
 history, with exact-head CI and post-merge verification still required. Details,
 query/filter/sort and complete indicator parity remain later Browser slices; R4 and
 Mac compatibility are not completed. [H038-Accepted](SOURCES.md#h038-accepted--native-grid-owner-acceptance)
+
+### November 7 — Mac Details and presentation persistence implemented locally
+
+**Local implementation checkpoint; not accepted, merged or released.** LF-MAC-DEV-040
+adds custom retained Details rows over the existing shared Browser snapshot,
+selection and Preview services, with Grid/Details switching and profile presentation
+preferences. Conservative last-location restoration uses exact Catalog/root mapping
+and cached records, deferring reconciliation to explicit Refresh. Native hierarchy
+and Project reconciliation place the separately scoped unified thumbnail sizing
+issue #489 under #480; sizing remains outside #483. Owner Mac acceptance and subsequent
+independent Windows qualification precede one implementation PR. [H040](SOURCES.md#h040--mac-details-local-implementation)
+
+### November 8 — Details presentation reaches cross-platform owner acceptance
+
+**Owner-accepted; final integration and CI pending, not a release.** The owner
+accepted LF-MAC-DEV-040 I04 and the four bounded Windows checks after
+LF-WIN-DEV-042's corrections. Independent LF-WIN-TST-041 qualification applies to
+the original accepted Mac source; the corrected combined source preserves every
+Mac production file. Details, three remembered Grid modes, configurable columns,
+cached-first restoration and visible Preview activity now form the accepted #483
+slice. LF-WIN-ADM-043 owns fresh qualification and single-PR closeout under explicit
+normal-merge authorization. Unified sizing, search/filter/sort, further metadata
+and NAS scan performance remain separate work; wider Mac compatibility remains
+incomplete. [H043](SOURCES.md#h043--details-owner-acceptance-and-closeout)

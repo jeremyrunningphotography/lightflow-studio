@@ -145,7 +145,9 @@ public partial class MainWindow
         var revision = ++_browserLayoutRevision;
         var generation = _browserUiGeneration;
         var saved = preserveContext ? CaptureWorkspaceGrid() : null;
+        BrowserDetailsHeaders.CancelFeedback();
         _browserLayoutMode = mode;
+        BrowserPreviewViewButton.IsEnabled = BrowserInfoViewButton.IsEnabled = BrowserHybridViewButton.IsEnabled = mode == BrowserLayoutMode.Grid;
         BrowserGridLayoutButton.IsChecked = mode == BrowserLayoutMode.Grid;
         BrowserDetailsLayoutButton.IsChecked = mode == BrowserLayoutMode.Details;
         BrowserDetailsHeaderScroll.Visibility = mode == BrowserLayoutMode.Details ? Visibility.Visible : Visibility.Collapsed;

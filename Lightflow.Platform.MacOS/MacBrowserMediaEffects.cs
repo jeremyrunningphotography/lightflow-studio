@@ -55,7 +55,11 @@ internal sealed class MacBrowserMediaEffects(string[] protectedRoots) : IMediaRo
         var first = await ValidateAsync(assessor, request, cancellationToken).ConfigureAwait(false);
         if (!await Task.Run(() => assessor.IsResidentMedia(folderPath, cancellationToken), cancellationToken).ConfigureAwait(false))
             throw new IOException("This cloud folder is unavailable locally. Make it available in Finder, then retry; no download was requested.");
-        var result = await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath, folderPath, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<MediaFolderFileSystemEntry> result;
+        using (var entriesTiming = BrowserPerformance.Measure("mac.filesystem.entries_stat"))
+            result = await new ContainedMediaFolderFileSystem(this).EnumerateAsync(mediaRootPath, folderPath, cancellationToken).ConfigureAwait(false);
+        timing?.SetTag("entries", result.Count);
+        using var residencyTiming = BrowserPerformance.Measure("mac.filesystem.residency");
         var types = MediaTypeRegistry.CreateDefault();
         var resident = new List<MediaFolderFileSystemEntry>(result.Count);
         foreach (var entry in result)

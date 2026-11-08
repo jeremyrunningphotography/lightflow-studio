@@ -12,15 +12,36 @@ internal sealed class BrowserThumbnailCell : Border
     private readonly BrowserViewModel _model; private readonly Guid _id;
     private readonly Image _image = new() { Stretch = Stretch.Uniform };
     private readonly TextBlock _state = new() { FontSize = 10, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+    private readonly BrowserPreviewActivity _activity;
     private Bitmap? _bitmap; private string? _path; private bool _attached;
     public static int RetainedBitmaps => Volatile.Read(ref _retained);
     private static int _retained;
-    public BrowserThumbnailCell(BrowserViewModel model, Guid id)
+    public BrowserThumbnailCell(BrowserViewModel model, Guid id, bool details=false)
     {
+        _activity = new BrowserPreviewActivity(details);
         _model = model; _id = id; Width = 64; Height = 48; Background = new SolidColorBrush(Color.Parse("#05070A"));
-        var grid = new Grid(); grid.Children.Add(_image); grid.Children.Add(_state); Child = grid;
-        AttachedToVisualTree += (_, _) => { _attached = true; _model.PropertyChanged += Changed; Apply(); };
-        DetachedFromVisualTree += (_, _) => { _attached = false; _model.PropertyChanged -= Changed; Release(); };
+        SizeChanged += (_, _) => _activity.MaxWidth = Math.Max(0, Bounds.Width);
+        var grid = new Grid(); grid.Children.Add(_image); grid.Children.Add(_state); grid.Children.Add(_activity); Child = grid;
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_activity, "BrowserPreviewActivity");
+        Avalonia.Automation.AutomationProperties.SetName(_activity, "Generating Preview");
+        AttachedToVisualTree += (_, _) =>
+        {
+            _attached = true; _model.PropertyChanged += Changed; Apply();
+            if (ThumbnailPerformance.Source.HasListeners())
+            {
+                var scope = _model.ThumbnailScopeRevision;
+                TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ =>
+                {
+                    if (_attached && scope == _model.ThumbnailScopeRevision)
+                    {
+                        using var presented = ThumbnailPerformance.Measure("ui.asset.next_frame", _id);
+                        presented?.SetTag("scope", scope);
+                        presented?.SetTag("presentation", "realized asset at next render-frame callback; pixels not GPU-fenced");
+                    }
+                });
+            }
+        };
+        DetachedFromVisualTree += (_, _) => { _attached = false; _activity.SetGenerating(false); _model.PropertyChanged -= Changed; Release(); };
     }
     private void Changed(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(BrowserViewModel.Thumbnails)) Apply(); }
     private void Release() { _image.Source = null; if (_bitmap is not null) { _bitmap.Dispose(); _bitmap = null; Interlocked.Decrement(ref _retained); } _path = null; }
@@ -28,6 +49,7 @@ internal sealed class BrowserThumbnailCell : Border
     {
         if (!_attached) return;
         var value = _model.Thumbnails.GetValueOrDefault(_id);
+        _activity.SetGenerating(_model.IsPreviewGenerating(_id));
         if (_path != value?.Path)
         {
             Release();

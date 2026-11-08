@@ -284,6 +284,8 @@ public class CatalogMediaFolderEnumerator(
                 $"The folder is temporarily unavailable: {exception.Message}");
         }
 
+        using var classificationTiming = ThumbnailPerformance.Measure("discovery.classification_projection");
+        classificationTiming?.SetTag("entries", sourceEntries.Count);
         var entries = new List<MediaFolderEntry>(sourceEntries.Count);
         var skippedLinks = 0;
         try

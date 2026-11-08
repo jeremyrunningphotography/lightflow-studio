@@ -3,6 +3,8 @@ namespace Lightflow.Platform.MacOS;
 
 public sealed partial class MacShellCatalogSession
 {
+    private readonly ThumbnailGenerationActivity _thumbnailActivity = new();
+    public IThumbnailGenerationActivity ThumbnailActivity => _thumbnailActivity;
     private CatalogPreviewStoreService? _previews;
     private SharedDerivedWorkScheduler? _previewScheduler;
     private PreviewOperationCoordinator? _previewOperations;
@@ -24,13 +26,13 @@ public sealed partial class MacShellCatalogSession
             var colors = new MacPreviewColorSource(owner, guard);
             var preferred = new CatalogPreferredPreviewFrameStore(() => owner.Session);
             var operations = new PreviewOperationCoordinator();
-            var metadata = new DerivedMediaMetadataService(assets, store, renderer);
+            var metadata = new DerivedMediaMetadataService(assets, store, renderer, probeVersion: MacThumbnailRenderer.MetadataProbeVersion);
             var thumbnails = new SharedThumbnailGenerationService(assets, store, owner.Locations, renderer, metadata, operations: operations,
-                colorSource: colors, validate: renderer.Validate, preferredFrames: preferred, pathGuard: path => { guard.GuardAccess(path); return path; });
+                colorSource: colors, validate: renderer.Validate, preferredFrames: preferred, activity: _thumbnailActivity, pathGuard: path => { guard.GuardAccess(path); return path; });
             _previewOperations = operations; _previews = store; _previewColors = colors;
             _previewScheduler = new(assets, store, metadata, thumbnails, ownsGenerators: true, operations: operations, colors: colors,
                 artifactExists: relative => File.Exists(store.ResolveArtifactPath(relative)), preferredFrames: preferred, excludedPath: effects.IsProtected,
-                supportsThumbnail: type => type is "image" or "raw-image" or "video");
+                supportsThumbnail: type => type is "image" or "raw-image" or "video", probeVersion: MacThumbnailRenderer.MetadataProbeVersion);
         }
         catch { _previews = null; _previewColors = null; _previewOperations?.Dispose(); _previewOperations = null; await store.DisposeAsync(); throw; }
     }
@@ -60,6 +62,7 @@ public sealed partial class MacShellCatalogSession
             var assets = await new CatalogMediaAssetRepository(() => owner.Session).GetManyAsync(ids.ToArray(), token).ConfigureAwait(false);
             var preferred = new CatalogPreferredPreviewFrameStore(() => owner.Session);
             var rotations = await new CatalogAssetVideoRotationStore(() => owner.Session).GetAsync(ids.ToArray(), token).ConfigureAwait(false);
+            var classifications = await new CatalogAssetClassificationStore(() => owner.Session).GetAsync(ids.ToArray(), token).ConfigureAwait(false);
             var result = new Dictionary<Guid, BrowserThumbnail>();
             foreach (var (id, record) in records)
             {
@@ -73,8 +76,14 @@ public sealed partial class MacShellCatalogSession
                 var state = !sameSource || !sameVisual ? "Loading" : record.ThumbnailState == PreviewComponentState.Failed ? record.ThumbnailFailureReason switch
                 { PreviewFailureReason.CodecUnavailable => "Unsupported", PreviewFailureReason.DependencyUnavailable => "LUT unavailable", _ => "Preview failed" }
                     : asset?.SourceStatus == MediaAssetSourceStatus.Missing || record.SourceAvailability is PreviewSourceAvailability.Missing or PreviewSourceAvailability.Unavailable ? "Unavailable" : path is null ? "Loading" : "Ready";
-                result[id] = new(id, path, state, rotations.TryGetValue(id, out var rotation) ? rotation.Rotation.Degrees : 0);
+                DerivedMediaMetadata? metadata = null;
+                if (sameSource && record.MetadataState == PreviewComponentState.Current)
+                    DerivedMediaMetadataService.TryDeserialize(record.MetadataJson, out metadata);
+                result[id] = new(id, path, state, rotations.TryGetValue(id, out var rotation) ? rotation.Rotation.Degrees : 0,
+                    Metadata: metadata, Classification: classifications.GetValueOrDefault(id));
             }
+            foreach(var id in ids.Where(id=>!result.ContainsKey(id)))
+                result[id]=new(id,null,"Loading",Classification:classifications.GetValueOrDefault(id));
             return result;
         }, token);
     private async Task RetirePreviewsAsync()

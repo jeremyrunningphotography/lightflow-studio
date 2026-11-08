@@ -83,6 +83,7 @@ public sealed class CatalogReconciliationService(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!byPath.TryGetValue(entry.RelativePathKey, out var prior))
                 {
+                    using var creationTiming = BrowserPerformance.Measure("source.creation");
                     var created = await assets.CreateAsync(request.RootId, entry.RelativePath,
                         MediaTypeName(entry.MediaType.Category), cancellationToken).ConfigureAwait(false);
                     if (!created.Succeeded || created.Asset is null)

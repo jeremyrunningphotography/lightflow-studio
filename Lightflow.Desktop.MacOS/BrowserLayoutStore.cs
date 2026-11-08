@@ -4,7 +4,7 @@ using Lightflow.UI;
 namespace Lightflow.Desktop.MacOS;
 
 // Optional presentation preferences in the explicit isolated profile, never in the Catalog.
-// No filesystem navigation, Catalog state, selection or schema is persisted here.
+// Presentation and an optional Catalog-bound location bookmark only; no media records, selection or schema.
 internal static class BrowserLayoutStore
 {
     public static BrowserLayout Load(string root)

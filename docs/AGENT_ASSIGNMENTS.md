@@ -17,6 +17,10 @@ this assignment does not maintain that workspace or its records.
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
+| 042 | LF-WIN-DEV-042 | Windows Details Presentation Parity | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Done through corrected source ce35e036 / c700cb3d and owner Windows 4/4 PASS; full Release 2884/0/2; final integration/CI/merge by 043 |
+| 041 | LF-WIN-TST-041 | Mac Details Windows Qualification | Issue #483, parent #480 | Done; exact b5694012 / 741442a9 independently qualified: full Release 2880/0/2, focused 670, package and Catalog safeguards PASS; later corrections qualified separately |
+| 040 | LF-MAC-DEV-040 | Mac Browser Details | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Done through accepted I04 b5694012 / 741442a9, owner Mac 4/4 PASS and independent 041 PASS; final integration/CI/merge by 043 |
 | 039 | LF-WIN-TST-039 | Mac Grid Windows Qualification | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done; accepted e941fabef / ef16701a independently qualified with owner-approved inconclusive Catalog exception; focused 606 PASS, full 2879 passed / 1 failed / 2 skipped; Windows owner 6/6 PASS; implementation integration/CI/merge tracked by 038 |
 | 038 | LF-MAC-DEV-038 | Mac Browser Grid Cards | [Issue #482](https://github.com/jeremyrunningphotography/lightflow-studio/issues/482), parent #480 | Done through accepted implementation/qualification; Mac I02 8/8 and Windows 6/6 accepted at e941fabef / ef16701a; final single-PR CI/merge/post-merge gates remain pending at record preparation |
 | 037 | LF-WIN-TST-037 | Browser Thumbnail Windows Qualification | [Issue #481](https://github.com/jeremyrunningphotography/lightflow-studio/issues/481), [PR #486](https://github.com/jeremyrunningphotography/lightflow-studio/pull/486) | Done; accepted 93ab479e / ea732bc6 qualified; Gate A/focused/package/Catalog safety PASS; full Release 2,880 passed / 2 skipped; owner Windows 6/6 PASS; original failed attempts retained; implementation merged 4d182639 |
@@ -1053,3 +1057,48 @@ and registry administration; accepted implementation history remains unchanged.
 Both assignments are Done through owner-accepted implementation and independent qualification. LF-MAC-DEV-038 delivered accepted `e941fabefde207878d88690000a624bab8853cae`, tree `ef16701a7522a215962657716d047251128a6f9b`; Mac I02 8/8 PASS preserves the nine accepted I01 behaviors. LF-WIN-TST-039 independently verified the same source/tree on DARKMATTER: 606 focused Windows tests PASS; full Release **2,879 passed / 1 failed / 2 skipped**, not a clean PASS. Original access-denied Catalog restore failure, subsequent accepted-source PASS and baseline comparisons are preserved. Owner Windows 6/6 PASS and explicit approval dispose qualification as **accepted with a documented inconclusive exception**, without claiming a confirmed regression or correction. This supersedes the original 039 report's pending-owner gate only; original findings remain intact. See [acceptance/closeout preparation](qualification/mac-grid-482-closeout.md) and [original Windows report](qualification/windows-grid-482-039.md).
 
 Owner explicitly authorizes one implementation PR and normal merge once required full exact-head CI succeeds, then post-merge CI and issue/Project cleanup, without another approval round. Production and relevant validation inputs must stay byte-identical to accepted source. This pre-merge record does not claim merge/CI/issue completion; final provenance belongs in #482/PR metadata and portable closeout evidence, never an administrative PR. #480 remains incomplete; #483–#485 unstarted, #395/#366 open. Retain both task workspaces/evidence and issue-scoped acceptance Catalogs; do not reset/delete data or release/tag.
+
+
+## Assignment 040 reservation — 2026-11-07
+
+Owner-assigned LF-MAC-DEV-040 — Mac Browser Details, independent full clone
+`/Users/jeremyrunning/Git/agents/LF-MAC-DEV-040-MacBrowserDetails`, branch
+`codex/040-mac-browser-details`, verified main `cc64f725aefb461c1b1a798cf2dfffa04658befd`.
+040 absent from current/fetched remote registries and matching GitHub issue/PR search.
+Native #366 → #395 → #480 with all six children verified; #489 parent and Project
+#4 membership reconciled/read back Backlog/Browser/unset Priority. #481/#482 Done;
+#483 In Progress at implementation start, read back Browser/unset Priority; parents remain open. No blocking edges
+introduced. Local implementation/package/ZIP only; no PR, later sizing/query/metadata
+work, qualifier allocation, release or merge. New issue-scoped acceptance data only.
+
+## Assignment 040 Iteration 02 — 2026-11-07
+
+Owner I01 acceptance at `4a9e5473` / `e0307d1f`: eleven PASS results retained;
+column configuration needs work, unavailable-volume/NAS and real RAW/DJI/NAS
+performance remain NOT TESTED. Same clone/branch and retained #483 Catalog.
+I02 corrects column-state propagation, physical header/cell alignment and drag insertion
+feedback, and reveals the restored Locations ancestor chain without discovery or Catalog
+mutation. Sorting remains #484, sizing #489 and full indicators #485. See
+[I02 report](qualification/mac-details-483-040-i02.md). Local package/evidence and focused
+owner recheck precede independent Windows qualification and one implementation PR.
+No PR/qualifier allocation, issue closure, merge or release. Historical maintenance
+Not warranted for bounded corrections; earlier milestone records are preserved.
+
+## Assignment 042 reservation — 2026-11-07
+
+Owner-assigned LF-WIN-DEV-042 — Windows Details Presentation Parity, bounded
+#483 correction with parent #480. Independent full clone
+`C:\Git\Agents\LF-WIN-DEV-042-WindowsDetailsParity`, branch
+`codex/042-windows-details-parity`. Current remote main verified as
+`cc64f725aefb461c1b1a798cf2dfffa04658befd`; 042 absent from its registry.
+Exact accepted source transferred through an independent no-hardlinks full clone
+from 041 without modifying that workspace: `b5694012ec7ad15d35fa8de6d640d478222447de`,
+tree `741442a96ca3fb9fcba4fe73e75004ca9d3ad849`. Local Windows implementation,
+validation and package only; no PR, merge, closure or release. Accepted Mac code
+and retained 041 Catalog untouched. Fresh corrected-source qualification and focused
+owner acceptance remain required. Historical maintenance Not warranted for bounded
+presentation corrections.
+
+## Assignment 043 — final Details closeout, 2026-11-08
+
+043 was absent from fetched main and open PR inventory; 040/041/042 retained local allocations were reconciled before claiming it. Independent full clone: C:\Git\Agents\LF-WIN-ADM-043-DetailsCloseout; branch codex/483-details-closeout. Owner final Mac I04 and Windows four-check acceptance are both 4/4 PASS at the source identities in the [stage-specific qualification record](qualification/details-483-closeout-043.md). Fresh final qualification and the single implementation PR carry all closeout records. Normal merge is explicitly owner-authorized after all gates; actual merge, post-merge CI and final Project reconciliation must be recorded in issue/PR discussion rather than a routine follow-up PR. Accepted production behavior, historical failures and retained issue Catalogs remain preserved; no release/tag or deferred scope is authorized.

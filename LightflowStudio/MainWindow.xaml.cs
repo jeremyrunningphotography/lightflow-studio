@@ -2149,7 +2149,10 @@ public partial class MainWindow : Window
     private void BrowserViewMode_Click(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton { Tag: string value } && Enum.TryParse<BrowserViewMode>(value, out var mode))
+        {
+            if (_browserLayoutMode == BrowserLayoutMode.Details) return;
             ApplyBrowserViewMode(mode, persist: true);
+        }
     }
 
     private void ApplyBrowserViewMode(BrowserViewMode mode, bool persist)

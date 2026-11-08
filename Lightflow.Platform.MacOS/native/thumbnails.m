@@ -106,7 +106,7 @@ static BOOL saveImage(CGImageRef image,NSString *output,LFThumbnailInfo *info) {
     BOOL ok=NO;if(destination) {CGImageDestinationAddImage(destination,normalized,NULL);ok=CGImageDestinationFinalize(destination);CFRelease(destination);}
     CGImageRelease(normalized);info->width=(int)w;info->height=(int)h;return ok;
 }
-// mode 0: video metadata; mode 1: image thumbnail; mode 2: video poster.
+// mode 0: video metadata; mode 1: image thumbnail; mode 2: video poster; mode 3: image properties only.
 int lf_thumbnail_profile(const char *path,int mode,double requested,const char *output,const int *cancel,LFThumbnailInfo *info,LFThumbnailTrace *trace) {
     double started=trace?previewMilliseconds():0;if(trace)memset(trace,0,sizeof(*trace));
     @autoreleasepool {
@@ -114,7 +114,7 @@ int lf_thumbnail_profile(const char *path,int mode,double requested,const char *
         int active=atomic_fetch_add(&previewReaders,1)+1;if(trace)trace->activeReaders=active;
         int status=3;
         @try {
-            if(mode==1) {
+            if(mode==1 || mode==3) {
                 // ImageIO owns a dup of the already-admitted descriptor, with materialization disabled on this thread.
                 int old=lf_preview_begin();
                 if(old<0) {status=2;return status;}
@@ -126,14 +126,20 @@ int lf_thumbnail_profile(const char *path,int mode,double requested,const char *
                 if(source) {
                     NSDictionary *properties=CFBridgingRelease(CGImageSourceCopyPropertiesAtIndex(source,0,NULL));
                     info->orientation=[properties[(__bridge NSString *)kCGImagePropertyOrientation] intValue];
-                    NSDictionary *options=@{(__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize:@512,(__bridge NSString *)kCGImageSourceCreateThumbnailWithTransform:@YES,(__bridge NSString *)kCGImageSourceShouldCacheImmediately:@YES};
-                    CGImageRef image=CGImageSourceCreateThumbnailAtIndex(source,0,(__bridge CFDictionaryRef)options);
-                    info->mechanism=1; // existing embedded preview
-                    if(!image) {
-                        NSMutableDictionary *fallback=[options mutableCopy];fallback[(__bridge NSString *)kCGImageSourceCreateThumbnailFromImageAlways]=@YES;
-                        image=CGImageSourceCreateThumbnailAtIndex(source,0,(__bridge CFDictionaryRef)fallback);info->mechanism=2;
+                    if(mode==3) {
+                        info->width=[properties[(__bridge NSString *)kCGImagePropertyPixelWidth] intValue];
+                        info->height=[properties[(__bridge NSString *)kCGImagePropertyPixelHeight] intValue];
+                        status=cancelled(cancel)?1:(info->width>0 && info->height>0 ? 0 : 3);
+                    } else {
+                        NSDictionary *options=@{(__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize:@512,(__bridge NSString *)kCGImageSourceCreateThumbnailWithTransform:@YES,(__bridge NSString *)kCGImageSourceShouldCacheImmediately:@YES};
+                        CGImageRef image=CGImageSourceCreateThumbnailAtIndex(source,0,(__bridge CFDictionaryRef)options);
+                        info->mechanism=1; // existing embedded preview
+                        if(!image) {
+                            NSMutableDictionary *fallback=[options mutableCopy];fallback[(__bridge NSString *)kCGImageSourceCreateThumbnailFromImageAlways]=@YES;
+                            image=CGImageSourceCreateThumbnailAtIndex(source,0,(__bridge CFDictionaryRef)fallback);info->mechanism=2;
+                        }
+                        if(image) {status=cancelled(cancel)?1:(saveImage(image,@(output),info)?0:4);CGImageRelease(image);}
                     }
-                    if(image) {status=cancelled(cancel)?1:(saveImage(image,@(output),info)?0:4);CGImageRelease(image);}
                     CFRelease(source);
                 }
                 } @finally {if(lf_preview_end(old)!=0)status=2;}
@@ -161,7 +167,14 @@ int lf_thumbnail_profile(const char *path,int mode,double requested,const char *
                 else {
                     info->duration=CMTimeGetSeconds(asset.duration);
                     if(!isfinite(info->duration)||info->duration<=0)info->duration=0;
-                    if(mode==0)status=0;
+                    if(mode==0) {
+                        AVAssetTrack *track=[[asset tracksWithMediaType:AVMediaTypeVideo] firstObject];
+                        CGSize size=track.naturalSize;
+                        if(isfinite(size.width) && isfinite(size.height) && size.width>0 && size.height>0 && size.width<=INT_MAX && size.height<=INT_MAX) {
+                            info->width=(int)size.width;info->height=(int)size.height;
+                        }
+                        status=0;
+                    }
                     else {
                         double frameStarted=trace?previewMilliseconds():0;
                         AVAssetImageGenerator *generator=[[AVAssetImageGenerator alloc] initWithAsset:asset];

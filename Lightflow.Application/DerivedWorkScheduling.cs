@@ -6,6 +6,7 @@ namespace LightflowStudio;
 /// </summary>
 public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
 {
+    private readonly Func<string?, int> _probeVersion;
     private readonly TimeProvider _time;
     private readonly IPreferredPreviewFrameStore? _preferredFrames;
     private readonly Func<string, bool>? _excludedPath;
@@ -42,9 +43,10 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
         int maximumConcurrency = 2, bool ownsGenerators = false,
         IPreviewOperationCoordinator? operations = null, IThumbnailColorSource? colors = null,
         Func<string, bool>? artifactExists = null, IPreferredPreviewFrameStore? preferredFrames = null,
-        Func<string, bool>? excludedPath = null, TimeProvider? time = null, Func<string, bool>? supportsThumbnail = null)
+        Func<string, bool>? excludedPath = null, TimeProvider? time = null, Func<string, bool>? supportsThumbnail = null, Func<string?, int>? probeVersion = null)
     {
         if (maximumConcurrency <= 0) throw new ArgumentOutOfRangeException(nameof(maximumConcurrency));
+        _probeVersion = probeVersion ?? DerivedMediaMetadataService.ProbeVersionFor;
         _time = time ?? TimeProvider.System;
         _preferredFrames = preferredFrames;
         _excludedPath = excludedPath;
@@ -204,7 +206,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
             preview = await _previews.GetAsync(assetId, cancellationToken).ConfigureAwait(false);
         var sameSource = preview is not null && SameSource(preview.Source, source);
         var needsMetadata = !sameSource || preview!.MetadataState != PreviewComponentState.Current ||
-            preview.MetadataProbeVersion != DerivedMediaMetadataService.ProbeVersionFor(resolved.Asset.MediaType);
+            preview.MetadataProbeVersion != _probeVersion(resolved.Asset.MediaType);
         var supportsThumbnail = (_supportsThumbnail?.Invoke(resolved.Asset.MediaType) ?? (resolved.Asset.MediaType is "image" or "video"));
         var visualIdentity = PreviewVisualIdentity.Original;
         if (_colors is not null && string.Equals(resolved.Asset.MediaType, "video", StringComparison.OrdinalIgnoreCase))
@@ -219,7 +221,7 @@ public class SharedDerivedWorkScheduler : IDerivedWorkScheduler
             !string.Equals(preview.ThumbnailVisualIdentity ?? PreviewVisualIdentity.Original, visualIdentity, StringComparison.Ordinal));
 
         var deferredMetadata = sameSource && PreviewRetryPolicy.MetadataDeferred(preview!,
-            DerivedMediaMetadataService.ProbeVersionFor(resolved.Asset.MediaType), _time.GetUtcNow());
+            _probeVersion(resolved.Asset.MediaType), _time.GetUtcNow());
         var deferredThumbnail = sameSource && preview!.ThumbnailFailureReason != PreviewFailureReason.DependencyUnavailable &&
             PreviewRetryPolicy.ThumbnailDeferred(preview, visualIdentity, _time.GetUtcNow());
         needsMetadata &= !deferredMetadata;

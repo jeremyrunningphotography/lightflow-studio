@@ -48,13 +48,17 @@ public static class BrowserPresentation
 
 /// <summary>Optional view preferences only, independent of Catalog and navigation persistence.</summary>
 public sealed record BrowserLayout(double NavigationWidth = 280, double RightWidth = 360, bool RightOpen = false,
-    ShellWindowGeometry? Window = null, int Version = 3, bool Zoomed = false)
+    ShellWindowGeometry? Window = null, int Version = 4, bool Zoomed = false, BrowserLayoutMode Presentation = BrowserLayoutMode.Grid,
+    BrowserCardMode CardMode = BrowserCardMode.Preview, IReadOnlyList<BrowserColumnPreference>? DetailsColumns = null, BrowserLocationBookmark? LastLocation = null)
 {
     public BrowserLayout Validated() => this with
     {
         NavigationWidth=double.IsFinite(NavigationWidth) ? Math.Clamp(NavigationWidth,180,520) : 280,
         RightWidth=double.IsFinite(RightWidth) ? Math.Clamp(RightWidth,200,600) : 360,
         Window=Window is { IsValid:true } ? Window : null,
-        Version=3
+        Version=4,
+        Presentation=Enum.IsDefined(Presentation) ? Presentation : BrowserLayoutMode.Grid,
+        CardMode=Enum.IsDefined(CardMode) ? CardMode : BrowserCardMode.Preview,
+        DetailsColumns=DetailsColumns is null ? null : BrowserDetailsLayout.Normalize(DetailsColumns)
     };
 }

@@ -6,6 +6,30 @@ namespace Lightflow.Catalog.Tests;
 public sealed class PreviewFoundationTests
 {
     [Fact]
+    public async Task HostProbeVersionRefreshesMetadataOnceWithoutReplacingCurrentThumbnail()
+    {
+        var root=Root();var locations=new Locations(root);var assets=new Assets(root);var id=assets.Add();var renderer=new Renderer();
+        await using var store=new CatalogPreviewStoreService(locations);
+        using var generator=Generator(assets,store,locations,renderer);
+        await generator.GenerateAsync(new(id));var before=(await store.GetAsync(id))!;
+        var probe=new DimensionProbe();
+        using(var old=new DerivedMediaMetadataService(assets,store,probe))await old.ProbeAsync(id);
+        using var updated=new DerivedMediaMetadataService(assets,store,probe,probeVersion:_=>3);
+        Assert.Equal(DerivedMetadataStatus.Succeeded,(await updated.ProbeAsync(id)).Status);
+        Assert.Equal(DerivedMetadataStatus.Current,(await updated.ProbeAsync(id)).Status);
+        Assert.Equal(2,probe.Calls);
+        var after=(await store.GetAsync(id))!;Assert.Equal(3,after.MetadataProbeVersion);Assert.Equal(before.ThumbnailRelativePath,after.ThumbnailRelativePath);
+        await using var scheduler=new SharedDerivedWorkScheduler(assets,store,updated,generator,artifactExists:_=>true,probeVersion:_=>3);
+        await scheduler.TrySchedule(Reconcile(id)).Batch!.Completion;
+        Assert.Equal(2,probe.Calls);Assert.Equal(1,renderer.Calls);
+    }
+    sealed class DimensionProbe:IMediaMetadataProbe
+    {
+        public int Calls;
+        public Task<MediaProbeResult> ProbeAsync(string path,string type,long size,CancellationToken cancellationToken=default)
+        {Calls++;return Task.FromResult(new MediaProbeResult(DerivedMetadataStatus.Succeeded,new(DerivedMediaKind.Image,"jpg",null,null,size,null,null,null,new("jpg",100,50,null,null,null,null,null,null))));}
+    }
+    [Fact]
     public async Task RealSchemaFourSurvivesReopenAndSourceInvalidation()
     {
         var root=Root();var locations=new Locations(root);var assets=new Assets(root);var id=assets.Add();var renderer=new Renderer();

@@ -389,3 +389,23 @@ Validation checks original-content preservation, unique source identifiers, loca
   preserved, with later owner disposition distinct from the historical report.
 - Integration/required CI/merge are not claimed by this accepted-source checkpoint.
   Final immutable merge and post-merge CI provenance belong in #482/PR metadata.
+
+## H040 — Mac Details local implementation
+
+- Owner-assigned LF-MAC-DEV-040 for [#483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483),
+  native parent #480; sizing split into [#489](https://github.com/jeremyrunningphotography/lightflow-studio/issues/489).
+- [Architecture, Windows column inventory and restoration semantics](../qualification/mac-details-483-040.md).
+- Exact local source/tree, test logs and package integrity are recorded in the task's
+  portable evidence ZIP. No owner acceptance, Windows qualification, PR or merge is
+  claimed by this local checkpoint.
+
+## H043 — Details owner acceptance and closeout
+
+- [#483 authoritative acceptance and authorization](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483).
+- Accepted Mac commit `b5694012ec7ad15d35fa8de6d640d478222447de`, tree
+  `741442a96ca3fb9fcba4fe73e75004ca9d3ad849`; owner I04 4/4 PASS.
+- Accepted Windows-corrected commit `ce35e0367977ed31293466b36659509c269bf558`,
+  tree `c700cb3d810ca16a7d10bc33c328e8d94f47545b`; owner Windows 4/4 PASS.
+- [Stage provenance, independent Windows qualification and final closeout](../qualification/details-483-closeout-043.md).
+  Historical source-specific evidence is retained in 040/041/042 packages; final
+  merge and CI provenance belongs in the implementation PR/issue discussion.

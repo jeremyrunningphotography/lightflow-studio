@@ -1,8 +1,10 @@
 namespace LightflowStudio;
 
-public sealed record BrowserThumbnail(Guid AssetId,string? Path,string State,int RotationDegrees=0,string? Diagnostic=null);
+public sealed record BrowserThumbnail(Guid AssetId,string? Path,string State,int RotationDegrees=0,string? Diagnostic=null,
+    DerivedMediaMetadata? Metadata=null, Lightflow.Domain.AssetClassification? Classification=null);
 public interface IBrowserThumbnailSession
 {
+    IThumbnailGenerationActivity? ThumbnailActivity => null;
     Task<IDerivedWorkBatch?> DemandThumbnailsAsync(IReadOnlyList<Guid> ids,DerivedWorkPriority priority,CancellationToken token);
     Task<IReadOnlyDictionary<Guid,BrowserThumbnail>> ReadThumbnailsAsync(IReadOnlyList<Guid> ids,CancellationToken token);
 }

@@ -2943,42 +2943,86 @@ public partial class MainWindow : Window
 
     private FileOperationSource? SelectedFolderOperationSource() => _browserTree.SelectedNode?.AbsolutePath is { } path
         ? new FileOperationSource(null, path, IsDirectory: true) : null;
-    private void CopySelectedFolderToClipboard(FileOperationKind kind)
+    internal Action<System.Windows.DataObject> FolderClipboardWriter { get; set; } = data => System.Windows.Clipboard.SetDataObject(data, true);
+
+    private void CopyFolderToClipboard(FileOperationSource source, FileOperationKind kind)
     {
-        if (SelectedFolderOperationSource() is not { } source) return;
         var data = new System.Windows.DataObject();
         data.SetData(System.Windows.DataFormats.FileDrop, new[] { source.Path });
         data.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(kind == FileOperationKind.Move ? 2 : 1)));
         data.SetData("LightflowStudio.FileOperation", kind.ToString());
-        System.Windows.Clipboard.SetDataObject(data, true); _lightflowClipboardKind = kind;
+        FolderClipboardWriter(data); _lightflowClipboardKind = kind;
         _lightflowClipboardSources = [source];
     }
-    private void BrowserFolderCut_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Move);
-    private void BrowserFolderCopy_Click(object sender, RoutedEventArgs e) => CopySelectedFolderToClipboard(FileOperationKind.Copy);
-    private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e) => await PasteBrowserClipboardAsync(_browserTree.SelectedNode?.AbsolutePath);
+    private async void BrowserFolderCut_Click(object sender, RoutedEventArgs e) => await CopyContextFolderAsync(FileOperationKind.Move);
+    private async void BrowserFolderCopy_Click(object sender, RoutedEventArgs e) => await CopyContextFolderAsync(FileOperationKind.Copy);
+    private async Task CopyContextFolderAsync(FileOperationKind kind)
+    {
+        var target = _folderContextTarget;
+        if (await ValidateContextFolderAsync(target, kind == FileOperationKind.Move))
+            CopyFolderToClipboard(new(null, target!.Path, IsDirectory: true), kind);
+    }
+    private async void BrowserFolderPaste_Click(object sender, RoutedEventArgs e)
+    {
+        var target = _folderContextTarget;
+        if (await ValidateContextFolderAsync(target)) await PasteBrowserClipboardAsync(target!.Path);
+    }
     private async void BrowserFolderDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedFolderOperationSource() is { } source) await DeleteFileSourcesAsync([source], false);
+        var target = _folderContextTarget;
+        if (!await ValidateContextFolderAsync(target, true)) return;
+        await BrowserDeleteOperation.RunAsync([new(null, target!.Path, IsDirectory: true)], false,
+            WindowsRecycleCapability.CanRecycle,
+            dialog => ConfirmationDialog.Confirm(this, dialog.Title, dialog.Heading,
+                dialog.Description + Environment.NewLine + target.Path, dialog.Warning, dialog.Action, dialog.Cancel),
+            async (kind, sources) =>
+            {
+                if (await ValidateContextFolderAsync(target, true)) await ExecuteFileOperationAsync(kind, sources, null);
+            });
     }
 
     private async void BrowserFolderNew_Click(object sender, RoutedEventArgs e)
     {
-        if (_browserTree.SelectedNode?.AbsolutePath is not { } parent) return;
+        var target = _folderContextTarget;
+        if (!await ValidateContextFolderAsync(target)) return;
         var name = TextEntryDialog.Prompt(this, "New Folder", "Folder name");
-        if (name is null) return;
-        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.CreateFolderAsync(parent, name)]); }
+        if (name is null || !await ValidateContextFolderAsync(target)) return;
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.CreateFolderAsync(target!.Path, name)]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "New Folder", "The folder could not be created", ex.Message); }
     }
 
     private async void BrowserFolderRename_Click(object sender, RoutedEventArgs e)
     {
-        if (SelectedFolderOperationSource() is not { } source) return;
-        var name = TextEntryDialog.Prompt(this, "Rename folder", "Name", Path.GetFileName(Path.TrimEndingDirectorySeparator(source.Path)));
-        if (name is null) return;
-        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(source, name)]); }
+        var target = _folderContextTarget;
+        if (!await ValidateContextFolderAsync(target, true)) return;
+        var name = TextEntryDialog.Prompt(this, "Rename folder", "Name", Path.GetFileName(Path.TrimEndingDirectorySeparator(target!.Path)));
+        if (name is null || !await ValidateContextFolderAsync(target, true)) return;
+        try { await SynchronizeFileSystemMutationsAsync([await _fileOperationExecutor.RenameAsync(new(null, target.Path, IsDirectory: true), name)]); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { NoticeDialog.Show(this, "Rename", "The folder could not be renamed", ex.Message); }
+    }
+
+    private async Task<bool> ValidateContextFolderAsync(BrowserFolderContextTarget? target, bool changeEntry = false)
+    {
+        try
+        {
+            var valid = target is not null && (!changeEntry || target.CanChangeEntry) && target.IsCurrent(_browserTree.KnownFolders());
+            if (valid && target!.Node.RootId is { } id)
+            {
+                var root = await _storage.MediaRoots.GetAsync(id);
+                valid = root is { Availability: MediaRootAvailability.Online, PhysicalPath: { } path } &&
+                    string.Equals(string.IsNullOrEmpty(target.Node.RelativeFolder) ? MediaPathSemantics.NormalizeRootPath(path)
+                        : MediaPathSemantics.ResolveContained(path, target.Node.RelativeFolder),
+                        target.Path, StringComparison.OrdinalIgnoreCase);
+            }
+            if (valid && target!.IsCurrent(_browserTree.KnownFolders())) return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or SqliteException)
+        { AppendLog($"[Folder context] {ex.Message}"); }
+        NoticeDialog.Show(this, "Folder action", "The folder is unavailable",
+            "The context folder changed or is unavailable. Open its menu again and retry.");
+        return false;
     }
 
     private void BrowserFolderTree_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
@@ -5584,14 +5628,39 @@ public partial class MainWindow : Window
     private BrowserCollectionNode? CollectionActionNode => _browserCollectionActionNode ?? _browserCollectionTree.SelectedNode;
 
     private BrowserTreeNode? _locationActionNode;
+    private BrowserFolderContextTarget? _folderContextTarget;
+    private object? _folderContextInvocation;
+
+    private void BrowserFolderTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
+
+    private void BrowserFolderContextMenu_Closed(object sender, RoutedEventArgs e)
+    {
+        var invocation = _folderContextInvocation;
+        // WPF dispatches MenuItem.Click after closing its popup. Let that click capture
+        // this invocation before clearing it, without clearing a newly opened menu.
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            if (!ReferenceEquals(invocation, _folderContextInvocation)) return;
+            _folderContextTarget = null;
+            _locationActionNode = null;
+            _folderExplorerTarget = null;
+            _folderContextInvocation = null;
+        }));
+    }
 
     private void BrowserFolderTree_ContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        _locationActionNode = LocationNodeFromElement(e.OriginalSource as DependencyObject)
-            ?? (e.CursorLeft < 0 ? _browserTree.SelectedNode : null);
+        _folderContextInvocation = new object();
+        _locationActionNode = e.CursorLeft < 0
+            ? LocationNodeFromElement(Keyboard.FocusedElement as DependencyObject) ?? _browserTree.SelectedNode
+            : LocationNodeFromElement(e.OriginalSource as DependencyObject);
+        _folderContextTarget = BrowserFolderContextTarget.Capture(_locationActionNode);
+        foreach (var item in BrowserFolderTree.ContextMenu.Items.OfType<MenuItem>())
+            item.IsEnabled = _folderContextTarget is not null &&
+                (item.Header is not ("Rename…" or "Cut" or "Delete") || _folderContextTarget.CanChangeEntry);
         _folderExplorerTarget = ExplorerTarget.Folder(_locationActionNode);
         _ = UpdateExplorerMenuAsync(BrowserFolderOpenExplorerMenu, _folderExplorerTarget);
-        BrowserFolderNewSmartMenu.IsEnabled = _storage.CatalogAvailable && _locationActionNode is { RootId: not null, RelativeFolder: not null };
+        BrowserFolderNewSmartMenu.IsEnabled = _folderContextTarget is not null && _storage.CatalogAvailable && _locationActionNode is { RootId: not null, RelativeFolder: not null };
     }
 
     internal static BrowserTreeNode? LocationNodeFromElement(DependencyObject? element)

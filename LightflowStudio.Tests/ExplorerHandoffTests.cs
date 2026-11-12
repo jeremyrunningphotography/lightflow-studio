@@ -163,7 +163,9 @@ public sealed class ExplorerHandoffTests : IDisposable
         Assert.Contains("DataContext as BrowserGridTile", media);
         Assert.Contains("ExplorerTarget.Media(contextTile)", media);
         var folder = source[source.IndexOf("private void BrowserFolderTree_ContextMenuOpening")..source.IndexOf("internal static BrowserTreeNode? LocationNodeFromElement")];
-        Assert.Contains("e.CursorLeft < 0 ? _browserTree.SelectedNode : null", folder);
+        Assert.Contains("e.CursorLeft < 0", folder);
+        Assert.Contains("LocationNodeFromElement(Keyboard.FocusedElement as DependencyObject) ?? _browserTree.SelectedNode", folder);
+        Assert.Contains(": LocationNodeFromElement(e.OriginalSource as DependencyObject)", folder);
         Assert.Contains("ExplorerTarget.Folder(_locationActionNode)", folder);
         var actions = File.ReadAllText(Path.Combine(root, "LightflowStudio", "MainWindow.Explorer.cs"));
         foreach (var text in new[] { media, folder, actions })

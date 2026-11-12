@@ -9,6 +9,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'NoninteractiveValidation.ps1')
+if (-not [ValidationDesktop]::IsNoninteractive) {
+    Invoke-NoninteractiveValidation -ScriptPath $PSCommandPath -Parameters $PSBoundParameters
+    return
+}
+[ValidationDesktop]::RequireNoninteractive()
+
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 $versionProps = [xml](Get-Content -LiteralPath (Join-Path $repositoryRoot "Directory.Build.props") -Raw)
@@ -39,7 +46,7 @@ New-Item -ItemType Directory -Path $appDirectory, $OutputDirectory -Force | Out-
 
 Write-Host "Publishing Lightflow Studio $Version..." -ForegroundColor Cyan
 $stageTimer = [Diagnostics.Stopwatch]::StartNew()
-dotnet publish $project -c Release -r win-x64 --self-contained true `
+dotnet publish $project --disable-build-servers -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:NuGetLockFilePath=$publishLockFile `
     -p:DebugType=None -p:DebugSymbols=false -o $appDirectory

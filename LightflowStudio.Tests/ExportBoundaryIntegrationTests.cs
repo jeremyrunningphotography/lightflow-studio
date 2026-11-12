@@ -29,18 +29,19 @@ public sealed class ExportBoundaryIntegrationTests
             ?? Path.Combine(repo.FullName, "artifacts", "ffmpeg", "bin");
         var root = Path.Combine(repo.FullName, "artifacts", "export-047", $"{vfr}-{offset}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
-        var source = Path.Combine(root, "source.mkv");
+        var source = Path.Combine(root, "source.mp4");
         var output = Path.Combine(root, "export.mp4");
         var ffmpeg = Path.Combine(tools, "ffmpeg.exe");
         var ffprobe = Path.Combine(tools, "ffprobe.exe");
         await Run(ffmpeg, ["-v", "error", "-y", "-f", "lavfi", "-i",
             $"testsrc2=size=256x256:rate={(vfr ? 100 : 25)}:duration=0.2",
             "-vf", vfr ? "select='eq(n,0)+eq(n,3)+eq(n,7)+eq(n,11)+eq(n,15)+eq(n,19)'" : "null",
-            "-fps_mode", "vfr", "-output_ts_offset", offset.ToString(CultureInfo.InvariantCulture), "-c:v", "ffv1", source]);
+            "-fps_mode", "vfr", "-output_ts_offset", offset.ToString(CultureInfo.InvariantCulture), "-c:v", "mpeg4", source]);
         var probe = await Run(ffprobe, FfmpegCommandBuilder.ProbeVideoFrames(source));
         var pts = EncodingRangeResolver.ParseFrameTimestamps(probe).Order().ToArray();
         var range = SubclipCreationEligibility.Materialize(new(TimeSpan.FromSeconds(.2), pts[1] - pts[0]));
-        var resolved = EncodingRangeResolver.Resolve(range, TimeSpan.FromSeconds(offset), probe);
+        Assert.True(MediaMetadataParser.TryParse(await Run(ffprobe, FfmpegCommandBuilder.ProbeMetadata(source)), new FileInfo(source).Length, out var metadata));
+        var resolved = EncodingRangeResolver.Resolve(range, TimeSpan.FromSeconds(offset), probe, metadata.EofEvidence);
         Assert.NotNull(resolved.BoundaryDiagnostic);
         await Run(ffmpeg, FfmpegCommandBuilder.Encode(source, output, null, RecoveryStrategy.Normal,
             OutputResolution.Source, encoding: new() { AudioMode = AudioEncodingMode.None, FrameRate = 0 }, trim: resolved));

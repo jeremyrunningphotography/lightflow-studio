@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -91,54 +89,16 @@ public partial class ExportDialog : Window
         EncoderDiagnostic.Text = hardware.Detail;
         EncoderDiagnostic.ToolTip = hardware.Diagnostic;
         _model.ApplyEncoderCapability(nvenc);
-        var metadata = new List<MediaMetadata?>();
-        foreach (var input in _model.PreflightInputs) metadata.Add(await ProbeAsync(input.SourcePath));
-        _model.ApplyMetadata(metadata);
+        var preflight = new ExportSourcePreflight(_ffprobe, new ProbeProcessRunner());
+        var probes = new List<ExportSourceProbe>();
+        foreach (var input in _model.PreflightInputs) probes.Add(await preflight.ProbeAsync(input));
+        _model.ApplyMetadata(probes.Select(value => value.Metadata).ToArray(), probes.Select(value => value.Diagnostic).ToArray());
+        Sync(); // Publish metadata readiness before a potentially slow range probe.
         var ranges = new List<ResolvedMediaRange?>();
         for (var index = 0; index < _model.PreflightInputs.Count; index++)
-            ranges.Add(await ResolveRangeAsync(_model.PreflightInputs[index], metadata[index]));
+            ranges.Add(probes[index].Metadata is null ? null
+                : await preflight.ResolveAsync(_model.PreflightInputs[index], probes[index]));
         _model.ApplyResolvedRanges(ranges); Sync();
-    }
-
-    private async Task<MediaMetadata?> ProbeAsync(string path)
-    {
-        if (_ffprobe is null) return null;
-        try
-        {
-            var start = new ProcessStartInfo(_ffprobe) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (var arg in FfmpegCommandBuilder.ProbeMetadata(path)) start.ArgumentList.Add(arg);
-            using var process = Process.Start(start)!; var output = await process.StandardOutput.ReadToEndAsync(); await process.WaitForExitAsync();
-            return process.ExitCode == 0 && MediaMetadataParser.TryParse(output, new FileInfo(path).Length, out var value) ? value : null;
-        }
-        catch { return null; }
-    }
-
-    private async Task<ResolvedMediaRange?> ResolveRangeAsync(EncodingHandoffInput input, MediaMetadata? metadata)
-    {
-        if (input.InitialTrim is not { IsFullSource: false } range || _ffprobe is null) return null;
-        var identity = TrimSourceIdentity.Read(input.SourcePath);
-        if (identity is null || identity.FileSizeBytes != input.FileSizeBytes) return null;
-        var startTimestamp = metadata?.StartTimestamp ?? TimeSpan.Zero;
-        var packets = await CaptureProbeAsync(FfmpegCommandBuilder.ProbeVideoPackets(input.SourcePath, range, startTimestamp));
-        try { return EncodingRangeResolver.Resolve(range, startTimestamp, packets); }
-        catch (Exception ex) when (ex is ArgumentException or InvalidDataException)
-        {
-            var frames = await CaptureProbeAsync(FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, startTimestamp));
-            return EncodingRangeResolver.Resolve(range, startTimestamp, frames);
-        }
-    }
-
-    private async Task<string> CaptureProbeAsync(IReadOnlyList<string> arguments)
-    {
-        var start = new ProcessStartInfo(_ffprobe!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start FFprobe.");
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        if (process.ExitCode != 0) throw new InvalidDataException($"FFprobe could not validate the saved range: {await error}");
-        await error;
-        return await output;
     }
 
     private void Configuration_Changed(object sender, RoutedEventArgs e) { if (!_initializing) ReadControls(); }

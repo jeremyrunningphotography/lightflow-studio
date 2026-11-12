@@ -80,6 +80,7 @@ internal sealed record ResolvedMediaRange(
     TimeSpan EffectiveDuration)
 {
     public string? BoundaryDiagnostic { get; init; }
+    public bool RetainsSourceEof { get; init; }
     public IReadOnlyList<JobIssue> Validate()
     {
         var issues = RequestedRange.Validate().ToList();

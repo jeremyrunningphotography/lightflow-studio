@@ -54,12 +54,14 @@ public sealed class EncodingRangeResolverTests
     [Theory]
     [InlineData(0, .2, .16, .04)]
     [InlineData(5, .2, .16, .04)]
-    [InlineData(0, .117, .08, .04)]
+    [InlineData(0, .12, .08, .04)]
     public void Resolve_BoundedDecodedOutPreservesInclusiveFrameIntent(double start, double end, double last, double step)
     {
         var range = new MediaRange(TimeSpan.FromSeconds(end), null, TimeSpan.FromSeconds(end));
-        var result = EncodingRangeResolver.Resolve(range, TimeSpan.FromSeconds(start),
-            Frames(start, start + last - step, start + last));
+        var frames = "{\"frames\":[" + string.Join(',', new[] { start, start + last - step, start + last }
+            .Distinct().Select(value => $"{{\"best_effort_timestamp_time\":\"{value}\",\"duration_time\":\"{step}\"}}")) + "]}";
+        var result = EncodingRangeResolver.Resolve(range, TimeSpan.FromSeconds(start), frames,
+            new(TimeSpan.FromSeconds(end), TimeSpan.FromSeconds(last + step), "1/1000000"));
         Assert.Equal(TimeSpan.FromSeconds(start + end), result.ExclusiveOut);
         Assert.NotNull(result.BoundaryDiagnostic);
         Assert.Equal(range, result.RequestedRange);

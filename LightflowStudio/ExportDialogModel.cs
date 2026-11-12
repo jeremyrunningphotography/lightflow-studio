@@ -57,6 +57,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private readonly IEncodingLutResourceStore _resourceStore;
     private readonly Func<bool, CancellationToken, Task<EncodingHandoffResult>>? _revalidate;
     private IReadOnlyList<MediaMetadata?> _metadata;
+    private bool _metadataCompleted;
+    private IReadOnlyList<string?> _metadataDiagnostics = [];
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
@@ -116,11 +118,13 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> GlobalErrors => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList() ?? [];
     public IReadOnlyList<JobIssue> GlobalWarnings => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList() ?? [];
     public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true && _metadata.All(x => x is not null);
-    public bool IsAnalyzing => _metadata.Any(x => x is null);
+    public bool IsAnalyzing => !_metadataCompleted;
     public string ReadySummary
     {
         get
         {
+            if (IsAnalyzing) return "Reading source metadata…";
+            if (_metadata.Any(value => value is null)) return "Source metadata unavailable";
             var count = _plan?.Items.Count ?? 0;
             var text = $"{count} {(count == 1 ? "file" : "files")} ready to export";
             var rotated = ActiveInputs().Count(value => value.input.Rotation.Degrees != 0);
@@ -199,7 +203,13 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private ExportDestination CurrentDestination() => new(DestinationMode, Destination,
         CreateSubfolder ? SubfolderName : null);
 
-    public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata) { _metadata = metadata.ToArray(); Refresh(); }
+    public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata, IReadOnlyList<string?>? diagnostics = null)
+    {
+        _metadata = metadata.ToArray();
+        _metadataDiagnostics = diagnostics?.ToArray() ?? [];
+        _metadataCompleted = true;
+        Refresh();
+    }
     public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges) { _resolvedRanges = ranges.ToArray(); Refresh(); }
     public void SetUseRange(int index, bool use)
     {
@@ -288,7 +298,20 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         });
         var definition = EncodingJobPlanner.Define(options, sources);
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
+        var active = ActiveInputs();
+        plan = plan with { Items = plan.Items.Select((item, planIndex) =>
+        {
+            var (_, index) = active[planIndex];
+            if (_metadata.ElementAtOrDefault(index) is not null) return item;
+            var issue = !_metadataCompleted
+                ? new JobIssue("export.metadata-pending", "Reading authoritative source metadata…", JobIssueSeverity.Warning)
+                : new JobIssue("export.metadata-failed", _metadataDiagnostics.ElementAtOrDefault(index)
+                    ?? "Source metadata could not be read. Check source availability and reopen Export.", JobIssueSeverity.Error);
+            return item with { Issues = item.Issues.Where(value => value.Code != "encoding.materialization-unsupported").Append(issue).ToList() };
+        }).ToList() };
         var extra = new List<JobIssue>();
+        if (!_metadataCompleted)
+            extra.Add(new("export.metadata-pending", "Source metadata is still loading. Export will be available after preflight completes.", JobIssueSeverity.Error));
         if (_preflightError is not null)
             extra.Add(new("export.preflight", _preflightError, JobIssueSeverity.Error));
         foreach (var (input, index) in ActiveInputs())
@@ -301,7 +324,11 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         if (CreateSubfolder)
             try { OutputDestinationPlanner.ResolveSubfolderName(Resolution, SubfolderName); }
             catch (ArgumentException ex) { extra.Add(new("export.subfolder", ex.Message, JobIssueSeverity.Error)); }
-        extra.AddRange(EncodingOptionValidator.Validate(options.Encoding).Select(message => new JobIssue("export.options", message, JobIssueSeverity.Error)));
+        // Same as Source resolves codec per source. Validate that actual codec, not
+        // the H.264 placeholder (which incorrectly rejects supported HEVC P010).
+        extra.AddRange(plan.Items.SelectMany(item => EncodingOptionValidator.Validate(
+            item.Definition.MaterializedExport?.Encoding ?? options.Encoding)).Distinct()
+            .Select(message => new JobIssue("export.options", message, JobIssueSeverity.Error)));
         if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable",
             "NVIDIA NVENC could not be initialized. Check the hardware acceleration details.", JobIssueSeverity.Error));
         if (!_metadata.Any(value => value is null))
@@ -392,6 +419,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             pair.First.AssetId == pair.Second.AssetId &&
             pair.First.SourcePath == pair.Second.SourcePath &&
             pair.First.FileSizeBytes == pair.Second.FileSizeBytes &&
+            pair.First.SourceIdentity == pair.Second.SourceIdentity &&
             pair.First.InitialTrim == pair.Second.InitialTrim &&
             pair.First.AssignedColor == pair.Second.AssignedColor &&
             pair.First.Rotation == pair.Second.Rotation &&

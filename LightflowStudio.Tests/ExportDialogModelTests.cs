@@ -7,6 +7,60 @@ public sealed class ExportDialogModelTests : IDisposable
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-export-modal-").FullName;
 
     [Theory]
+    [InlineData("hevc", true)]
+    [InlineData("h264", false)]
+    public void SameAsSourceValidatesTenBitAgainstResolvedCodec(string codec, bool supported)
+    {
+        var model = CreateModel("source.mp4");
+        model.Encoding = model.Encoding with { PixelFormat = VideoPixelFormat.P010 };
+        Ready(model, Metadata(codec, "mp4"));
+        Assert.Equal(supported, model.CanExport);
+        Assert.Equal(!supported, model.Errors.Any(issue => issue.Code == "export.options"));
+    }
+
+    [Fact]
+    public void MetadataPendingIsNotReportedAsUnsupportedAndCompletionRefreshesPlan()
+    {
+        var model = CreateModel("source.mp4");
+        Assert.True(model.IsAnalyzing);
+        Assert.False(model.CanExport);
+        Assert.DoesNotContain(model.Issues, issue => issue.Message.Contains("'unknown'"));
+        Assert.Contains(model.SubmissionItems.Single().Issues, issue => issue.Code == "export.metadata-pending");
+        Ready(model, Metadata("hevc", "mov,mp4,m4a,3gp,3g2,mj2"));
+        Assert.False(model.IsAnalyzing);
+        Assert.True(model.CanExport);
+        Assert.Equal(VideoCodec.Hevc, model.CurrentPlan!.Items.Single().Definition.MaterializedExport!.Encoding.Codec);
+    }
+
+    [Fact]
+    public void FailedMetadataHasActionableFailureAndCanRecoverWithoutEncoderMutation()
+    {
+        var model = CreateModel("source.mp4");
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedAndAvailable, "Probe succeeded"));
+        model.ApplyMetadata([null], ["FFprobe failed: source offline"]);
+        Assert.False(model.IsAnalyzing);
+        Assert.False(model.CanExport);
+        Assert.Contains(model.Errors, issue => issue.Code == "export.metadata-failed" && issue.Message.Contains("offline"));
+        Assert.DoesNotContain(model.Errors, issue => issue.Message.Contains("'unknown'") || issue.Code == "export.encoder-unavailable");
+        model.ApplyMetadata([Metadata("hevc", "mp4")]);
+        Assert.True(model.CanExport);
+    }
+
+    [Theory]
+    [InlineData("hevc", "mp4", true)]
+    [InlineData("h264", "mov", true)]
+    [InlineData("av1", "mp4", false)]
+    [InlineData("hevc", "avi", false)]
+    public void MetadataAvailableBeforeDialogConstructionPreservesCompatibility(string codec, string container, bool supported)
+    {
+        var model = CreateModel("source.mp4");
+        Ready(model, Metadata(codec, container));
+        Assert.False(model.IsAnalyzing);
+        Assert.Equal(supported, model.CanExport);
+        Assert.Equal(!supported, model.Errors.Any(issue => issue.Code == "encoding.materialization-unsupported"));
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void PreflightFailurePreservesIndependentEncoderResult(bool available)
@@ -33,7 +87,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Creative.Mode);
         Assert.Equal(AudioEncodingMode.Copy, model.Encoding.AudioMode);
         Assert.True(model.CreateSubfolder);
-        Assert.Equal("1 file ready to export", model.ReadySummary);
+        Assert.Equal("Reading source metadata…", model.ReadySummary);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), tracking #491 | In Progress; local implementation and packaged owner acceptance; no PR before acceptance |
+| 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), tracking #491 | In Progress; I01 NEEDS WORK; owner-approved I02 exclusive EOF and Same as Source correction; packaged owner acceptance required; no PR |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
 | 042 | LF-WIN-DEV-042 | Windows Details Presentation Parity | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Done through corrected source ce35e036 / c700cb3d and owner Windows 4/4 PASS; full Release 2884/0/2; final integration/CI/merge by 043 |

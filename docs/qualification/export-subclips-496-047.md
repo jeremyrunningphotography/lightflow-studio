@@ -1,5 +1,50 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## I02 correction — owner-approved EOF policy
+
+I01 owner acceptance is **NEEDS WORK**. The owner approved the separate exclusive
+source-EOF rule in #496 on 2026-11-12. This section supersedes I01's inferred
+terminal-cadence behavior and the earlier Same as Source exclusion.
+
+Actual read-only DJI probes show HEVC/hvc1, 3840×2160 10-bit, 60000/1001 fps,
+video time base 1/60000, MP4, two AAC tracks and a later MJPEG stream. Saved Outs
+8.256000 / 15.786667 seconds equal source/container/audio EOF. Last video starts
+8.224883333 / 15.765750 and ends 8.241566667 / 15.782433333. Their video-to-EOF tails
+14.433333 / 4.233667 ms fit the actual 16.683333 ms local duration. Comparing EOF
+to frame start instead rejected both at more than one frame interval.
+
+I02 requires decoded terminal frame duration, stream time base, current source and
+video durations, and stable source identity. It checks terminal end against the
+video stream end and the saved EOF against current source EOF, with stream-tick
+precision. Safe EOF retains its original exclusive endpoint, final video and audio;
+unsafe/stale/ambiguous evidence fails. Interior inclusive Out-frame rules remain.
+Verified EOF MP4/MOV uses microsecond movie-timescale precision so edit-list
+rounding does not lengthen the reported audio endpoint by a fraction of a
+millisecond. Original-source tests check audio to one sample plus 2 microseconds.
+
+Same as Source's initial model had null metadata and immediately materialized
+`unknown` compatibility errors. The view delayed metadata refresh until range
+probing ended. Source probes also swallowed failures. I02 separates pending,
+failed and authoritative metadata, publishes completion before range probing,
+retains process diagnostics, drains both pipes and bounds probe runtime. Current
+HEVC/MP4 metadata is obtained from the media, not guessed from file extensions or
+GPU availability. Global option validation now uses each materialized source codec
+so supported Same as Source HEVC/P010 is not rejected against a H.264 placeholder.
+Actual H.264/P010 and unsupported source combinations remain blocked.
+
+The shared ExportSourcePreflight is exercised by the real dialog and focused
+regressions. Opt-in original-source acceptance tests exercise the styled WPF dialog,
+materialize a Same as Source plan, run the production executor and compare source /
+output decoded PTS/counts, HEVC/MP4 identity and both AAC endpoints. Real media and
+the private source-path manifest are excluded from portable evidence.
+
+Retain I01's correct independent NVENC execution-probe diagnostics. No hardware
+workaround, dependency, production Catalog change, release, main forward-port or PR.
+New private-desktop validation/package results and exact source provenance are in
+the I02 implementation evidence ZIP. Owner hands-on acceptance remains outstanding.
+
+## I01 implementation record (not owner accepted)
+
 Issue #496; tracking #491; target `release/1.0`. Owner hands-on acceptance is
 required before opening the single implementation PR. No merge, tag, release or
 main forward-port is authorized.

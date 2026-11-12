@@ -5974,7 +5974,7 @@ public partial class MainWindow : Window
                         AppendDetailedLog($"Packet timestamps were insufficient for {source.DisplayName}; checking decoded frame timestamps.");
                         var frameProbe = await CaptureAsync(_ffprobe!, FfmpegCommandBuilder.ProbeVideoFrames(source.FilePath, trim, startTimestamp), _jobCancellation.Token);
                         if (frameProbe.ExitCode != 0) throw;
-                        resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, frameProbe.StdOut);
+                        resolvedRanges[source.FilePath] = EncodingRangeResolver.Resolve(trim, startTimestamp, frameProbe.StdOut, source.Metadata?.EofEvidence);
                     }
                 }
             }

@@ -854,12 +854,12 @@
         </ToggleButton></DockPanel>
         <Grid x:Name="BrowserLocationsSectionContent" Margin="0,6,0,0">
          <TreeView x:Name="BrowserFolderTree" BorderThickness="0" Background="Transparent" HorizontalAlignment="Stretch" FocusVisualStyle="{x:Null}" AllowDrop="True"
-          ContextMenuOpening="BrowserFolderTree_ContextMenuOpening" SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
+          PreviewMouseRightButtonDown="BrowserFolderTree_PreviewMouseRightButtonDown" ContextMenuOpening="BrowserFolderTree_ContextMenuOpening" SelectedItemChanged="BrowserFolderTree_SelectedItemChanged" PreviewMouseLeftButtonDown="BrowserFolderTree_PreviewMouseLeftButtonDown"
           PreviewMouseLeftButtonUp="BrowserFolderTree_PreviewMouseLeftButtonUp"
           MouseMove="BrowserFolderTree_MouseMove" GiveFeedback="BrowserFileDrag_GiveFeedback" DragOver="BrowserFolderTree_DragOver" DragLeave="BrowserFolderTree_DragLeave" Drop="BrowserFolderTree_Drop"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled">
           <TreeView.ContextMenu>
-           <ContextMenu Style="{StaticResource LightflowContextMenuStyle}">
+           <ContextMenu Closed="BrowserFolderContextMenu_Closed" Style="{StaticResource LightflowContextMenuStyle}">
             <MenuItem x:Name="BrowserFolderNewSmartMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="New Smart Collection…" Click="BrowserFolderNewSmartCollection_Click"/>
             <MenuItem x:Name="BrowserFolderOpenExplorerMenu" Style="{StaticResource LightflowMenuItemStyle}" Header="Open in Explorer" Click="BrowserFolderOpenExplorer_Click"/>
             <MenuItem Style="{StaticResource LightflowMenuItemStyle}" Header="New Folder…" Click="BrowserFolderNew_Click"/>

@@ -25,8 +25,12 @@ public partial class MainWindow
             await OpenExplorerAsync(context.Item2);
     }
 
-    private async void BrowserFolderOpenExplorer_Click(object sender, RoutedEventArgs e) =>
-        await OpenExplorerAsync(_folderExplorerTarget);
+    private async void BrowserFolderOpenExplorer_Click(object sender, RoutedEventArgs e)
+    {
+        var target = _folderContextTarget;
+        var explorer = _folderExplorerTarget;
+        if (await ValidateContextFolderAsync(target)) await OpenExplorerAsync(explorer);
+    }
 
     private async Task OpenExplorerAsync(ExplorerTarget? target)
     {

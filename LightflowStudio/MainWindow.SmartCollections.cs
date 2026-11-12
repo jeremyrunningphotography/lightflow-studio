@@ -65,7 +65,8 @@ public partial class MainWindow
 
     private async void BrowserFolderNewSmartCollection_Click(object sender, RoutedEventArgs e)
     {
-        if (_locationActionNode is not { RootId: { } rootId, RelativeFolder: { } relative }) return;
+        var target = _folderContextTarget;
+        if (!await ValidateContextFolderAsync(target) || target!.Node is not { RootId: { } rootId, RelativeFolder: { } relative }) return;
         var current = CurrentSmartSource();
         var source = new SmartCollectionSource(SmartCollectionSourceKind.Folder, rootId, relative,
             IncludeSubfolders: current is { Kind: SmartCollectionSourceKind.Folder } && current.RootId == rootId &&

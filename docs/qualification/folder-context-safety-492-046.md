@@ -9,8 +9,10 @@ Owner accepted commit `bf90cfa1f90c2ce69e80d951bcebbc49326958e2`, tree
 zero observations**. This is the owner's report; no invented per-step results
 or independent-agent qualification is claimed.
 
-All accepted application, tests, dependencies and build scripts retain identical
-Git blobs. Only root policy, documentation and CI command routing follow acceptance.
+All accepted application, dependencies and build scripts retain identical Git blobs.
+Accepted context/Explorer regressions are unchanged. After acceptance, root policy,
+documentation, CI command routing and its existing source-contract assertion are
+reconciled.
 No main merge, forward-port or other bug-bash fix. No repeat owner cycle is required.
 
 ## Review of all accepted 14 paths
@@ -47,8 +49,8 @@ Historical maintenance: **Not warranted** for this bounded correction.
 - Original executable SHA-256:
   `bed4de496046d3b1ec27e558ef2d91708a502ac23b63e99d013322c4c3c6b42e`.
 
-Prior evidence remains applicable to identical accepted source/manifests. The only
-extra validation input is CI's Test command: use the imported private-desktop entry
+Prior evidence remains applicable to identical accepted production/manifests.
+Additional validation inputs are the CI Test command and its source-contract test: use the imported private-desktop entry
 under PowerShell 7 rather than direct dotnet test. Focused qualification:
 `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-Noninteractive.ps1 -NoRestore -Filter FullyQualifiedName~BrowserFolderContextSafetyTests -ResultsName final-qualification-pwsh.trx`
 passed **13/13**, with no owned processes remaining. Full exact-head CI and refreshed
@@ -82,3 +84,19 @@ Review / Browser / P1; mixed tracker fields remain unset where not authoritative
 Main evaluation/forward-port is deferred, not authorized here. No separate admin PR.
 Qualification: **PASS subject to final exact-head CI**. Explicit owner merge
 permission remains required. No merge/post-merge cleanup, release/tag or other fix.
+
+## CI source-contract correction
+
+First exact-head CI at `0393b273f864b752fe38828794d70f5e69363259` failed one
+source-contract assertion (2,502 PASS / 1 FAIL / 1 existing skip). The packaging test
+still expected literal `dotnet test` in workflow YAML. It now follows the supported
+launcher and checks private-desktop entry/enforcement, test/Release/project/dotnet
+invocation, retaining all original package dependency/tag/checksum assertions. This
+adapts the assertion to the approved workflow rather than adding a cosmetic comment
+or weakening the gate. No production change or repeated owner acceptance is needed.
+Original failed CI/TRX is retained; corrected targeted qualification and a new full
+exact-head CI run are required. No failure or skipped dependent package is a PASS.
+
+Corrected workflow-contract plus context qualification under PowerShell 7: **26/26 PASS**,
+zero failed/skipped tests and no owned processes remaining. Final full exact-head CI
+is still required; the original failed attempt is retained.

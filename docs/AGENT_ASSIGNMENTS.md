@@ -69,7 +69,9 @@ Owner reports **17/17 PASS, zero failures, zero observations**, accepting commit
 `bf90cfa1f90c2ce69e80d951bcebbc49326958e2`, tree
 `d612f21ecfa74409a5e29e7406e661faeb7745ca`. Focused Release 157 PASS; full Release
 2,503 PASS / 1 existing opt-in skip; package/dependencies/startup/shutdown PASS.
-Accepted production, tests, dependencies and build scripts remain unchanged.
+Accepted production, dependencies and build scripts remain unchanged. The existing
+Release workflow contract test now verifies the supported launcher/full Release
+invocation rather than the obsolete direct-command substring.
 Final integration only reconciles workflow/documentation and routes release CI
 through the already-qualified private-desktop launcher.
 

@@ -55,3 +55,18 @@ no runtime switches are changed by these tests. Production retains its original
 persistent SetDataObject(data, true), formats and Preferred DropEffect semantics.
 Cross-process clipboard persistence/Explorer interoperability remains an explicit
 owner packaged acceptance check, not an automated PASS claim.
+
+## Final acceptance and CI integration — assignment 046
+
+Owner accepted the packaged correction 17/17 PASS, zero failures/observations,
+at `bf90cfa1f90c2ce69e80d951bcebbc49326958e2`. This supersedes the earlier
+pending-owner clipboard gate above; it does not relabel private-desktop OLE limits
+as an automated pass. Accepted focused/full Release evidence remains applicable
+because production and test inputs are unchanged.
+
+The maintenance CI Test step calls `scripts/Test-Noninteractive.ps1 -NoRestore`
+under PowerShell 7 instead of direct `dotnet test`. Restore, FFmpeg preparation,
+test selection, results upload, installer/package and tag-only release gates remain
+unchanged. Focused PowerShell 7 qualification passed 13/13 with no owned processes
+remaining. Exact-head CI runs the full suite and package gate. No unrelated main
+or platform workflow is imported.

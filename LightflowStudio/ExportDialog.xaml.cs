@@ -60,8 +60,7 @@ public partial class ExportDialog : Window
             try { await InitializePreflightAsync(); }
             catch (Exception exception)
             {
-                _model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc,
-                    EncoderCapabilityState.ImplementedButUnavailable, exception.Message));
+                _model.ApplyPreflightFailure($"Preflight could not complete: {exception.Message}");
                 QueueError.Text = $"Preflight could not complete: {exception.Message}";
                 Sync();
             }
@@ -134,9 +133,12 @@ public partial class ExportDialog : Window
         var start = new ProcessStartInfo(_ffprobe!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start FFprobe.");
-        var output = await process.StandardOutput.ReadToEndAsync(); await process.WaitForExitAsync();
-        if (process.ExitCode != 0) throw new InvalidDataException("FFprobe could not validate the saved range.");
-        return output;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0) throw new InvalidDataException($"FFprobe could not validate the saved range: {await error}");
+        await error;
+        return await output;
     }
 
     private void Configuration_Changed(object sender, RoutedEventArgs e) { if (!_initializing) ReadControls(); }

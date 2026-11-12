@@ -74,6 +74,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private bool _overwrite;
     private bool _advancedExpanded;
     private EncoderCapability? _encoder;
+    private string? _preflightError;
     private ExportLutChoice _camera;
     private ExportLutChoice _creative;
 
@@ -215,6 +216,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         SetAllRanges(use, refreshWhenUnchanged: true);
     }
     public void ApplyEncoderCapability(EncoderCapability capability) { _encoder = capability; Refresh(); }
+    public void ApplyPreflightFailure(string diagnostic) { _preflightError = diagnostic; Refresh(); }
     public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
     public void MovePart(int index, int delta)
@@ -287,6 +289,11 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var definition = EncodingJobPlanner.Define(options, sources);
         var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
         var extra = new List<JobIssue>();
+        if (_preflightError is not null)
+            extra.Add(new("export.preflight", _preflightError, JobIssueSeverity.Error));
+        foreach (var (input, index) in ActiveInputs())
+            if (_resolvedRanges.ElementAtOrDefault(index)?.BoundaryDiagnostic is { } diagnostic)
+                extra.Add(new("export.out-corrected", $"{Path.GetFileName(input.SourcePath)}: {diagnostic}", JobIssueSeverity.Warning));
         var itemIssues = new Dictionary<int, List<JobIssue>>();
         if (DestinationMode == ExportDestinationMode.SpecificFolder &&
             (string.IsNullOrWhiteSpace(Destination) || !Path.IsPathFullyQualified(Destination)))

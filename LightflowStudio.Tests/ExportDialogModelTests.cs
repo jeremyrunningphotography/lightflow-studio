@@ -6,6 +6,22 @@ public sealed class ExportDialogModelTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-export-modal-").FullName;
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PreflightFailurePreservesIndependentEncoderResult(bool available)
+    {
+        var model = CreateModel("clip.mp4");
+        Ready(model, Metadata("h264", "mp4"));
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, available
+            ? EncoderCapabilityState.ImplementedAndAvailable : EncoderCapabilityState.ImplementedButUnavailable,
+            "Independent execution probe"));
+        model.ApplyPreflightFailure("Saved Out frame cannot be safely resolved.");
+        Assert.Contains(model.Errors, issue => issue.Code == "export.preflight");
+        Assert.Equal(!available, model.Errors.Any(issue => issue.Code == "export.encoder-unavailable"));
+        Assert.False(model.CanExport);
+    }
+
     [Fact]
     public void Defaults_AreModernIndependentAndBounded()
     {

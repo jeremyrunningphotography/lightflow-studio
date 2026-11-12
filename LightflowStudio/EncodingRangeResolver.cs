@@ -22,17 +22,52 @@ internal static class EncodingRangeResolver
         if (timestamps.Count == 0) throw new InvalidDataException("FFprobe did not report decoded video timestamps.");
 
         var actualIn = requested.In is { } requestedIn ? Match(timestamps, requestedIn, "In") : TimeSpan.Zero;
-        var actualOut = requested.Out is { } requestedOut ? Match(timestamps, requestedOut, "Out") : (TimeSpan?)null;
+        string? correction = null;
+        var actualOut = requested.Out is { } requestedOut
+            ? MatchOut(timestamps, requestedOut, requested.SourceDuration, frameProbeJson, out correction)
+            : (TimeSpan?)null;
         var next = actualOut is { } outTimestamp
-            ? timestamps.FirstOrDefault(timestamp => timestamp > outTimestamp + TimestampTolerance)
+            ? timestamps.FirstOrDefault(timestamp => timestamp > outTimestamp)
             : TimeSpan.Zero;
         var exclusiveNormalizedOut = actualOut is null || next <= TimeSpan.Zero ? requested.SourceDuration : next;
+        if (exclusiveNormalizedOut > requested.SourceDuration) exclusiveNormalizedOut = requested.SourceDuration;
         if (actualOut is { } selectedOut && exclusiveNormalizedOut <= selectedOut)
             throw new ArgumentException("The selected Out frame does not fit within the inspected media.", nameof(requested));
 
         var absoluteIn = sourceStartTimestamp + actualIn;
         var exclusiveOut = sourceStartTimestamp + exclusiveNormalizedOut;
-        return new(requested, sourceStartTimestamp, absoluteIn, exclusiveOut, exclusiveOut - absoluteIn);
+        if (exclusiveOut <= absoluteIn)
+            throw new ArgumentException("The resolved range contains no complete frames. Choose the Subclip boundaries again.");
+        return new(requested, sourceStartTimestamp, absoluteIn, exclusiveOut, exclusiveOut - absoluteIn)
+        { BoundaryDiagnostic = correction };
+    }
+
+    private static TimeSpan MatchOut(IReadOnlyList<TimeSpan> timestamps, TimeSpan requested,
+        TimeSpan duration, string json, out string? diagnostic)
+    {
+        diagnostic = null;
+        var nearest = timestamps.MinBy(timestamp => Math.Abs((timestamp - requested).Ticks));
+        if (Math.Abs((nearest - requested).Ticks) <= TimestampTolerance.Ticks)
+            return nearest;
+
+        // Packet PTS are a fast exact-match path, never evidence for a decoded-frame correction.
+        using var document = JsonDocument.Parse(json);
+        var index = Array.IndexOf(timestamps.ToArray(), nearest);
+        var previous = index > 0 ? timestamps[index - 1] : (TimeSpan?)null;
+        var next = index + 1 < timestamps.Count ? timestamps[index + 1] : (TimeSpan?)null;
+        var interval = next is { } following ? following - nearest
+            : previous is { } preceding ? nearest - preceding : TimeSpan.Zero;
+        var delta = requested - nearest;
+        var tied = timestamps.Count(timestamp => Math.Abs((timestamp - requested).Ticks) == Math.Abs(delta.Ticks)) > 1;
+        // Out is inclusive: select no frame starting after the saved timestamp.
+        // At EOF require the final duration gap to fit the observed local cadence.
+        var end = next ?? duration;
+        if (!document.RootElement.TryGetProperty("frames", out _) || tied || delta <= TimeSpan.Zero
+            || interval <= TimeSpan.Zero || delta > interval || delta > TimeSpan.FromMilliseconds(50)
+            || (next is null && requested != duration))
+            throw new ArgumentException($"The saved Out point {requested.TotalSeconds:F7}s cannot be safely matched to a decoded frame within one local frame interval (maximum 50 ms) without extending the range. Nearest timestamp: {nearest.TotalSeconds:F7}s. Reopen the Subclip and choose its Out frame again.");
+        diagnostic = $"Saved Out {requested.TotalSeconds:F7}s resolved to decoded frame {nearest.TotalSeconds:F7}s; exclusive end {end.TotalSeconds:F7}s, local interval {interval.TotalMilliseconds:F4} ms. The saved Subclip is unchanged.";
+        return nearest;
     }
 
     internal static IReadOnlyList<TimeSpan> ParseFrameTimestamps(string json)

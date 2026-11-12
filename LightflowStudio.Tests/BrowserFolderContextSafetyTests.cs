@@ -62,6 +62,9 @@ public sealed class BrowserFolderContextSafetyTests
             await (Task)Call(window, "NavigateToEnteredBrowserPathAsync")!;
             var tree = Field<BrowserTreeModel>(window, "_browserTree");
             var selected = tree.SelectedNode!;
+            var listing = await storage.MediaFolders.EnumerateAsync(new(root.RootId, ""));
+            Assert.True(listing.Succeeded);
+            tree.ApplyDirectoryListing(media, media, listing.Entries);
             var node = tree.FindByPath(b)!;
             Assert.NotNull(node);
             Assert.Equal(a, selected.AbsolutePath);

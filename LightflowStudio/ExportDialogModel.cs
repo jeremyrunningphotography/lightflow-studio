@@ -85,6 +85,12 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private readonly TrimSourceIdentity?[] _sourceIdentities;
     private long _preflightGeneration;
     private long _revision;
+    private Action<Action>? _publishValidation;
+    private SemaphoreSlim? _planningGate;
+    private CancellationTokenSource? _planningCancellation;
+    private long _planningGeneration;
+    private bool _planningClosed;
+    public bool IsPlanPending { get; private set; }
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
     private bool _includeNoSubclipSources = true;
@@ -139,6 +145,47 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         Refresh();
     }
 
+    // A worker owns this detached snapshot. No live collection, mutable preflight
+    // array, event subscription or WPF object crosses the dispatcher boundary.
+    private ExportDialogModel(ExportDialogModel source)
+    {
+        _handoff = source._handoff with { Inputs = source._handoff.Inputs.ToArray() };
+        _inspectOutput = source._inspectOutput; _resourceStore = source._resourceStore;
+        _metadata = source._metadata.ToArray(); _metadataDiagnostics = source._metadataDiagnostics.ToArray();
+        _resolvedRanges = source._resolvedRanges.ToArray();
+        _metadataRead = source._metadataRead.ToArray(); _rangeRead = source._rangeRead.ToArray();
+        _checking = source._checking.ToArray(); _rangeDiagnostics = source._rangeDiagnostics.ToArray();
+        _sourceIdentities = source._sourceIdentities.ToArray(); _useRanges = source._useRanges.ToArray();
+        _rangesGloballyEnabled = source._rangesGloballyEnabled; _includeNoSubclipSources = source._includeNoSubclipSources;
+        _destination = source._destination; _destinationMode = source._destinationMode;
+        _createSubfolder = source._createSubfolder; _subfolderName = source._subfolderName;
+        _separator = source._separator; _container = source._container; _codec = source._codec;
+        _resolution = source._resolution; _encoding = source._encoding; _overwrite = source._overwrite;
+        _encoder = source._encoder; _preflightError = source._preflightError;
+        _camera = source._camera; _creative = source._creative;
+        CameraChoices = source.CameraChoices; CreativeChoices = source.CreativeChoices;
+        NameParts = new(source.NameParts);
+    }
+
+    // Interactive dialogs opt into background validation; noninteractive plan
+    // callers retain their synchronous API. All mutations/publication stay on the caller's dispatcher.
+    public void EnableBackgroundValidation(Action<Action> publish)
+    {
+        if (_publishValidation is not null) return;
+        _planningGate = new(1, 1);
+        _publishValidation = publish;
+        Refresh();
+    }
+
+    public void CloseValidation()
+    {
+        _planningClosed = true;
+        _planningGeneration++;
+        _planningCancellation?.Cancel();
+        IsPlanPending = true;
+        _plan = null;
+    }
+
     public ObservableCollection<NamePart> NameParts { get; }
     public IReadOnlyList<ExportLutChoice> CameraChoices { get; }
     public IReadOnlyList<ExportLutChoice> CreativeChoices { get; }
@@ -148,10 +195,10 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> GlobalErrors => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList() ?? [];
     public IReadOnlyList<JobIssue> GlobalWarnings => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList() ?? [];
     public EncoderCapability? EncoderCapability => _encoder;
-    public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true
+    public bool CanExport => !IsPlanPending && !_planningClosed && _plan?.IsValid == true && _encoder?.IsUsable == true
         && _plan.ExecutableItems.Count > 0
         && SubmissionItems.All(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning);
-    public bool IsAnalyzing => ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null;
+    public bool IsAnalyzing => IsPlanPending || ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null;
     public string ReadySummary
     {
         get
@@ -352,14 +399,20 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public void UpdateCustomText(int index, string text)
     {
         if (index >= 0 && index < NameParts.Count && NameParts[index].Kind == NamePartKind.CustomText)
-        { NameParts[index] = NameParts[index] with { Text = text }; Refresh(); }
+        {
+            if (NameParts[index].Text != text) NameParts[index] = NameParts[index] with { Text = text };
+        }
     }
 
     public async Task<JobPlan<EncodingJobOptions>> MaterializeAcceptedPlanAsync(CancellationToken token = default)
     {
+        if (_publishValidation is not null && !CanExport)
+            throw new InvalidOperationException("Wait for the current export settings to finish validation and resolve any errors before exporting.");
         var revision = _revision;
         var generation = _preflightGeneration;
+        var planningGeneration = _planningGeneration;
         var expected = Inputs;
+        var snapshot = new ExportDialogModel(this);
         if (_revalidate is not null)
         {
             var current = await _revalidate(_includeNoSubclipSources, token);
@@ -371,23 +424,25 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             if (!ProspectiveStateMatches(expected, actual))
                 throw new InvalidOperationException("The source, active In/Out or Subclip state changed while Export was open. Reopen Export to use the current selection.");
         }
-        var camera = await SnapshotPolicyAsync(ColorLutStage.Camera, Camera, token);
-        var creative = await SnapshotPolicyAsync(ColorLutStage.Creative, Creative, token);
+        var camera = await Task.Run(() => snapshot.SnapshotPolicyAsync(ColorLutStage.Camera, snapshot.Camera, token), token);
+        var creative = await Task.Run(() => snapshot.SnapshotPolicyAsync(ColorLutStage.Creative, snapshot.Creative, token), token);
         if (revision != _revision || generation != _preflightGeneration)
             throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
         await Task.Run(() =>
         {
-            foreach (var (_, index) in ActiveInputs())
-                if (_sourceIdentities[index] is { } identity)
+            foreach (var (_, index) in snapshot.ActiveInputs())
+                if (snapshot._sourceIdentities[index] is { } identity)
                 {
-                    var current = TrimSourceIdentity.Read(_handoff.Inputs[index].SourcePath);
+                    var current = TrimSourceIdentity.Read(snapshot._handoff.Inputs[index].SourcePath);
                     if (current is null || !identity.Matches(current))
                         throw new InvalidOperationException("The source changed after preflight. Refresh the source and reopen Export.");
                 }
         }, token);
         if (revision != _revision || generation != _preflightGeneration)
             throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
-        var plan = BuildPlan(camera, creative);
+        var plan = await Task.Run(() => snapshot.BuildPlan(camera, creative), token);
+        if (_planningClosed || revision != _revision || generation != _preflightGeneration || planningGeneration != _planningGeneration)
+            throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
         if (plan.IsValid && plan.ExecutableItems.Count == 0)
             throw new InvalidOperationException("All existing outputs will be skipped. Enable Overwrite existing files or choose another destination or filename.");
         return plan;
@@ -430,7 +485,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 ExportProvenance: input.ExportProvenance, Rotation: input.Rotation);
         });
         var definition = EncodingJobPlanner.Define(options, sources);
-        var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: _resourceStore);
+        var plan = EncodingJobPlanner.Plan(definition, _inspectOutput, colorResources: new PlanResources(_resourceStore));
         var active = ActiveInputs();
         plan = plan with { Items = plan.Items.Select((item, planIndex) =>
         {
@@ -492,15 +547,80 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     private void Refresh()
     {
-        try { _plan = BuildPlan(); }
-        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        if (_planningClosed) return;
+        if (_publishValidation is not null)
         {
-            var options = new EncodingJobOptions(_handoff.InputFolder ?? "", Destination, Resolution,
-                RecoveryStrategy.Normal, _encoding, null, "", false, false, false);
-            var definition = EncodingJobPlanner.Define(options, []);
-            _plan = new(definition, DateTimeOffset.Now, [], [new("export.configuration", ex.Message, JobIssueSeverity.Error)], JobWorkUnit.Items);
+            _planningCancellation?.Cancel();
+            var cancellation = _planningCancellation = new();
+            var generation = ++_planningGeneration;
+            IsPlanPending = true;
+            _plan = null; // Never expose a plan belonging to older text/settings.
+            var snapshot = new ExportDialogModel(this);
+            OnChanged(nameof(IsPlanPending));
+            _ = ValidateInBackgroundAsync(snapshot, generation, cancellation);
+            return;
         }
+        _plan = BuildPlanSafely();
         OnChanged(string.Empty);
+    }
+
+    private JobPlan<EncodingJobOptions> BuildPlanSafely(ColorStagePolicy? camera = null, ColorStagePolicy? creative = null)
+    {
+        try { return BuildPlan(camera, creative); }
+        catch (Exception ex) { return ConfigurationFailure(ex); }
+    }
+
+    private JobPlan<EncodingJobOptions> ConfigurationFailure(Exception exception)
+    {
+        var options = new EncodingJobOptions(_handoff.InputFolder ?? "", Destination, Resolution,
+            RecoveryStrategy.Normal, _encoding, null, "", false, false, false);
+        var definition = EncodingJobPlanner.Define(options, []);
+        return new(definition, DateTimeOffset.Now, [], [new("export.configuration", exception.Message, JobIssueSeverity.Error)], JobWorkUnit.Items);
+    }
+
+    private async Task ValidateInBackgroundAsync(ExportDialogModel snapshot, long generation, CancellationTokenSource cancellation)
+    {
+        var token = cancellation.Token;
+        try
+        {
+            await Task.Delay(200, token).ConfigureAwait(false);
+            // At most one disk/LUT operation per dialog; a noncancellable filesystem
+            // call may finish, but obsolete waiters/work cannot publish its result.
+            await _planningGate!.WaitAsync(token).ConfigureAwait(false);
+            JobPlan<EncodingJobOptions> plan;
+            try
+            {
+                plan = await Task.Run(async () =>
+                {
+                    try
+                    {
+                        var camera = await snapshot.SnapshotPolicyAsync(ColorLutStage.Camera, snapshot.Camera, token).ConfigureAwait(false);
+                        var creative = await snapshot.SnapshotPolicyAsync(ColorLutStage.Creative, snapshot.Creative, token).ConfigureAwait(false);
+                        return snapshot.BuildPlanSafely(camera, creative);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                    catch (Exception exception) { return snapshot.ConfigurationFailure(exception); }
+                }, token).ConfigureAwait(false);
+            }
+            finally { _planningGate.Release(); }
+            if (token.IsCancellationRequested) return;
+            _publishValidation!(() =>
+            {
+                if (_planningClosed || token.IsCancellationRequested || generation != _planningGeneration) return;
+                _plan = plan;
+                IsPlanPending = false;
+                OnChanged(string.Empty);
+            });
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally
+        {
+            _publishValidation!(() =>
+            {
+                if (ReferenceEquals(_planningCancellation, cancellation)) _planningCancellation = null;
+                cancellation.Dispose();
+            });
+        }
     }
 
     private void SetAllRanges(bool use, bool refreshWhenUnchanged = false)
@@ -550,7 +670,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             if (sourceError && issues.Length == 0)
                 issues = [new("export.preflight", "The source range could not be verified. Reopen Export and review the saved Subclip.", JobIssueSeverity.Error)];
             var state = sourceError ? ExportFilePreflightState.Error
-                : SourcePending(index) || _encoder is null
+                : IsPlanPending || SourcePending(index) || _encoder is null
                     ? _checking[index] || _metadataRead[index] ? ExportFilePreflightState.Checking : ExportFilePreflightState.Pending
                 : issues.Any(issue => issue.Severity == JobIssueSeverity.Error) ? ExportFilePreflightState.Error
                 : issues.Length > 0 ? ExportFilePreflightState.Warning : ExportFilePreflightState.Ready;
@@ -642,11 +762,35 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         return Container switch
         { ExportContainerChoice.Mov => ".mov", ExportContainerChoice.Mkv => ".mkv", _ => sourceExtension is ".mov" or ".mkv" ? sourceExtension : ".mp4" };
     }
-    private IReadOnlyList<string> PlannedExtensions() => _plan?.Items
-        .Select(item => Path.GetExtension(item.OutputPaths.FirstOrDefault() ?? "").ToLowerInvariant())
-        .Where(extension => !string.IsNullOrWhiteSpace(extension)).ToArray() ?? [];
+    private IReadOnlyList<string> PlannedExtensions() => ActiveInputs().Select(value => Container switch
+    {
+        ExportContainerChoice.Mov => ".mov",
+        ExportContainerChoice.Mkv => ".mkv",
+        ExportContainerChoice.Mp4 => ".mp4",
+        _ => _metadata.ElementAtOrDefault(value.index)?.Container?.ToLowerInvariant() switch
+        {
+            "mov" => ".mov", "mkv" or "matroska" or "matroska,webm" => ".mkv",
+            _ => ".mp4"
+        }
+    }).ToArray();
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
     { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; _revision++; Refresh(); OnChanged(name); }
     private void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new(name));
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    // Validate a shared LUT once in this plan, not once per selected output.
+    // No result survives this build: final submission and execution validate again.
+    private sealed class PlanResources(IEncodingLutResourceStore store) : IEncodingLutResourceStore
+    {
+        private readonly Dictionary<MaterializedLutResource, string> _validated = [];
+        public string Resolve(MaterializedLutResource resource)
+        {
+            if (_validated.TryGetValue(resource, out var path)) return path;
+            path = store.Resolve(resource);
+            _validated.Add(resource, path);
+            return path;
+        }
+        public Task<MaterializedLutResource> SnapshotAsync(ColorLutStage stage, ManagedLutResource resource, CancellationToken cancellationToken = default)
+            => store.SnapshotAsync(stage, resource, cancellationToken);
+    }
 }

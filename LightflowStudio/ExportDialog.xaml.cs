@@ -14,6 +14,7 @@ public partial class ExportDialog : Window
     private readonly ExportPreflightCoordinator? _preflight;
     private readonly CancellationTokenSource _preflightCancellation = new();
     private bool _closed;
+    private bool _submitting;
     private bool _initializing = true;
     private System.Windows.Point _dragStart;
     private int? _dragPartIndex;
@@ -58,10 +59,12 @@ public partial class ExportDialog : Window
         QualitySlider.Value = ExportPresentation.ConstantQuality(model.Encoding.Quality); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _model.PropertyChanged += ModelChanged;
+        _model.EnableBackgroundValidation(action => Dispatcher.BeginInvoke(action));
         Closed += (_, _) =>
         {
             _closed = true;
             _model.PropertyChanged -= ModelChanged;
+            _model.CloseValidation();
             _preflightCancellation.Cancel();
         };
         EncoderCombo.ItemsSource = ExportPresentation.Encoders; EncoderCombo.SelectedIndex = 0;
@@ -108,13 +111,31 @@ public partial class ExportDialog : Window
 
     private void ModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (!_closed && args.PropertyName == string.Empty) SyncPreflightStatus();
+        if (_closed) return;
+        if (args.PropertyName == nameof(ExportDialogModel.IsPlanPending))
+        {
+            // Keystrokes must not regenerate every review row. Existing rows show
+            // checking indicators instead of obsolete names/validation results.
+            FilesToExportItems.Tag = true;
+            NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
+            PathPreview.ToolTip = OutputExampleBorder.ToolTip = _model.PreviewPath;
+            ReadySummaryText.Text = "Checking export settings…";
+            ValidationBorder.Visibility = Visibility.Collapsed;
+            ExportButton.IsEnabled = false;
+        }
+        else if (args.PropertyName == string.Empty) SyncPreflightStatus();
     }
 
     private void SyncPreflightStatus()
     {
         // Progress updates must not rebuild the name composer or interrupt editing.
+        if (_model.IsPlanPending)
+        {
+            ModelChanged(this, new(nameof(ExportDialogModel.IsPlanPending)));
+            return;
+        }
         FilesToExportItems.ItemsSource = _model.SubmissionItems;
+        FilesToExportItems.Tag = false;
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         ExtensionPreview.Text = _model.RepresentativeExtension + (_model.HasHeterogeneousExtensions ? "  (varies)" : "");
         var lines = _model.GlobalErrors.Where(issue => issue.Code != "export.metadata-pending")
@@ -122,7 +143,7 @@ public partial class ExportDialog : Window
         ValidationText.Text = string.Join(Environment.NewLine, lines);
         ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         ReadySummaryText.Text = _model.ReadySummary;
-        ExportButton.IsEnabled = _model.CanExport;
+        ExportButton.IsEnabled = !_submitting && _model.CanExport;
         if (_model.EncoderCapability is not { } nvenc) return;
         var hardware = ExportPresentation.Hardware(nvenc);
         HardwareStatusHeading.Text = hardware.Heading;
@@ -217,8 +238,9 @@ public partial class ExportDialog : Window
     private void MovePartLater_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.MovePart(chip.Index, 1); Sync(); } }
     private void CustomPartText_Changed(object sender, TextChangedEventArgs e)
     {
-        if (_initializing || sender is not System.Windows.Controls.TextBox { DataContext: ExportNamePartChip chip } box || box.Text == chip.Part.Text) return;
+        if (_initializing || sender is not System.Windows.Controls.TextBox { DataContext: ExportNamePartChip chip } box) return;
         _model.UpdateCustomText(chip.Index, box.Text); NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
+        box.ToolTip = box.Text;
     }
 
     private void InfoButton_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -250,7 +272,14 @@ public partial class ExportDialog : Window
         if (sender is FrameworkElement { ToolTip: System.Windows.Controls.ToolTip toolTip }) toolTip.IsOpen = false;
     }
     private void NamePart_MouseDown(object sender, MouseButtonEventArgs e)
-    { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _dragStart = e.GetPosition(this); _dragPartIndex = chip.Index; } }
+    {
+        _dragPartIndex = null;
+        // Text selection and chip buttons own their pointer gestures.
+        for (var element = e.OriginalSource as DependencyObject; element is not null && element != sender;
+            element = System.Windows.Media.VisualTreeHelper.GetParent(element))
+            if (element is System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.Primitives.ButtonBase) return;
+        if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _dragStart = e.GetPosition(this); _dragPartIndex = chip.Index; }
+    }
     private void NamePart_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed || _dragPartIndex is null) return;
@@ -268,8 +297,11 @@ public partial class ExportDialog : Window
     private static void Select<T>(System.Windows.Controls.ComboBox combo, IReadOnlyList<ExportChoice<T>> choices, T value) => combo.SelectedItem = choices.First(x => EqualityComparer<T>.Default.Equals(x.Value, value));
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
+        if (_submitting || !_model.CanExport) return;
+        _submitting = true;
         ExportButton.IsEnabled=false; QueueError.Text="";
         try { var plan=await _model.MaterializeAcceptedPlanAsync(); if(!plan.IsValid) { Sync(); return; } _coordinator.Queue(plan); DialogResult=true; }
-        catch(Exception ex) { QueueError.Text=ex.Message; Sync(); }
+        catch(Exception ex) { if (!_closed) QueueError.Text=ex.Message; }
+        finally { _submitting = false; if (!_closed) SyncPreflightStatus(); }
     }
 }

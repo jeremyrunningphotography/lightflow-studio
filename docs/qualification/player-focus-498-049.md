@@ -94,3 +94,28 @@ No new follow-up issue created. Prior I01 ZIP SHA256:
 Historical focused309 PASS / full2578 PASS,2 baseline Browser failures,7 skips and
 package PASS remain preserved. Final fresh qualification is pending; no claim of
 clean full suite, PR, merge, release or main forward-port yet.
+
+## Final qualification — stopped at required red gate
+
+Test source: e241cc02f237ec095ed4930bfd7b1a147287c325, production subtree
+687cf634924c1616ac804264e6fbc434a77cb54b. Final focused358 PASS /0 FAIL /0 SKIP;
+local companion90 PASS. Complete unfiltered Windows Release2589 PASS /2 FAIL /8
+existing opt-in SKIP. Failures:
+
+- FlyleafPlaybackIntegrationTests.StartupRestore_NativeVideoSurvivesTaskbarReveal(seconds:0).
+- FlyleafPlaybackIntegrationTests.StartupRestore_NativeVideoSurvivesTaskbarReveal(seconds:1).
+
+Both throw InvalidOperationException: No presented video frame is available, at
+CapturePresentedFrameAsync after native taskbar reveal. Both also passed in the
+358-case focused run. Existing backend/service and startup test are unchanged from
+current release293cd4b; the host has only accepted focus differences. A bounded,
+isolated checkout/build of unchanged293cd4b passed the same two cases2/2; the
+accepted branch was restored. This does not reproduce or prove a baseline failure.
+Full-context cause remains unclassified; no production/test change or test weakening.
+
+The required full-suite gate remains failed. Per owner stop gate: no final package
+rebuild, PR, exact-head hosted CI, merge or branch retirement. Historical I01 package
+and source evidence remain preserved, with installer/portable moved within the same
+task workspace before rebuild could replace dist. Native validation cleanup confirmed;
+slot handed directly to051. Local registry records the block. No administrative PR,
+new scrubbing issue, release/tag, main forward-port or production Catalog operation.

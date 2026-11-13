@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Owner accepted I01 b1592dd 8/8 PASS; accepted focus preserved; final qualification and single release/1.0 PR/conditional normal merge authorized only after green gates; prepared closeout, actual disposition in issue/PR; decoder research deferred |
+| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Owner accepted I01 8/8; focus preserved; final focused358 PASS, full2589 PASS/2 native startup presentation failures/8 opt-in SKIP; isolated release comparison2 PASS does not prove baseline failure; qualification blocked, no PR/merge; decoder research deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), [PR #502](https://github.com/jeremyrunningphotography/lightflow-studio/pull/502), parent #491 | Done; owner accepted 8/8 PASS; normal release/1.0 merge 293cd4b; post-merge CI 43511787157 SUCCESS; retired; accepted changes and evidence preserved; no release/main forward-port |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -157,3 +157,17 @@ Final test/package results and actual PR/merge/post-merge provenance belong in
 This is prepared closeout, not a premature claim of merge or Project Done. If any
 required gate stays red, stop without merging. Historical maintenance: Not warranted.
 047 and048 are retired; routine source/private-desktop coordination uses active agents.
+
+## Assignment 049 — final qualification stopped (2026-11-13)
+
+Fresh source e241cc02f237ec095ed4930bfd7b1a147287c325, app subtree
+687cf634924c1616ac804264e6fbc434a77cb54b: focused358/0/0, companion90/0;
+full2589 PASS /2 FAIL /8 opt-in SKIP. Both StartupRestore_NativeVideoSurvivesTaskbarReveal
+cases (seconds0 and1) reported no presented frame after taskbar reveal. Both passed
+in focused qualification and in isolated unchanged release293cd4b comparison2/2.
+The full-run cause remains unclassified and is not proven baseline. Required full
+gate remains red; owner stop gate applied before PR/package/merge. No production
+or test changes, weakening, exclusions or retries until green. Accepted four focus
+files remain byte-identical; native slot released to051, branch and evidence retained.
+These local-only findings belong in the same eventual implementation PR if resumed;
+no administrative PR, release/tag, main forward-port or production Catalog change.

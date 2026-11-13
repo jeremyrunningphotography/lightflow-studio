@@ -1,5 +1,29 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## I05 owner-path investigation (destination confirmation pending)
+
+I04 owner acceptance is NEEDS WORK; no PR. The actual task-owned workspace
+selection contains five assets expanding to eight export rows: six Subclips and
+two no-Subclip full-source fallbacks. Read-only Catalog and filesystem inspection,
+followed by the production planner replay, establishes exactly two genuine
+selected-source matches if the destination is the Browser folder's Exports
+subfolder. One fallback targets itself; the other (from 1080p) targets a selected
+video in Exports that is the parent of three other selected Subclips. Matching
+normalized absolute paths, resolved paths, device/file IDs and unchanged source
+hashes are retained in the task-owned I05 investigation evidence. No duplicate
+planned output path is involved. Both overwrite settings remain blocked; a
+separate destination, unique names or excluding the two fallback rows clears the
+block. No media or Catalog writes were performed by the investigation.
+
+The rejected dialog did not persist destination settings; its exact destination
+and two row names have been requested from the owner before treating this replay
+as the definitive original scenario. Reclassifying the demonstrated physical
+matches as unrelated outputs would violate the approved source-protection rule.
+No production classification or UI change, corrected package, or complete I05
+acceptance claim is made pending that confirmation. The opt-in filesystem-backed
+replay passed in the required private desktop; the initial fixture constructor
+compile error is retained. Historical maintenance is not warranted for this
+bounded investigation. I03's six owner-accepted checks remain preserved.
 ## I04 overwrite and conflict presentation
 
 Owner accepted all six core I03 checks. That acceptance is preserved: no changes

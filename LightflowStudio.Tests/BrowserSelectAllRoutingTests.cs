@@ -155,6 +155,13 @@ public sealed class BrowserSelectAllRoutingTests
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         model.SelectSingle(0); var selected = model.SelectedKeys.ToHashSet();
         Focus(window, source);
+        if (context is "Compact Jobs" or "Subclips")
+        {
+            var before = Keyboard.FocusedElement;
+            var frame = Assert.IsAssignableFrom<UIElement>(window.HomeRightPanel.InputHitTest(new Point(window.HomeRightPanel.ActualWidth / 2, 2)));
+            NeutralPress(frame);
+            Assert.Same(before, Keyboard.FocusedElement);
+        }
         Press(window, source);
         Assert.True(selected.SetEquals(model.SelectedKeys));
         if (context is "Subclips" or "Jobs" or "Other selector") Assert.Equal(2, ((ListBox)source).SelectedItems.Count);
@@ -351,12 +358,13 @@ public sealed class BrowserSelectAllRoutingTests
             Focus(window, fields[1]); fields[1].Text = "I02 caption";
             Press(window, fields[1]); Assert.Equal("I02 caption", fields[1].SelectedText);
             var neutral = Assert.IsAssignableFrom<UIElement>(inspector.InputHitTest(new Point(2, 2)));
+            var frame = Assert.IsAssignableFrom<UIElement>(window.HomeRightPanel.InputHitTest(new Point(window.HomeRightPanel.ActualWidth / 2, 2)));
             var selected = model.SelectedKeys.ToHashSet();
             var title = inspector.TitleText.Text;
             for (var i = 0; i < 3; i++)
             {
                 Focus(window, fields[i % 2]);
-                var pointer = NeutralPress(neutral);
+                var pointer = NeutralPress(i == 1 ? frame : neutral);
                 Assert.False(pointer.Handled);
                 Assert.Same(inspector, Keyboard.FocusedElement);
                 Assert.True(selected.SetEquals(model.SelectedKeys));

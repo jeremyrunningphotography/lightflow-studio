@@ -75,6 +75,8 @@ the pointer event handled. Only this exact focused container is eligible for the
 existing Browser Select All resolver; its interactive descendants remain excluded.
 Controls, selectors, links, marker cards and pointer capture retain ownership.
 Player and not-ready Browser guards still apply before the neutral exception.
+Neutral outer panel padding releases focus only while Inspector is the active
+surface; the other surfaces and interactive tab chrome remain owners.
 Transparent hit testing adds no visual layout or styling change.
 
 Focus does not apply or discard description drafts: PropertyChanged binding,

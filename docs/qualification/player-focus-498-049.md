@@ -64,3 +64,33 @@ keyboard-highlighted item focus; programmatic opening differs from physical inpu
 Native menu capture could not be established reliably on the private desktop;
 the attempted fixture failures remain in evidence. Menu mouse/keyboard interaction
 requires owner acceptance. No passing automated menu-capture result is claimed.
+
+## Owner acceptance and final qualification continuation
+
+Owner accepted all eight I01 checks above **8/8 PASS**, no corrections, at
+`b1592ddf560dc6c1ff34e68f0413a8079a221362` (production subtree
+`ad4edd7f59776d27543d7e03adffc177b8c6db33`). This supersedes the historical
+pending owner/menu acceptance wording above; synthetic tests remain synthetic.
+The owner conditionally authorizes final qualification, one implementation PR,
+and normal merge only after green required exact-head CI and preserved source.
+No further approval is needed when all conditions hold; stop on any red required
+gate, meaningful regression or need to change accepted production.
+
+Original release baseline: `ca929e586b929d721656a5ca5c5c5fb8fff5f905`.
+Current release verified at `293cd4b9ec43c0a7207d6cb271b08131c5d85f98`:
+#501 and #502 normally merged; #502 post-merge CI43511787157 succeeded.
+Reconciled source `c2fb1fcb6a08937577c4e5ba58f9b756a0148d79`, production subtree
+`687cf634924c1616ac804264e6fbc434a77cb54b`. Only registry conflict resolved;
+all four accepted focus files byte-identical, existing merged Export files unchanged.
+
+Mandatory deferred-code audit: diff ca929e5..b1592dd contains only new
+PlayerViewerHost.Focus.cs and focus-only changes in Review.cs, host XAML and
+TryHandleShortcut. Decoder seeking/reconstruction/native reuse/caches, step queues,
+frame presentation, VFR predecessor/duplicate-PTS/zero and teardown code unchanged.
+No experimental optimization remains. The quicker 1080p owner observation is not
+a measured optimization result; 4K latency/backlog and research findings stay deferred.
+No new follow-up issue created. Prior I01 ZIP SHA256:
+`c4acb25bad456a518c791d0f29540cb445b7ce64a5f8c4bd68f9f666d7f4936b`.
+Historical focused309 PASS / full2578 PASS,2 baseline Browser failures,7 skips and
+package PASS remain preserved. Final fresh qualification is pending; no claim of
+clean full suite, PR, merge, release or main forward-port yet.

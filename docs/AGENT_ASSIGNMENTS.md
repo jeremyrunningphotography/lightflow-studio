@@ -13,8 +13,8 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Focus-only implementation authorized; local validation/owner acceptance pending; decoder research deferred |
-| 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
+| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Owner accepted I01 b1592dd 8/8 PASS; accepted focus preserved; final qualification and single release/1.0 PR/conditional normal merge authorized only after green gates; prepared closeout, actual disposition in issue/PR; decoder research deferred |
+| 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), [PR #502](https://github.com/jeremyrunningphotography/lightflow-studio/pull/502), parent #491 | Done; owner accepted 8/8 PASS; normal release/1.0 merge 293cd4b; post-merge CI 43511787157 SUCCESS; retired; accepted changes and evidence preserved; no release/main forward-port |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
@@ -143,3 +143,17 @@ production change/regression requires review. See
 [qualification](qualification/export-active-in-out-497-048.md).
 048 final local qualification: focused 263 PASS / 1 opt-in SKIP; unfiltered Release 2568 PASS / 0 FAIL / 8 opt-in SKIP; packaged-tools export/safety 12 PASS; package startup/shutdown/Catalog/dependencies PASS. No new failures or production/test changes. Historical I01 Jobs access-denied evidence retained. Single-PR exact-head CI, explicit merge authorization, normal merge and post-merge reconciliation remain gates; not merged/Done.
 
+
+## Assignment 049 — accepted focus and conditional final closeout
+
+Owner accepted I01 b1592ddf560dc6c1ff34e68f0413a8079a221362 **8/8 PASS**,
+no corrections. Conditional final qualification, one implementation PR and normal
+merge are authorized only with preserved production and green required gates.
+Release reconciliation includes merged #501/#502 at 293cd4b; four accepted Player
+focus files remain byte-identical. No experimental decoder/cache/queue/presentation,
+VFR/duplicate-PTS/zero or teardown changes survived the deferred-code audit.
+Final test/package results and actual PR/merge/post-merge provenance belong in
+[qualification](qualification/player-focus-498-049.md), #498 and its single PR.
+This is prepared closeout, not a premature claim of merge or Project Done. If any
+required gate stays red, stop without merging. Historical maintenance: Not warranted.
+047 and048 are retired; routine source/private-desktop coordination uses active agents.

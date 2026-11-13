@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 048 | LF-WIN-DEV-048 | Export Active In/Out | Issue #497, parent #491, dependency #496 | Reserved; source investigation only; implementation waits for #496 merge into release/1.0 |
+| 048 | LF-WIN-DEV-048 | Export Active In/Out | Issue #497, parent #491, dependency #496 | In Progress; dependency #496 merged as ca929e5; isolated implementation and validation; packaged owner acceptance pending; no PR |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), tracking #491 | Prepared closeout; owner accepted 10/10 PASS (zero observations) at 9923753; Windows focused 274 and independent full 2561 PASS; accepted production preserved; single release/1.0 PR, exact-head CI status in PR; new explicit merge authorization pending; not merged/Done |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
@@ -98,3 +98,5 @@ Base `90f4f94d72f4397325ba6547f486966044208a3f`.
 Status: source investigation only; production implementation and packaging
 blocked until #496 is merged into release/1.0. No PR or acceptance claimed.
 Reservation will be included in the single implementation PR; no administrative PR.
+
+048 dependency clearance — 2026-11-13: verified PR #501 merge ca929e586b929d721656a5ca5c5c5fb8fff5f905 on release/1.0 and incorporated it before production edits. Implementation now underway under #497; original investigation checkpoint above is historical. Existing Player partial-mark semantics reused; no frame-stepping changes. Project #4 In Progress / Export & Jobs / P2, native parent #491 and completed dependency #496 reconciled. Owner package acceptance precedes one implementation PR. No merge/release/tag/main forward-port authorized.

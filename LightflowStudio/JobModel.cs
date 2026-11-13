@@ -96,7 +96,8 @@ internal enum ExportItemKind
 {
     OrdinarySource,
     Subclip,
-    NoSubclipFullSourceFallback
+    NoSubclipFullSourceFallback,
+    NoSubclipActiveRange
 }
 
 internal sealed record ExportItemProvenance(

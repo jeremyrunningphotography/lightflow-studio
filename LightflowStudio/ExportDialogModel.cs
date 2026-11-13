@@ -187,8 +187,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public JobPlan<EncodingJobOptions>? CurrentPlan => _plan;
     public IReadOnlyList<EncodingHandoffInput> Inputs => ActiveInputs().Select(value => value.input).ToArray();
     public IReadOnlyList<EncodingHandoffInput> PreflightInputs => _handoff.Inputs;
-    public bool IsSubclipExport => _handoff.Inputs.Any(input => input.ExportProvenance?.Kind is ExportItemKind.Subclip or ExportItemKind.NoSubclipFullSourceFallback);
-    public bool HasNoSubclipFallbackCandidates => _handoff.Inputs.Any(input => input.ExportProvenance?.Kind == ExportItemKind.NoSubclipFullSourceFallback);
+    public bool IsSubclipExport => _handoff.Inputs.Any(input => input.ExportProvenance?.Kind is ExportItemKind.Subclip or ExportItemKind.NoSubclipFullSourceFallback or ExportItemKind.NoSubclipActiveRange);
+    public bool HasNoSubclipFallbackCandidates => _handoff.Inputs.Any(IsNoSubclipSource);
     public bool IncludeNoSubclipSources { get => _includeNoSubclipSources; set => Set(ref _includeNoSubclipSources, value); }
     public bool ShowGlobalRangeControl => !IsSubclipExport;
     public string Title => IsSubclipExport ? "Export Subclips" : $"Export {_handoff.Inputs.Count} {(_handoff.Inputs.Count == 1 ? "video" : "videos")}";
@@ -309,7 +309,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         ApplyEncoderCapability(capability); return true;
     }
 
-    private bool UsesRange(int index) => _handoff.Inputs[index].ExportProvenance?.Kind == ExportItemKind.Subclip
+    private bool UsesRange(int index) => _handoff.Inputs[index].ExportProvenance?.Kind is ExportItemKind.Subclip or ExportItemKind.NoSubclipActiveRange
         || !_handoff.Inputs[index].RangeIsFixed && _useRanges[index] && _handoff.Inputs[index].InitialTrim is { IsFullSource: false };
     private bool SourcePending(int index) => !_metadataRead[index]
         || _metadata.ElementAtOrDefault(index) is not null && UsesRange(index) && !_rangeRead[index];
@@ -366,10 +366,10 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             if (!current.Succeeded)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, current.Errors));
             var actual = current.Inputs.Where(input =>
-                input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
+                !IsNoSubclipSource(input) ||
                 _includeNoSubclipSources).ToArray();
             if (!ProspectiveStateMatches(expected, actual))
-                throw new InvalidOperationException("The source or Subclip state changed while Export was open. Review the current Subclips and try again.");
+                throw new InvalidOperationException("The source, active In/Out or Subclip state changed while Export was open. Reopen Export to use the current selection.");
         }
         var camera = await SnapshotPolicyAsync(ColorLutStage.Camera, Camera, token);
         var creative = await SnapshotPolicyAsync(ColorLutStage.Creative, Creative, token);
@@ -417,8 +417,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         {
             var (input, index) = value;
             var metadata = _metadata.ElementAtOrDefault(index);
-            var useRange = input.ExportProvenance?.Kind == ExportItemKind.Subclip ||
-                !input.RangeIsFixed && _useRanges[index] && input.InitialTrim is { IsFullSource: false };
+            var useRange = UsesRange(index);
             return new EncodingSource(input.SourcePath, input.FileSizeBytes,
                 metadata is null ? input.InitialTrim?.SourceDuration : TimeSpan.FromSeconds(metadata.DurationSeconds),
                 useRange ? input.InitialTrim : null, useRange ? _resolvedRanges.ElementAtOrDefault(index) : null, LastWriteUtcTicks: _sourceIdentities[index]?.LastWriteUtcTicks,
@@ -470,13 +469,14 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             foreach (var (value, planIndex) in ActiveInputs().Select((value, planIndex) => (value, planIndex)))
             {
                 var (input, index) = value;
-                if ((input.ExportProvenance?.Kind == ExportItemKind.Subclip || _useRanges[index])
+                if (UsesRange(index)
                     && input.InitialTrim is { IsFullSource: false }
                     && _rangeRead[index] && _metadata.ElementAtOrDefault(index) is not null
                     && _resolvedRanges.ElementAtOrDefault(index) is null)
                     itemIssues[planIndex] = [new("export.range-unresolved",
-                        _rangeDiagnostics[index] ?? (input.RangeIsFixed
+                        _rangeDiagnostics[index] ?? (input.ExportProvenance?.Kind == ExportItemKind.Subclip
                             ? $"The fixed Subclip range for '{input.ExportProvenance?.SubclipName}' could not be validated."
+                            : input.RangeIsFixed ? "The active In/Out range could not be validated. Review the marks in Player and reopen Export."
                             : $"The saved In/Out range for '{Path.GetFileName(input.SourcePath)}' could not be validated. Ignore its In/Out range to export the full video."),
                         JobIssueSeverity.Error)];
             }
@@ -524,8 +524,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var (input, index) = value;
             var sourceName = Path.GetFileName(input.SourcePath);
             var hasRange = input.InitialTrim is { IsFullSource: false };
-            var useRange = input.ExportProvenance?.Kind == ExportItemKind.Subclip ||
-                hasRange && !input.RangeIsFixed && _useRanges[index];
+            var useRange = UsesRange(index);
             var outputText = "Output name unresolved";
             var item = planned?.ElementAtOrDefault(planIndex);
             if (item is not null)
@@ -558,7 +557,13 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, displayName, outputText, $"Output for {displayName}: {outputText.TrimStart('→', ' ')}",
                 !input.RangeIsFixed && hasRange, useRange,
                 !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, timeline.SegmentLeft, timeline.SegmentWidth,
-                timeline.ToolTip, timeline.AutomationName, issues, state,
+                input.ExportProvenance?.Kind switch
+                {
+                    ExportItemKind.NoSubclipActiveRange => "Active In/Out · " + timeline.ToolTip,
+                    ExportItemKind.NoSubclipFullSourceFallback => "Full video · " + timeline.ToolTip,
+                    ExportItemKind.Subclip => "Saved Subclip · " + timeline.ToolTip,
+                    _ => timeline.ToolTip
+                }, timeline.AutomationName, issues, state,
                 item?.Disposition == JobPlanDisposition.Skip,
                 item?.Issues.Any(issue => issue.Code == "encoding.existing-output-replaced") == true);
         }).ToArray();
@@ -576,9 +581,12 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             pair.First.Rotation == pair.Second.Rotation &&
             pair.First.ExportProvenance == pair.Second.ExportProvenance);
 
+    private static bool IsNoSubclipSource(EncodingHandoffInput input) =>
+        input.ExportProvenance?.Kind is ExportItemKind.NoSubclipFullSourceFallback or ExportItemKind.NoSubclipActiveRange;
+
     private IReadOnlyList<(EncodingHandoffInput input, int index)> ActiveInputs() => _handoff.Inputs
         .Select((input, index) => (input, index))
-        .Where(value => value.input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
+        .Where(value => !IsNoSubclipSource(value.input) ||
             _includeNoSubclipSources)
         .ToArray();
 

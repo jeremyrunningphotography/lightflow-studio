@@ -1,5 +1,18 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## I05 confirmed messaging correction
+
+Owner screenshot and confirmation resolve the earlier destination hypothesis:
+the two errors protect selected source media, not unrelated existing outputs.
+Issue #496 records the confirmed diagnosis before implementation. I05 now changes
+only conflict tooltip wording: explain that a selected video would be replaced,
+that Overwrite cannot bypass that protection, and to choose a different destination
+or filename. Ordinary skip/replacement warnings and duplicate-output errors use
+plain sentences. Existing classification, footer/button logic, theme/layout,
+Jobs progress, probing and export semantics are unchanged. The actual owner-path
+replay and filesystem overwrite/preservation regressions remain applicable.
+I04 remains historical NEEDS WORK; focused I05 owner acceptance is pending. No PR.
+
 ## I05 owner-path investigation (destination confirmation pending)
 
 I04 owner acceptance is NEEDS WORK; no PR. The actual task-owned workspace

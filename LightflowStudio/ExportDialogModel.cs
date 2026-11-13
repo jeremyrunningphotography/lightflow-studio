@@ -51,13 +51,13 @@ internal sealed record ExportSubmissionItem(
             return issue.Code switch
             {
                 "encoding.source-overwrite" or "encoding.partial-source-collision" =>
-                    "Output conflicts with source\nChoose another destination or filename to protect the original video.",
+                    "This export would replace one of your selected videos.\nChoose a different destination or filename. Overwrite cannot replace a selected video.",
                 "encoding.output-collision" =>
-                    "Duplicate output filename\nChoose unique filenames or destinations for these exports.",
+                    "Two exports would create the same file.\nChoose different filenames or destinations.",
                 "encoding.existing-output-differs" =>
-                    "Existing file will be skipped\nEnable Overwrite existing files to replace it, or choose another filename or destination.",
+                    "A file with this name already exists here. This export will be skipped.",
                 "encoding.existing-output-replaced" =>
-                    "Existing file will be replaced\nThis export will overwrite the existing output file.",
+                    "A file with this name already exists here. It will be replaced.",
                 "naming.path-too-long" =>
                     "Output path is too long\nChoose a shorter destination or filename.",
                 _ => issue.Message

@@ -297,7 +297,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotEqual(warning.PlannedItemId, clean.PlannedItemId);
         Assert.True(warning.HasIssues);
         Assert.False(warning.HasError);
-        Assert.StartsWith("Existing file will be skipped", warning.IssueToolTip);
+        Assert.StartsWith("A file with this name already exists here. This export will be skipped.", warning.IssueToolTip);
         Assert.DoesNotContain("warning-001.mp4", warning.IssueToolTip);
         Assert.False(clean.HasIssues);
         Assert.Empty(model.GlobalWarnings);
@@ -315,7 +315,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         model.OverwriteExisting = true;
 
-        Assert.All(model.SubmissionItems, item => { Assert.True(item.HasIssues); Assert.False(item.HasError); Assert.StartsWith("Existing file will be replaced", item.IssueToolTip); });
+        Assert.All(model.SubmissionItems, item => { Assert.True(item.HasIssues); Assert.False(item.HasError); Assert.StartsWith("A file with this name already exists here. It will be replaced.", item.IssueToolTip); });
         Assert.All(model.CurrentPlan!.Items, item => Assert.Equal(JobPlanDisposition.Process, item.Disposition));
     }
 

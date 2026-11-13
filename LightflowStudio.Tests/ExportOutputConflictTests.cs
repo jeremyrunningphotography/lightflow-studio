@@ -27,14 +27,14 @@ public sealed class ExportOutputConflictTests : IDisposable
         var row = model.SubmissionItems[0];
         Assert.Equal(ExportFilePreflightState.Warning, row.State);
         Assert.True(row.WillSkip); Assert.False(row.HasError);
-        Assert.StartsWith("Existing file will be skipped", row.IssueToolTip);
+        Assert.StartsWith("A file with this name already exists here. This export will be skipped.", row.IssueToolTip);
         Assert.DoesNotContain(_root, row.IssueToolTip);
         Assert.DoesNotContain("existing.mp4", row.IssueToolTip);
         model.OverwriteExisting = true;
         Assert.True(model.CanExport);
         Assert.Equal("1 ready · 1 will be overwritten", model.ReadySummary);
         Assert.Equal(JobPlanDisposition.Process, model.CurrentPlan!.Items[0].Disposition);
-        Assert.Equal("Existing file will be replaced\nThis export will overwrite the existing output file.", model.SubmissionItems[0].IssueToolTip);
+        Assert.Equal("A file with this name already exists here. It will be replaced.", model.SubmissionItems[0].IssueToolTip);
         var accepted = await model.MaterializeAcceptedPlanAsync();
         Assert.True(accepted.Definition.Options.OverwriteExistingFiles);
         Assert.All(accepted.Items, item => Assert.Equal(JobPlanDisposition.Process, item.Disposition));
@@ -69,7 +69,7 @@ public sealed class ExportOutputConflictTests : IDisposable
         Assert.All(model.SubmissionItems, row =>
         {
             Assert.True(row.HasError);
-            Assert.StartsWith("Output conflicts with source", row.IssueToolTip);
+            Assert.StartsWith("This export would replace one of your selected videos.", row.IssueToolTip);
             Assert.DoesNotContain(_root, row.IssueToolTip);
             Assert.DoesNotContain("will be", row.IssueToolTip);
             Assert.Contains(row.Issues, issue => issue.Code == "encoding.source-overwrite" && issue.Message.Contains(_root));
@@ -78,7 +78,7 @@ public sealed class ExportOutputConflictTests : IDisposable
         model.Destination = Path.Combine(_root, "output");
         model.NameParts.Clear(); model.AddPart(NamePartKind.CustomText); model.UpdateCustomText(0, "duplicate");
         Assert.False(model.CanExport);
-        Assert.All(model.SubmissionItems, row => Assert.StartsWith("Duplicate output filename", row.IssueToolTip));
+        Assert.All(model.SubmissionItems, row => Assert.StartsWith("Two exports would create the same file.", row.IssueToolTip));
         Assert.Equal("2 of 2 videos need attention", model.ReadySummary);
         Assert.All(model.PreflightInputs, input => Assert.Equal("source fixture", File.ReadAllText(input.SourcePath)));
     }

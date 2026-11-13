@@ -53,7 +53,7 @@ public sealed class ExportOwnerCollisionReplayTests
         Assert.All(sourceHashes, pair => Assert.Equal(pair.Value,
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(pair.Key)))));
         File.WriteAllText(Path.Combine(Path.GetDirectoryName(manifest)!, "planner-replay.json"), JsonSerializer.Serialize(new
-        { observations, sourceHashesUnchanged = true, sourceHashes, destinationHypothesisPendingOwnerConfirmation = true },
+        { observations, sourceHashesUnchanged = true, sourceHashes, destinationConfirmedByOwnerScreenshot = true },
             new JsonSerializerOptions { WriteIndented = true }));
     }
 }

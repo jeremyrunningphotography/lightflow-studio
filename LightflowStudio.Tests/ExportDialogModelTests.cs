@@ -590,6 +590,98 @@ public sealed class ExportDialogModelTests : IDisposable
             model.CurrentPlan.Items.Single().Definition.ExportProvenance!.Kind);
     }
 
+    [Theory]
+    [InlineData(2, 6)]
+    [InlineData(2, null)]
+    [InlineData(null, 6)]
+    public async Task Active_marks_are_fixed_validated_and_preserved_in_the_accepted_job(int? start, int? end)
+    {
+        var path = Path.Combine(_root, "active.mp4"); File.WriteAllText(path, "source");
+        var asset = Guid.NewGuid();
+        var range = new MediaRange(TimeSpan.FromSeconds(10), start is { } i ? TimeSpan.FromSeconds(i) : null,
+            end is { } o ? TimeSpan.FromSeconds(o) : null);
+        var input = new EncodingHandoffInput(asset, Guid.NewGuid(), path, "active.mp4", 6, range,
+            ExportProvenance: new(ExportItemKind.NoSubclipActiveRange, asset),
+            NamingOriginalName: "active", RangeIsFixed: true);
+        var current = new EncodingHandoffResult([input], [], _root);
+        var model = new ExportDialogModel(current, new(), [], [], new FakeResources(), _ => new(false, 0),
+            revalidate: (_, _) => Task.FromResult(current), namingDefault: ExportNamingDefault.Subclip);
+        Ready(model, Metadata("h264", "mp4"));
+        Assert.False(model.CanExport); // active ranges must pass the same authoritative preflight
+        Assert.True(model.SubmissionItems.Single().IsChecking);
+        var resolved = new ResolvedMediaRange(range, TimeSpan.Zero, range.EffectiveIn,
+            range.EffectiveOut, range.EffectiveDuration);
+        model.ApplyResolvedRanges([resolved]);
+        Assert.True(model.CanExport);
+        var row = Assert.Single(model.SubmissionItems);
+        Assert.True(row.UseRange); Assert.False(row.RangeControlEnabled);
+        Assert.StartsWith("Active In/Out", row.RangeToolTip);
+        model.SetGlobalUseRanges(false); model.SetUseRange(0, false);
+        Assert.True(model.SubmissionItems.Single().UseRange);
+        var plan = await model.MaterializeAcceptedPlanAsync();
+        var item = Assert.Single(plan.Items).Definition;
+        Assert.Equal(resolved, item.ResolvedRange);
+        Assert.Equal(ExportItemKind.NoSubclipActiveRange, item.ExportProvenance!.Kind);
+        Assert.EndsWith("active.mp4", plan.Items[0].OutputPaths.Single());
+        model.IncludeNoSubclipSources = false; Assert.Empty(model.SubmissionItems);
+        model.IncludeNoSubclipSources = true; Assert.True(model.CanExport);
+        current = current with { Inputs = [input with { InitialTrim = range with { In = TimeSpan.FromSeconds(1) } }] };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => model.MaterializeAcceptedPlanAsync());
+    }
+
+    [Fact]
+    public void Invalid_active_range_is_blocked_without_full_source_or_encoder_fallback()
+    {
+        var path = Path.Combine(_root, "invalid.mp4"); File.WriteAllText(path, "source");
+        var asset = Guid.NewGuid();
+        var range = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(7), TimeSpan.FromSeconds(3));
+        var input = new EncodingHandoffInput(asset, Guid.NewGuid(), path, "invalid.mp4", 6, range,
+            ExportProvenance: new(ExportItemKind.NoSubclipActiveRange, asset), RangeIsFixed: true);
+        var model = Model(new([input], [], _root));
+        Ready(model, Metadata("h264", "mp4")); model.ApplyResolvedRanges([null]);
+        Assert.False(model.CanExport);
+        Assert.Equal(ExportFilePreflightState.Error, model.SubmissionItems.Single().State);
+        Assert.Contains(model.Errors, issue => issue.Code == "export.range-unresolved");
+        Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.encoder-unavailable");
+        Assert.Equal(range.In, model.CurrentPlan!.Items.Single().Definition.MediaRange!.In);
+    }
+
+    [Fact]
+    public async Task Mixed_subclip_active_and_full_source_batch_preserves_ranges_when_inclusion_toggles()
+    {
+        var active = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(6));
+        var saved = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
+        EncodingHandoffInput Make(string name, MediaRange? range, ExportItemKind kind)
+        {
+            var path = Path.Combine(_root, name + ".mp4"); File.WriteAllText(path, "source");
+            var asset = Guid.NewGuid();
+            return new(asset, Guid.NewGuid(), path, name, 6, range,
+                ExportProvenance: new(kind, asset, kind == ExportItemKind.Subclip ? Guid.NewGuid() : null,
+                    kind == ExportItemKind.Subclip ? "Saved" : null), NamingOriginalName: name, RangeIsFixed: true);
+        }
+        var inputs = new[] { Make("active", active, ExportItemKind.NoSubclipActiveRange),
+            Make("saved", saved, ExportItemKind.Subclip), Make("full", null, ExportItemKind.NoSubclipFullSourceFallback) };
+        var handoff = new EncodingHandoffResult(inputs, [], _root);
+        var model = new ExportDialogModel(handoff, new(), [], [], new FakeResources(), _ => new(false, 0),
+            revalidate: (_, _) => Task.FromResult(handoff), namingDefault: ExportNamingDefault.Subclip);
+        Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"), Metadata("h264", "mp4"));
+        model.ApplyResolvedRanges([new(active, TimeSpan.Zero, active.EffectiveIn, active.EffectiveOut, active.EffectiveDuration),
+            new(saved, TimeSpan.Zero, saved.EffectiveIn, saved.EffectiveOut, saved.EffectiveDuration), null]);
+        Assert.True(model.CanExport);
+        Assert.Equal([true, true, false], model.SubmissionItems.Select(row => row.UseRange));
+        model.IncludeNoSubclipSources = false;
+        var savedOnly = await model.MaterializeAcceptedPlanAsync();
+        Assert.Equal(ExportItemKind.Subclip, Assert.Single(savedOnly.Items).Definition.ExportProvenance!.Kind);
+        Assert.Equal(saved.In, savedOnly.Items[0].Definition.ResolvedRange!.RequestedRange.In);
+        model.IncludeNoSubclipSources = true;
+        var all = await model.MaterializeAcceptedPlanAsync();
+        Assert.Equal(inputs.Select(input => input.ExportProvenance), all.Items.Select(item => item.Definition.ExportProvenance));
+        Assert.Equal(active, all.Items[0].Definition.ResolvedRange!.RequestedRange);
+        Assert.Equal(saved, all.Items[1].Definition.ResolvedRange!.RequestedRange);
+        Assert.Null(all.Items[2].Definition.ResolvedRange);
+        Assert.True(all.Items[2].Definition.MediaRange!.IsFullSource);
+    }
+
     [Fact]
     public async Task Accepted_subclip_plan_revalidates_current_revision_and_never_substitutes_full_source()
     {

@@ -18,6 +18,72 @@ public sealed class DjiAcceptanceTheoryAttribute : TheoryAttribute
 public sealed class ExportDjiAcceptanceTests
 {
     [DjiAcceptanceTheory]
+    [InlineData(true)]
+    public async Task OriginalDjiPair_RealDialogPublishesPerFileProgressAndNormalReady(bool measured)
+    {
+        var repo = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "AGENTS.md"))) repo = repo.Parent;
+        using var manifest = JsonDocument.Parse(File.ReadAllText(Environment.GetEnvironmentVariable("LIGHTFLOW_DJI_ACCEPTANCE_MANIFEST")!));
+        var root = Path.Combine(repo!.FullName, "artifacts", "i03-batch-preflight"); Directory.CreateDirectory(root);
+        var inputs = manifest.RootElement.GetProperty("sources").EnumerateArray().Select((source, index) =>
+        {
+            var path = source.GetProperty("path").GetString()!; var identity = TrimSourceIdentity.Read(path)!; var asset = Guid.NewGuid();
+            return new EncodingHandoffInput(asset, Guid.NewGuid(), path, $"DJI source {index + 1}", identity.FileSizeBytes,
+                new(TimeSpan.FromTicks(source.GetProperty("durationTicks").GetInt64()), TimeSpan.FromTicks(source.GetProperty("inTicks").GetInt64()), TimeSpan.FromTicks(source.GetProperty("outTicks").GetInt64())),
+                ExportProvenance: new(ExportItemKind.Subclip, asset, Guid.NewGuid(), $"DJI source {index + 1}", 1),
+                NamingOriginalName: $"DJI source {index + 1}", RangeIsFixed: true, SourceIdentity: identity);
+        }).ToArray();
+        var model = new ExportDialogModel(new(inputs, [], root), new() { PixelFormat = VideoPixelFormat.P010 }, [], [],
+            new EncodingLutResourceStore(Path.Combine(root, "luts")), _ => new(false, 0), namingDefault: ExportNamingDefault.Subclip);
+        var tools = Environment.GetEnvironmentVariable("LIGHTFLOW_EXPORT_TEST_TOOLS") ?? Path.Combine(repo.FullName, "artifacts", "ffmpeg", "bin");
+        await StaDispatcher.RunAsync(async () =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var window = new ExportDialog(model, null!, Path.Combine(tools, "ffprobe.exe"))
+            { ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.Manual, Left = -32000, Top = -32000 };
+            var history = new List<object>();
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            var ticks = 0; var lastTick = 0d; var maximumGap = 0d; var sawOneReady = false;
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
+            timer.Tick += (_, _) => { var now = elapsed.Elapsed.TotalMilliseconds; maximumGap = Math.Max(maximumGap, now - lastTick); lastTick = now; ticks++; };
+            void Capture(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+            {
+                if (args.PropertyName != string.Empty) return;
+                var rows = model.SubmissionItems;
+                Assert.DoesNotContain(rows, row => row.HasError);
+                Assert.Equal(model.ReadySummary, window.ReadySummaryText.Text);
+                Assert.Equal(model.CanExport, window.ExportButton.IsEnabled);
+                if (rows.Count(row => row.State == ExportFilePreflightState.Ready) == 1 && rows.Any(row => row.IsChecking))
+                { sawOneReady = true; Assert.False(window.ExportButton.IsEnabled); }
+                history.Add(new { elapsedMs = elapsed.Elapsed.TotalMilliseconds, footer = model.ReadySummary,
+                    states = rows.Select(row => row.State.ToString()).ToArray(), exportEnabled = model.CanExport });
+            }
+            model.PropertyChanged += Capture;
+            try
+            {
+                timer.Start(); window.Show();
+                var deadline = DateTime.UtcNow.AddMinutes(2);
+                while (!model.CanExport)
+                {
+                    Assert.True(DateTime.UtcNow < deadline, string.Join(" | ", model.Errors.Select(issue => issue.Message)));
+                    await Task.Delay(20);
+                }
+                timer.Stop();
+                Assert.True(sawOneReady);
+                Assert.True(ticks >= 2);
+                Assert.True(maximumGap < 1000, $"UI heartbeat stalled for {maximumGap:F0} ms.");
+                Assert.Equal("2 videos ready to export", window.ReadySummaryText.Text);
+                Assert.Empty(model.Warnings);
+                Assert.All(model.SubmissionItems, row => { Assert.Equal(ExportFilePreflightState.Ready, row.State); Assert.False(row.HasIssues); });
+                if (measured) File.WriteAllText(Path.Combine(root, "evidence.json"), JsonSerializer.Serialize(new
+                { totalMs = elapsed.Elapsed.TotalMilliseconds, maximumHeartbeatGapMs = maximumGap, heartbeatTicks = ticks, history,
+                    technicalDetails = model.CurrentPlan!.Items.Select(item => item.Definition.ResolvedRange!.BoundaryDiagnostic) }, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            finally { model.PropertyChanged -= Capture; timer.Stop(); window.Close(); }
+        });
+    }
+
+    [DjiAcceptanceTheory]
     [InlineData(0)]
     [InlineData(1)]
     public async Task OriginalDjiSource_DialogPreflightAndRealExportPreserveVideoAndAudioEof(int sourceIndex)

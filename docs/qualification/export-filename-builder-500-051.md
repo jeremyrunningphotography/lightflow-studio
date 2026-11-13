@@ -119,3 +119,15 @@ I02 owner checklist:
 Qualification and exact package/source identity are recorded in the I02 evidence ZIP.
 No PR yet; stop at I02 hands-on acceptance. No significant visual redesign or
 additional screenshot review is required. Historical maintenance: Not warranted.
+
+I02 focused qualification: 201 PASS / 0 FAIL / 1 existing original-media opt-in
+SKIP, plus 15/15 pure managed default cases and 2/2 native same-host style-reference
+checks. Initial two failures were data-driven review expectations retaining the
+old automatic sequence suffix; expected Original Name-only outputs now match the
+approved contract, with every row-count/source/safety assertion retained. The real
+placeholder focus/type/clear/blur test passed. Source and test evidence preserve
+initial failures. Cold first-edit timings varied above 50 ms in both the local
+placeholder style and its unchanged I01 base-style reference; sampled individual
+subsequent edits remained responsive. No universal latency bound is claimed and
+no accepted I01 planner/event code was changed. Final unfiltered Release and
+package/installer/portable results are recorded in the I02 evidence report.

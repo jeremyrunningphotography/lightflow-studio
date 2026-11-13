@@ -359,7 +359,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.Equal(count, model.SubmissionItems.Count);
         Assert.Equal($"clip-{count:D2}.mp4", model.SubmissionItems[^1].SourceFileName);
-        Assert.Equal($"→ clip-{count:D2}-{count:D3}.mp4", model.SubmissionItems[^1].OutputText);
+        Assert.Equal($"→ clip-{count:D2}.mp4", model.SubmissionItems[^1].OutputText);
     }
 
     [Fact]

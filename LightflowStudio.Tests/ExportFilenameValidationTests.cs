@@ -159,8 +159,10 @@ public sealed class ExportFilenameValidationTests
         model.CloseValidation();
     });
 
-    [Fact]
-    public Task NativeEditingKeepsViewportCaretSelectionAndDispatcherResponsive() => StaDispatcher.RunAsync(async () =>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public Task NativeEditingKeepsViewportCaretSelectionAndDispatcherResponsive(bool usePlaceholderStyle) => StaDispatcher.RunAsync(async () =>
     {
         TestWpfApplication.EnsureLoaded();using var fixture=new Fixture(100);using var gate=new Gate();
         var model=fixture.Model(_=>{gate.WaitOnce();return new(false,0);});model.AddPart(NamePartKind.CustomText);
@@ -170,6 +172,10 @@ public sealed class ExportFilenameValidationTests
         {
             dialog.Show(); await Until(()=>model.CanExport,15000);dialog.UpdateLayout();
             var box=Descendants(dialog.NamePartsComposer).OfType<TextBox>().Single(x=>x.IsVisible);
+            // Same-host reference isolates the local placeholder style from I01's
+            // unchanged ordinary TextBox style. Both retain the real event path.
+            if (!usePlaceholderStyle) box.Style = box.Style.BasedOn;
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             box.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice,Environment.TickCount,MouseButton.Left){RoutedEvent=UIElement.PreviewMouseLeftButtonDownEvent});
             Assert.Null(typeof(ExportDialog).GetField("_dragPartIndex",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!.GetValue(dialog));
             var observations=new List<string>{"operation,elapsed_ms,viewport_height,horizontal_offset,export_enabled"};
@@ -201,7 +207,7 @@ public sealed class ExportFilenameValidationTests
             Assert.Equal(50,box.SelectionLength);Assert.True(box.IsKeyboardFocusWithin);
             Assert.Equal(box.Text,model.NameParts[2].Text);Assert.Contains(box.Text,model.PreviewName);
             var directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../artifacts/filename-validation"));Directory.CreateDirectory(directory);
-            File.WriteAllLines(Path.Combine(directory,"native-after.csv"),observations);
+            File.WriteAllLines(Path.Combine(directory,usePlaceholderStyle?"native-after.csv":"native-style-reference.csv"),observations);
             gate.Release();await Until(()=>!model.IsPlanPending);Assert.True(dialog.ExportButton.IsEnabled);
             gate.Arm();box.Text="close-pending";await Until(()=>gate.Entered);
             dialog.Close();gate.Release();await Task.Delay(250);

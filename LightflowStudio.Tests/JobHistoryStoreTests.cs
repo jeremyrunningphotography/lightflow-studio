@@ -61,14 +61,19 @@ public sealed class JobHistoryStoreTests : IDisposable
         Assert.True(restored.AssignedColor!.ColorEnabled);
     }
 
-    [Fact]
-    public void CompletedEncodingJob_RoundTripsNamingAndRerunRestoresDefinitionAndMaterializedName()
+    [Theory]
+    [InlineData((int)ExportItemKind.Subclip)]
+    [InlineData((int)ExportItemKind.NoSubclipActiveRange)]
+    [InlineData((int)ExportItemKind.NoSubclipFullSourceFallback)]
+    public void CompletedEncodingJob_RoundTripsNamingAndRerunRestoresDefinitionAndMaterializedName(int kind)
     {
         var source = Path.Combine(_root, "DJI_0042.MP4");
         File.WriteAllText(source, "source");
         var name = new MaterializedName("DJI_0042-0042", 1, "0042", null);
-        var provenance = new ExportItemProvenance(ExportItemKind.Subclip, Guid.NewGuid(), Guid.NewGuid(),
-            "Interview answer", 4);
+        var provenance = new ExportItemProvenance((ExportItemKind)kind, Guid.NewGuid(),
+            kind == (int)ExportItemKind.Subclip ? Guid.NewGuid() : null,
+            kind == (int)ExportItemKind.Subclip ? "Interview answer" : null,
+            kind == (int)ExportItemKind.Subclip ? 4 : null);
         var definition = new NamePartsDefinition([
             new(NamePartKind.OriginalName), new(NamePartKind.IndexNumber)
         ], NamePartSeparator.Hyphen);

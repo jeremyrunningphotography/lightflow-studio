@@ -45,6 +45,7 @@ public partial class ExportDialog : Window
         if (model.IsSubclipExport)
         {
             GlobalUseRangesCheck.Content = "Include selected videos with no Subclips";
+            GlobalUseRangesCheck.ToolTip = "Use each video's active In/Out when defined; otherwise export its full source.";
             System.Windows.Automation.AutomationProperties.SetName(GlobalUseRangesCheck,
                 "Include selected videos with no Subclips");
             GlobalUseRangesCheck.Visibility = model.HasNoSubclipFallbackCandidates

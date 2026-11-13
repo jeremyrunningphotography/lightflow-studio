@@ -74,9 +74,9 @@ internal sealed class SubclipExportCapabilityHandoff(
                 {
                     output.Add(source with
                     {
-                        InitialTrim = null,
                         RangeIsFixed = true,
-                        ExportProvenance = new(ExportItemKind.NoSubclipFullSourceFallback, source.AssetId),
+                        ExportProvenance = new(source.InitialTrim is { IsFullSource: false }
+                            ? ExportItemKind.NoSubclipActiveRange : ExportItemKind.NoSubclipFullSourceFallback, source.AssetId),
                         NamingOriginalName = Path.GetFileNameWithoutExtension(source.SourcePath),
                         NamingIndexNumberBasis = Path.GetFileNameWithoutExtension(source.SourcePath)
                     });
@@ -85,7 +85,7 @@ internal sealed class SubclipExportCapabilityHandoff(
         }
 
         if (output.Count == 0)
-            return new([], ["The selected videos do not currently contain any Subclips. Enable the full-source fallback to include videos with no Subclips."], ordinary.InputFolder, ordinary.IncludeSubfolders);
+            return new([], ["The selected videos do not currently contain any Subclips. Include videos with no Subclips to export their active In/Out or full source."], ordinary.InputFolder, ordinary.IncludeSubfolders);
         return new(output, [], ordinary.InputFolder, ordinary.IncludeSubfolders);
     }
 

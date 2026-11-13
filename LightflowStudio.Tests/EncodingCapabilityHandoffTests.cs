@@ -222,11 +222,46 @@ public sealed class EncodingCapabilityHandoffTests
 
         Assert.True(result.Succeeded);
         Assert.Equal([second, first, first], result.Inputs.Select(item => item.AssetId));
-        Assert.Equal([ExportItemKind.NoSubclipFullSourceFallback, ExportItemKind.Subclip, ExportItemKind.Subclip],
+        Assert.Equal([ExportItemKind.NoSubclipActiveRange, ExportItemKind.Subclip, ExportItemKind.Subclip],
             result.Inputs.Select(item => item.ExportProvenance!.Kind));
-        Assert.Null(result.Inputs[0].InitialTrim);
+        Assert.Equal(new MediaRange(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(8)), result.Inputs[0].InitialTrim);
         Assert.Equal(["Opening", "Reaction"], result.Inputs.Skip(1).Select(item => item.NamingOriginalName));
         Assert.All(result.Inputs, item => Assert.True(item.RangeIsFixed));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(2, null)]
+    [InlineData(null, 8)]
+    [InlineData(2, 8)]
+    public async Task No_subclips_use_only_the_corresponding_assets_marks(int? start, int? end)
+    {
+        var marked = Guid.NewGuid(); var unmarked = Guid.NewGuid(); var withSubclip = Guid.NewGuid();
+        var range = start is null && end is null ? null : new MediaRange(TimeSpan.FromSeconds(20),
+            start is { } i ? TimeSpan.FromSeconds(i) : null, end is { } o ? TimeSpan.FromSeconds(o) : null);
+        var ranges = new FakeRanges(new() { [marked] = range,
+            [withSubclip] = new(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(12)) });
+        var handoff = new SubclipExportCapabilityHandoff(new EncodingCapabilityHandoff(new FakeAssets(
+            Resolution(marked, "C:\\media\\marked.mov"), Resolution(unmarked, "C:\\media\\unmarked.mov"),
+            Resolution(withSubclip, "C:\\media\\saved.mov")), new FakeRoots(), ranges),
+            new FakeSubclips(new() { [withSubclip] = [Clip(withSubclip, "Saved", 0, 1, 4)] }));
+        var invocation = new SubclipExportInvocation(SubclipExportEntryKind.BrowserSources,
+            [unmarked, withSubclip, marked], IncludeNoSubclipSources: true);
+        var result = await handoff.MaterializeAsync(invocation);
+        Assert.True(result.Succeeded);
+        Assert.Null(result.Inputs[0].InitialTrim);
+        Assert.Equal(ExportItemKind.NoSubclipFullSourceFallback, result.Inputs[0].ExportProvenance!.Kind);
+        Assert.Equal(TimeSpan.FromSeconds(1), result.Inputs[1].InitialTrim!.In);
+        Assert.Equal(ExportItemKind.Subclip, result.Inputs[1].ExportProvenance!.Kind);
+        Assert.Equal(range, result.Inputs[2].InitialTrim);
+        Assert.Equal(range is null ? ExportItemKind.NoSubclipFullSourceFallback : ExportItemKind.NoSubclipActiveRange,
+            result.Inputs[2].ExportProvenance!.Kind);
+        Assert.Equal("marked", result.Inputs[2].NamingOriginalName);
+        Assert.Equal("marked", result.Inputs[2].NamingIndexNumberBasis);
+        await ranges.SaveAsync(marked, new(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(5)));
+        Assert.Equal(range, result.Inputs[2].InitialTrim); // dialog snapshot is immutable
+        Assert.Equal(TimeSpan.FromSeconds(5), (await handoff.MaterializeAsync(invocation)).Inputs[2].InitialTrim!.In);
+        Assert.Single((await handoff.MaterializeAsync(invocation with { IncludeNoSubclipSources = false })).Inputs);
     }
 
     [Fact]

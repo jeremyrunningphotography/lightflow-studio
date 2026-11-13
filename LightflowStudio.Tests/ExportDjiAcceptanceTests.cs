@@ -29,7 +29,7 @@ public sealed class ExportDjiAcceptanceTests
         while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "AGENTS.md"))) repo = repo.Parent;
         Assert.NotNull(repo);
         var tools = Environment.GetEnvironmentVariable("LIGHTFLOW_EXPORT_TEST_TOOLS") ?? Path.Combine(repo.FullName, "artifacts", "ffmpeg", "bin");
-        var outputRoot = Path.Combine(repo.FullName, "artifacts", "i02-real-export", $"source-{sourceIndex + 1}-{Guid.NewGuid():N}");
+        var outputRoot = Path.Combine(repo.FullName, "artifacts", "i03-real-export", $"source-{sourceIndex + 1}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(outputRoot);
         var identity = TrimSourceIdentity.Read(path)!;
         var range = new MediaRange(TimeSpan.FromTicks(source.GetProperty("durationTicks").GetInt64()),
@@ -67,6 +67,10 @@ public sealed class ExportDjiAcceptanceTests
                 Assert.True(model.CanExport, string.Join(" | ", model.Errors.Select(issue => issue.Message)));
                 Assert.True(window.ExportButton.IsEnabled);
                 Assert.DoesNotContain("unknown", window.ValidationText.Text, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal("1 video ready to export", window.ReadySummaryText.Text);
+                Assert.All(model.SubmissionItems, row => Assert.Equal(ExportFilePreflightState.Ready, row.State));
+                Assert.Empty(model.Warnings);
+                Assert.DoesNotContain("Saved exclusive source EOF", window.ValidationText.Text);
             }
             finally { window.Close(); }
         });

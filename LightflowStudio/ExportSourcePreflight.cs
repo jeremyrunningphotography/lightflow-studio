@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.IO;
 
 namespace LightflowStudio;
@@ -5,7 +6,7 @@ namespace LightflowStudio;
 internal sealed record ExportSourceProbe(MediaMetadata? Metadata, TrimSourceIdentity? Identity, string? Diagnostic = null);
 
 /// <summary>Authoritative export probes, shared by the dialog and executable integration coverage.</summary>
-internal sealed class ExportSourcePreflight(string? ffprobe, IProbeProcessRunner runner)
+internal sealed class ExportSourcePreflight(string? ffprobe, IProbeProcessRunner runner, Action<string>? diagnostic = null)
 {
     public async Task<ExportSourceProbe> ProbeAsync(EncodingHandoffInput input, CancellationToken token = default)
     {
@@ -37,9 +38,47 @@ internal sealed class ExportSourcePreflight(string? ffprobe, IProbeProcessRunner
         ResolvedMediaRange resolved;
         if (range.Out == range.SourceDuration)
         {
-            // EOF always needs a decoded terminal duration and current stream/source endpoints.
-            var frames = await CaptureAsync(FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, metadata.StartTimestamp), token);
-            resolved = EncodingRangeResolver.Resolve(range, metadata.StartTimestamp, frames, metadata.EofEvidence);
+            try
+            {
+                var arguments = FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, metadata.StartTimestamp);
+                // FFprobe seeks back to a keyframe, decodes through real EOF, and
+                // the resolver must still prove terminal duration/end against metadata.
+                var start = metadata.StartTimestamp + (range.SourceDuration > TimeSpan.FromMilliseconds(50)
+                    ? range.SourceDuration - TimeSpan.FromMilliseconds(50) : TimeSpan.Zero);
+                arguments[arguments.IndexOf("-read_intervals") + 1] = start.TotalSeconds
+                    .ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture) + "%";
+                var frames = await CaptureAsync(arguments, token);
+                // First independently prove the decoded terminal end. An In probe
+                // must never stand in for missing EOF evidence.
+                _ = EncodingRangeResolver.Resolve(range with { In = null }, metadata.StartTimestamp, frames, metadata.EofEvidence);
+                if (range.In is { } requestedIn && !EncodingRangeResolver.ParseFrameTimestamps(frames)
+                    .Any(timestamp => Math.Abs((timestamp - metadata.StartTimestamp - requestedIn).TotalMilliseconds) <= 2))
+                {
+                    var inArguments = FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, metadata.StartTimestamp);
+                    var inStart = metadata.StartTimestamp + (requestedIn > TimeSpan.FromMilliseconds(2)
+                        ? requestedIn - TimeSpan.FromMilliseconds(2) : TimeSpan.Zero);
+                    var inEnd = metadata.StartTimestamp + requestedIn + TimeSpan.FromMilliseconds(2);
+                    inArguments[inArguments.IndexOf("-read_intervals") + 1] = inStart.TotalSeconds
+                        .ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture) + "%" + inEnd.TotalSeconds
+                        .ToString("0.#######", System.Globalization.CultureInfo.InvariantCulture);
+                    var inFrames = await CaptureAsync(inArguments, token);
+                    using var terminalDocument = JsonDocument.Parse(frames);
+                    using var inDocument = JsonDocument.Parse(inFrames);
+                    var combined = terminalDocument.RootElement.GetProperty("frames").EnumerateArray()
+                        .Concat(inDocument.RootElement.GetProperty("frames").EnumerateArray())
+                        .DistinctBy(frame => frame.GetProperty("best_effort_timestamp_time").GetString() + "|" +
+                            (frame.TryGetProperty("duration", out var duration) ? duration.ToString()
+                                : frame.TryGetProperty("duration_time", out var seconds) ? seconds.ToString() : "missing"));
+                    frames = JsonSerializer.Serialize(new { frames = combined.ToArray() });
+                }
+                resolved = EncodingRangeResolver.Resolve(range, metadata.StartTimestamp, frames, metadata.EofEvidence);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidDataException)
+            {
+                diagnostic?.Invoke("Targeted decoded boundary probe was insufficient; using the full boundary probe.");
+                var frames = await CaptureAsync(FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, metadata.StartTimestamp), token);
+                resolved = EncodingRangeResolver.Resolve(range, metadata.StartTimestamp, frames, metadata.EofEvidence);
+            }
         }
         else
         {
@@ -52,6 +91,10 @@ internal sealed class ExportSourcePreflight(string? ffprobe, IProbeProcessRunner
             }
         }
         RequireUnchanged(input, identity);
+        if (resolved.BoundaryDiagnostic is { } detail)
+            diagnostic?.Invoke($"Requested In {range.EffectiveIn.TotalSeconds:F7}s, Out {range.EffectiveOut.TotalSeconds:F7}s; " +
+                $"stream start {metadata.StartTimestamp.TotalSeconds:F7}s, time base {metadata.EofEvidence?.VideoTimeBase ?? "unavailable"}; " +
+                $"tolerance: one verified local frame interval, capped at 50 ms. {detail}");
         return resolved;
     }
 

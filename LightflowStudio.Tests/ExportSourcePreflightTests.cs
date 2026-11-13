@@ -56,5 +56,41 @@ public sealed class ExportSourcePreflightTests : IDisposable
         public Task<ProbeProcessResult> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
             => Task.FromResult(result);
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TerminalOptimizationRetainsDecodedProofAndFallsBackWhenInsufficient(bool fallback)
+    {
+        var input = Input() with { InitialTrim = new(TimeSpan.FromSeconds(.2), TimeSpan.FromSeconds(.04), TimeSpan.FromSeconds(.2)) };
+        var runner = new EofRunner(fallback);
+        var diagnostics = new List<string>();
+        var service = new ExportSourcePreflight("ffprobe", runner, diagnostics.Add);
+        var probe = new ExportSourceProbe(new(256, 256, 25, .2, 7, "hevc", false, Container: "mp4",
+            EofEvidence: new(TimeSpan.FromSeconds(.2), TimeSpan.FromSeconds(.2), "1/1000")), input.SourceIdentity);
+        var resolved = await service.ResolveAsync(input, probe);
+        Assert.True(resolved!.RetainsSourceEof);
+        Assert.Equal(TimeSpan.FromSeconds(.04), resolved.AbsoluteIn);
+        Assert.Equal(TimeSpan.FromSeconds(.2), resolved.ExclusiveOut);
+        Assert.Equal(2, runner.FrameCalls);
+        Assert.Contains(diagnostics, detail => detail.Contains("Saved exclusive source EOF"));
+        Assert.Equal(fallback, diagnostics.Any(detail => detail.Contains("full boundary probe")));
+    }
+
+    private sealed class EofRunner(bool fallback) : IProbeProcessRunner
+    {
+        public int FrameCalls { get; private set; }
+        public Task<ProbeProcessResult> RunAsync(string executable, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
+        {
+            if (arguments.Contains("-show_packets")) return Task.FromResult(new ProbeProcessResult(0,
+                """{"packets":[{"pts_time":"0.04"}]}""", ""));
+            FrameCalls++;
+            if (fallback && FrameCalls == 1) return Task.FromResult(new ProbeProcessResult(0, """{"frames":[]}""", ""));
+            var frames = FrameCalls == 1
+                ? """{"frames":[{"best_effort_timestamp_time":"0.16","duration_time":"0.04"}]}"""
+                : """{"frames":[{"best_effort_timestamp_time":"0.04","duration_time":"0.04"},{"best_effort_timestamp_time":"0.16","duration_time":"0.04"}]}""";
+            return Task.FromResult(new ProbeProcessResult(0, frames, ""));
+        }
+    }
     public void Dispose() => Directory.Delete(_root, true);
 }

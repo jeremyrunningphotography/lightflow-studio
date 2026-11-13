@@ -8,6 +8,7 @@ namespace LightflowStudio;
 internal enum ExportContainerChoice { SameAsSource, Mp4, Mov, Mkv }
 internal enum ExportCodecChoice { SameAsSource, H264, Hevc }
 internal enum ExportNamingDefault { Ordinary, Subclip }
+internal enum ExportFilePreflightState { Pending, Checking, Ready, Warning, Error }
 
 internal sealed record ExportLutChoice(string Label, ColorStagePolicyMode Mode,
     ManagedLutResource? Resource = null);
@@ -26,13 +27,17 @@ internal sealed record ExportSubmissionItem(
     double ExportSegmentWidth,
     string RangeToolTip,
     string TimelineAutomationName,
-    IReadOnlyList<JobIssue> Issues)
+    IReadOnlyList<JobIssue> Issues,
+    ExportFilePreflightState State = ExportFilePreflightState.Ready)
 {
+    public bool IsChecking => State is ExportFilePreflightState.Pending or ExportFilePreflightState.Checking;
+    public string IndicatorState => IsChecking ? "Generating" : "Completed";
+    public string StatusAutomationName => $"{SourceFileName}: {(State == ExportFilePreflightState.Pending ? "Preparing video" : IsChecking ? "Checking video" : HasError ? "Needs attention" : HasIssues ? "Ready with warning" : "Ready")}";
     private IEnumerable<JobIssue> OrderedIssues => Issues
         .OrderByDescending(issue => issue.Severity)
         .ThenBy(issue => issue.Code, StringComparer.Ordinal);
-    public bool HasIssues => Issues.Count > 0;
-    public bool HasError => Issues.Any(issue => issue.Severity == JobIssueSeverity.Error);
+    public bool HasIssues => !IsChecking && Issues.Count > 0;
+    public bool HasError => !IsChecking && Issues.Any(issue => issue.Severity == JobIssueSeverity.Error);
     public string IssueSeverityText => HasError ? "Error" : "Warning";
     public string IssueToolTip
     {
@@ -57,9 +62,15 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private readonly IEncodingLutResourceStore _resourceStore;
     private readonly Func<bool, CancellationToken, Task<EncodingHandoffResult>>? _revalidate;
     private IReadOnlyList<MediaMetadata?> _metadata;
-    private bool _metadataCompleted;
     private IReadOnlyList<string?> _metadataDiagnostics = [];
     private IReadOnlyList<ResolvedMediaRange?> _resolvedRanges;
+    private readonly bool[] _metadataRead;
+    private readonly bool[] _rangeRead;
+    private readonly bool[] _checking;
+    private readonly string?[] _rangeDiagnostics;
+    private readonly TrimSourceIdentity?[] _sourceIdentities;
+    private long _preflightGeneration;
+    private long _revision;
     private readonly bool[] _useRanges;
     private bool _rangesGloballyEnabled = true;
     private bool _includeNoSubclipSources = true;
@@ -92,6 +103,11 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _encoding = EncodingOptions.Normalize(defaults) with { AudioMode = AudioEncodingMode.Copy, FrameRate = 0 };
         _metadata = Enumerable.Repeat<MediaMetadata?>(null, handoff.Inputs.Count).ToArray();
         _resolvedRanges = Enumerable.Repeat<ResolvedMediaRange?>(null, handoff.Inputs.Count).ToArray();
+        _metadataRead = new bool[handoff.Inputs.Count];
+        _rangeRead = new bool[handoff.Inputs.Count];
+        _checking = new bool[handoff.Inputs.Count];
+        _rangeDiagnostics = new string?[handoff.Inputs.Count];
+        _sourceIdentities = handoff.Inputs.Select(input => input.SourceIdentity ?? TrimSourceIdentity.Read(input.SourcePath)).ToArray();
         _useRanges = handoff.Inputs.Select(input => input.InitialTrim is { IsFullSource: false }).ToArray();
         _resourceStore = resourceStore;
         _revalidate = revalidate;
@@ -105,7 +121,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             : new NamePartsDefinition([new(NamePartKind.OriginalName), new(NamePartKind.Sequence001)], NamePartSeparator.Hyphen));
         _separator = naming.Separator;
         NameParts = new ObservableCollection<NamePart>(naming.Parts);
-        NameParts.CollectionChanged += (_, _) => Refresh();
+        NameParts.CollectionChanged += (_, _) => { _revision++; Refresh(); };
         Refresh();
     }
 
@@ -117,16 +133,26 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> Warnings => Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList();
     public IReadOnlyList<JobIssue> GlobalErrors => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList() ?? [];
     public IReadOnlyList<JobIssue> GlobalWarnings => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList() ?? [];
-    public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true && _metadata.All(x => x is not null);
-    public bool IsAnalyzing => !_metadataCompleted;
+    public EncoderCapability? EncoderCapability => _encoder;
+    public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true
+        && SubmissionItems.All(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning);
+    public bool IsAnalyzing => ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null;
     public string ReadySummary
     {
         get
         {
-            if (IsAnalyzing) return "Reading source metadata…";
-            if (_metadata.Any(value => value is null)) return "Source metadata unavailable";
-            var count = _plan?.Items.Count ?? 0;
-            var text = $"{count} {(count == 1 ? "file" : "files")} ready to export";
+            var items = SubmissionItems;
+            var count = items.Count;
+            var noun = count == 1 ? "video" : "videos";
+            var ready = items.Count(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning);
+            var errors = items.Count(item => item.State == ExportFilePreflightState.Error);
+            if (items.Any(item => item.IsChecking))
+                return items.All(item => item.State == ExportFilePreflightState.Pending)
+                    ? $"Preparing {count} {noun}…"
+                    : $"Analyzing {noun}… {ready} of {count} ready" + (errors > 0 ? $" · {errors} {(errors == 1 ? "needs" : "need")} attention" : "");
+            if (errors > 0) return $"{errors} of {count} {noun} {(errors == 1 ? "needs" : "need")} attention";
+            if (GlobalErrors.Any(issue => issue.Code != "export.metadata-pending")) return "Review export settings";
+            var text = $"{count} {noun} ready to export";
             var rotated = ActiveInputs().Count(value => value.input.Rotation.Degrees != 0);
             if (rotated > 0) text += $" · Lightflow rotation baked into {rotated} {(rotated == 1 ? "video" : "videos")}";
             return EstimateOutputBytes() is { } bytes ? $"{text} · Est. {FormatBytes(bytes)}" : text;
@@ -207,10 +233,60 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     {
         _metadata = metadata.ToArray();
         _metadataDiagnostics = diagnostics?.ToArray() ?? [];
-        _metadataCompleted = true;
+        Array.Fill(_metadataRead, true);
         Refresh();
     }
-    public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges) { _resolvedRanges = ranges.ToArray(); Refresh(); }
+    public void ApplyResolvedRanges(IReadOnlyList<ResolvedMediaRange?> ranges)
+    { _resolvedRanges = ranges.ToArray(); Array.Fill(_rangeRead, true); Refresh(); }
+
+    public long BeginPreflight()
+    {
+        _preflightGeneration++;
+        Array.Clear(_metadataRead); Array.Clear(_rangeRead); Array.Clear(_checking); Array.Clear(_rangeDiagnostics);
+        _metadata = new MediaMetadata?[_handoff.Inputs.Count];
+        _resolvedRanges = new ResolvedMediaRange?[_handoff.Inputs.Count];
+        _metadataDiagnostics = new string?[_handoff.Inputs.Count];
+        _encoder = null; _preflightError = null;
+        Refresh();
+        return _preflightGeneration;
+    }
+
+    public void CancelPreflight(long generation)
+    { if (generation == _preflightGeneration) _preflightGeneration++; }
+
+    public bool SetChecking(long generation, int index)
+    {
+        if (generation != _preflightGeneration) return false;
+        _checking[index] = true; Refresh(); return true;
+    }
+
+    public bool ApplySourceProbe(long generation, int index, ExportSourceProbe probe)
+    {
+        if (generation != _preflightGeneration) return false;
+        var metadata = _metadata.ToArray(); metadata[index] = probe.Metadata; _metadata = metadata;
+        var diagnostics = _metadataDiagnostics.ToArray(); diagnostics[index] = probe.Diagnostic; _metadataDiagnostics = diagnostics;
+        _metadataRead[index] = true; _sourceIdentities[index] = probe.Identity;
+        Refresh(); return true;
+    }
+
+    public bool ApplySourceRange(long generation, int index, ResolvedMediaRange? range, string? diagnostic = null)
+    {
+        if (generation != _preflightGeneration) return false;
+        var ranges = _resolvedRanges.ToArray(); ranges[index] = range; _resolvedRanges = ranges;
+        _rangeRead[index] = true; _rangeDiagnostics[index] = diagnostic; _checking[index] = false;
+        Refresh(); return true;
+    }
+
+    public bool ApplyEncoderCapability(long generation, EncoderCapability capability)
+    {
+        if (generation != _preflightGeneration) return false;
+        ApplyEncoderCapability(capability); return true;
+    }
+
+    private bool UsesRange(int index) => _handoff.Inputs[index].ExportProvenance?.Kind == ExportItemKind.Subclip
+        || !_handoff.Inputs[index].RangeIsFixed && _useRanges[index] && _handoff.Inputs[index].InitialTrim is { IsFullSource: false };
+    private bool SourcePending(int index) => !_metadataRead[index]
+        || _metadata.ElementAtOrDefault(index) is not null && UsesRange(index) && !_rangeRead[index];
     public void SetUseRange(int index, bool use)
     {
         if (!_rangesGloballyEnabled || index < 0 || index >= _useRanges.Length
@@ -218,15 +294,28 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             || _handoff.Inputs[index].InitialTrim is not { IsFullSource: false }) return;
         if (_useRanges[index] == use) return;
         _useRanges[index] = use;
-        Refresh();
+        _revision++; Refresh();
     }
     public void SetGlobalUseRanges(bool use)
     {
         _rangesGloballyEnabled = use;
+        _revision++;
         SetAllRanges(use, refreshWhenUnchanged: true);
     }
     public void ApplyEncoderCapability(EncoderCapability capability) { _encoder = capability; Refresh(); }
-    public void ApplyPreflightFailure(string diagnostic) { _preflightError = diagnostic; Refresh(); }
+    public void ApplyPreflightFailure(string diagnostic)
+    {
+        _preflightError = diagnostic;
+        var diagnostics = new string?[_handoff.Inputs.Count];
+        for (var index = 0; index < _handoff.Inputs.Count; index++)
+        {
+            diagnostics[index] = _metadataDiagnostics.ElementAtOrDefault(index);
+            if (!_metadataRead[index]) { _metadataRead[index] = true; diagnostics[index] = diagnostic; }
+            if (!_rangeRead[index]) { _rangeRead[index] = true; _rangeDiagnostics[index] = diagnostic; }
+        }
+        _metadataDiagnostics = diagnostics;
+        Refresh();
+    }
     public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
     public void MovePart(int index, int delta)
@@ -242,20 +331,36 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     public async Task<JobPlan<EncodingJobOptions>> MaterializeAcceptedPlanAsync(CancellationToken token = default)
     {
+        var revision = _revision;
+        var generation = _preflightGeneration;
+        var expected = Inputs;
         if (_revalidate is not null)
         {
-            var current = await _revalidate(_includeNoSubclipSources, token).ConfigureAwait(false);
+            var current = await _revalidate(_includeNoSubclipSources, token);
             if (!current.Succeeded)
                 throw new InvalidOperationException(string.Join(Environment.NewLine, current.Errors));
-            var expected = Inputs;
             var actual = current.Inputs.Where(input =>
                 input.ExportProvenance?.Kind != ExportItemKind.NoSubclipFullSourceFallback ||
                 _includeNoSubclipSources).ToArray();
             if (!ProspectiveStateMatches(expected, actual))
                 throw new InvalidOperationException("The source or Subclip state changed while Export was open. Review the current Subclips and try again.");
         }
-        var camera = await SnapshotPolicyAsync(ColorLutStage.Camera, Camera, token).ConfigureAwait(false);
-        var creative = await SnapshotPolicyAsync(ColorLutStage.Creative, Creative, token).ConfigureAwait(false);
+        var camera = await SnapshotPolicyAsync(ColorLutStage.Camera, Camera, token);
+        var creative = await SnapshotPolicyAsync(ColorLutStage.Creative, Creative, token);
+        if (revision != _revision || generation != _preflightGeneration)
+            throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
+        await Task.Run(() =>
+        {
+            foreach (var (_, index) in ActiveInputs())
+                if (_sourceIdentities[index] is { } identity)
+                {
+                    var current = TrimSourceIdentity.Read(_handoff.Inputs[index].SourcePath);
+                    if (current is null || !identity.Matches(current))
+                        throw new InvalidOperationException("The source changed after preflight. Refresh the source and reopen Export.");
+                }
+        }, token);
+        if (revision != _revision || generation != _preflightGeneration)
+            throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
         return BuildPlan(camera, creative);
     }
 
@@ -287,7 +392,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 !input.RangeIsFixed && _useRanges[index] && input.InitialTrim is { IsFullSource: false };
             return new EncodingSource(input.SourcePath, input.FileSizeBytes,
                 metadata is null ? input.InitialTrim?.SourceDuration : TimeSpan.FromSeconds(metadata.DurationSeconds),
-                useRange ? input.InitialTrim : null, useRange ? _resolvedRanges.ElementAtOrDefault(index) : null, LastWriteUtcTicks: TrimSourceIdentity.Read(input.SourcePath)?.LastWriteUtcTicks,
+                useRange ? input.InitialTrim : null, useRange ? _resolvedRanges.ElementAtOrDefault(index) : null, LastWriteUtcTicks: _sourceIdentities[index]?.LastWriteUtcTicks,
                 HasAudio: metadata?.HasAudio, CapabilityOrder: index, AssignedColor: input.AssignedColor,
                 MediaTraits: metadata is null ? null : new(metadata.VideoCodec, metadata.Width, metadata.Height,
                     metadata.FrameRate, metadata.Container, metadata.AudioCodec, metadata.AudioSampleRate,
@@ -303,19 +408,19 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         {
             var (_, index) = active[planIndex];
             if (_metadata.ElementAtOrDefault(index) is not null) return item;
-            var issue = !_metadataCompleted
+            var issue = !_metadataRead[index]
                 ? new JobIssue("export.metadata-pending", "Reading authoritative source metadata…", JobIssueSeverity.Warning)
                 : new JobIssue("export.metadata-failed", _metadataDiagnostics.ElementAtOrDefault(index)
                     ?? "Source metadata could not be read. Check source availability and reopen Export.", JobIssueSeverity.Error);
             return item with { Issues = item.Issues.Where(value => value.Code != "encoding.materialization-unsupported").Append(issue).ToList() };
         }).ToList() };
         var extra = new List<JobIssue>();
-        if (!_metadataCompleted)
+        if (ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null)
             extra.Add(new("export.metadata-pending", "Source metadata is still loading. Export will be available after preflight completes.", JobIssueSeverity.Error));
         if (_preflightError is not null)
             extra.Add(new("export.preflight", _preflightError, JobIssueSeverity.Error));
         foreach (var (input, index) in ActiveInputs())
-            if (_resolvedRanges.ElementAtOrDefault(index)?.BoundaryDiagnostic is { } diagnostic)
+            if (UsesRange(index) && _resolvedRanges.ElementAtOrDefault(index) is { RetainsSourceEof: false, BoundaryDiagnostic: { } diagnostic })
                 extra.Add(new("export.out-corrected", $"{Path.GetFileName(input.SourcePath)}: {diagnostic}", JobIssueSeverity.Warning));
         var itemIssues = new Dictionary<int, List<JobIssue>>();
         if (DestinationMode == ExportDestinationMode.SpecificFolder &&
@@ -326,22 +431,24 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             catch (ArgumentException ex) { extra.Add(new("export.subfolder", ex.Message, JobIssueSeverity.Error)); }
         // Same as Source resolves codec per source. Validate that actual codec, not
         // the H.264 placeholder (which incorrectly rejects supported HEVC P010).
-        extra.AddRange(plan.Items.SelectMany(item => EncodingOptionValidator.Validate(
+        extra.AddRange(plan.Items.Where((item, index) => Codec != ExportCodecChoice.SameAsSource
+                || _metadata.ElementAtOrDefault(active[index].index) is not null).SelectMany(item => EncodingOptionValidator.Validate(
             item.Definition.MaterializedExport?.Encoding ?? options.Encoding)).Distinct()
             .Select(message => new JobIssue("export.options", message, JobIssueSeverity.Error)));
         if (_encoder is not null && !_encoder.IsUsable) extra.Add(new("export.encoder-unavailable",
             "NVIDIA NVENC could not be initialized. Check the hardware acceleration details.", JobIssueSeverity.Error));
-        if (!_metadata.Any(value => value is null))
+        if (_metadataRead.Any(value => value))
             foreach (var (value, planIndex) in ActiveInputs().Select((value, planIndex) => (value, planIndex)))
             {
                 var (input, index) = value;
                 if ((input.ExportProvenance?.Kind == ExportItemKind.Subclip || _useRanges[index])
                     && input.InitialTrim is { IsFullSource: false }
+                    && _rangeRead[index] && _metadata.ElementAtOrDefault(index) is not null
                     && _resolvedRanges.ElementAtOrDefault(index) is null)
                     itemIssues[planIndex] = [new("export.range-unresolved",
-                        input.RangeIsFixed
+                        _rangeDiagnostics[index] ?? (input.RangeIsFixed
                             ? $"The fixed Subclip range for '{input.ExportProvenance?.SubclipName}' could not be validated."
-                            : $"The saved In/Out range for '{Path.GetFileName(input.SourcePath)}' could not be validated. Ignore its In/Out range to export the full video.",
+                            : $"The saved In/Out range for '{Path.GetFileName(input.SourcePath)}' could not be validated. Ignore its In/Out range to export the full video."),
                         JobIssueSeverity.Error)];
             }
         if (itemIssues.Count > 0)
@@ -406,10 +513,23 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                 ? $"Use In/Out for {sourceName}"
                 : $"Use In/Out for {sourceName}, unavailable because no In/Out is defined";
             var displayName = input.ExportProvenance?.SubclipName ?? sourceName;
+            var issues = (item?.Issues ?? []).Where(issue => issue.Code != "export.metadata-pending")
+                .Concat(GlobalErrors.Where(issue => issue.Code is "export.encoder-unavailable" or "export.preflight")).ToArray();
+            if (useRange && _resolvedRanges.ElementAtOrDefault(index) is { RetainsSourceEof: false, BoundaryDiagnostic: { } correction })
+                issues = issues.Append(new JobIssue("export.out-corrected", correction, JobIssueSeverity.Warning)).ToArray();
+            var sourceError = _metadataRead[index] && _metadata.ElementAtOrDefault(index) is null
+                || UsesRange(index) && _rangeRead[index] && _resolvedRanges.ElementAtOrDefault(index) is null;
+            if (sourceError && issues.Length == 0)
+                issues = [new("export.preflight", "The source range could not be verified. Reopen Export and review the saved Subclip.", JobIssueSeverity.Error)];
+            var state = sourceError ? ExportFilePreflightState.Error
+                : SourcePending(index) || _encoder is null
+                    ? _checking[index] || _metadataRead[index] ? ExportFilePreflightState.Checking : ExportFilePreflightState.Pending
+                : issues.Any(issue => issue.Severity == JobIssueSeverity.Error) ? ExportFilePreflightState.Error
+                : issues.Length > 0 ? ExportFilePreflightState.Warning : ExportFilePreflightState.Ready;
             return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, displayName, outputText, $"Output for {displayName}: {outputText.TrimStart('→', ' ')}",
                 !input.RangeIsFixed && hasRange, useRange,
                 !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, timeline.SegmentLeft, timeline.SegmentWidth,
-                timeline.ToolTip, timeline.AutomationName, item?.Issues ?? []);
+                timeline.ToolTip, timeline.AutomationName, issues, state);
         }).ToArray();
     }
 
@@ -487,7 +607,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         .Select(item => Path.GetExtension(item.OutputPaths.FirstOrDefault() ?? "").ToLowerInvariant())
         .Where(extension => !string.IsNullOrWhiteSpace(extension)).ToArray() ?? [];
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
-    { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; Refresh(); OnChanged(name); }
+    { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; _revision++; Refresh(); OnChanged(name); }
     private void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new(name));
     public event PropertyChangedEventHandler? PropertyChanged;
 }

@@ -25,7 +25,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.True(model.IsAnalyzing);
         Assert.False(model.CanExport);
         Assert.DoesNotContain(model.Issues, issue => issue.Message.Contains("'unknown'"));
-        Assert.Contains(model.SubmissionItems.Single().Issues, issue => issue.Code == "export.metadata-pending");
+        Assert.Equal(ExportFilePreflightState.Pending, model.SubmissionItems.Single().State);
+        Assert.False(model.SubmissionItems.Single().HasError);
         Ready(model, Metadata("hevc", "mov,mp4,m4a,3gp,3g2,mj2"));
         Assert.False(model.IsAnalyzing);
         Assert.True(model.CanExport);
@@ -87,7 +88,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Creative.Mode);
         Assert.Equal(AudioEncodingMode.Copy, model.Encoding.AudioMode);
         Assert.True(model.CreateSubfolder);
-        Assert.Equal("Reading source metadata…", model.ReadySummary);
+        Assert.Equal("Preparing 1 video…", model.ReadySummary);
     }
 
     [Fact]
@@ -428,7 +429,7 @@ public sealed class ExportDialogModelTests : IDisposable
     {
         var model = CreateModel("a.mp4", "b.mp4");
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
 
         model.Encoding = model.Encoding with
         {
@@ -437,12 +438,12 @@ public sealed class ExportDialogModelTests : IDisposable
             AudioMode = AudioEncodingMode.Aac,
             AudioBitrateKbps = 192
         };
-        Assert.Equal("2 files ready to export · Est. 26 MB", model.ReadySummary);
+        Assert.Equal("2 videos ready to export · Est. 26 MB", model.ReadySummary);
 
         model.Encoding = model.Encoding with { RateControl = RateControlMode.VariableBitrate };
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
         model.Encoding = model.Encoding with { RateControl = RateControlMode.ConstantQuality };
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
     }
 
     [Fact]
@@ -476,6 +477,7 @@ public sealed class ExportDialogModelTests : IDisposable
         model.ApplyResolvedRanges([null, new(second.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(6),
             TimeSpan.FromSeconds(9), TimeSpan.FromSeconds(3))]);
 
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedAndAvailable, "ok"));
         Assert.True(model.SubmissionItems[0].HasError);
         Assert.False(model.SubmissionItems[1].HasIssues);
         Assert.NotEqual(model.SubmissionItems[0].PlannedItemId, model.SubmissionItems[1].PlannedItemId);
@@ -488,7 +490,9 @@ public sealed class ExportDialogModelTests : IDisposable
         var saved = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
         var model = CreateModelWithRanges(("trimmed.mp4", saved));
         Ready(model, Metadata("h264", "mp4"));
-
+        Assert.True(model.IsAnalyzing);
+        Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.range-unresolved");
+        model.ApplyResolvedRanges([null]); // A completed failed validation, not pending work.
         Assert.Contains(model.Errors, issue => issue.Code == "export.range-unresolved");
         model.SetGlobalUseRanges(false);
         Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.range-unresolved");

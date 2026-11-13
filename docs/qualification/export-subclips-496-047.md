@@ -1,5 +1,54 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## I03 preflight UX and performance
+
+I02 owner acceptance remains pending; no PR is authorized. I03 adds explicit
+Pending/Checking/Ready/Warning/Error row states, a single authoritative footer /
+Export eligibility calculation, per-file completion and generation guards.
+Source facts are independent of export settings; later probe results cannot
+overwrite codec/container choices or reintroduce excluded fallback rows. Final
+acceptance checks source identity and rejects a settings/selection change during
+asynchronous materialization. Source identity is no longer reread on every UI
+refresh. Progress callbacks do not rebuild the filename composer.
+
+The existing JobsRadialProgress component is used in the existing status column,
+with Compact Jobs' 21-pixel dimensions and the existing 1.2-second Jobs activity
+rotation pattern. Ready uses its completed state; terminal errors retain the
+existing red issue button. No extra status column or new spinner geometry/colors.
+Live private-desktop tests cover animation, UI heartbeat, partial/all completion,
+errors, changing settings during a pending result and screenshots.
+
+Verified exclusive EOF is normal Ready: its technical reconciliation is absent
+from banners/tooltips/file warnings. Complete requested times, stream time base,
+frame duration/end, tail and tolerance remain in preflight/execution diagnostics
+and actual-source regression evidence. Meaningful interior corrections remain
+allowed, visible warnings. The I02 range resolver and approved tolerance are
+unchanged.
+
+Measurements on the two original DJI sources found I02's wide decoded windows
+dominated (roughly 15.5 and 18 seconds); metadata took tens of milliseconds after
+initial access and two identity reads about 1 ms. I03 probes actual EOF from a
+targeted seek, verifies its terminal frame/end using the unchanged resolver, and
+independently decodes the saved In neighborhood when it is not already in that
+decoded segment. Insufficient evidence falls back to the original wide decoded
+probe. Both boundaries retain decoded proof. Source work is bounded to two
+concurrent pipelines, hardware probes overlap, and file/process work stays off
+the UI thread. No persistent/speculative cache or new dependency.
+
+Three measured I02 runs: 35.071 / 34.092 / 34.092 seconds for both sources.
+Final decoded-both-boundaries runs: 2.271 / 2.122 / 2.119 seconds. These are local
+measurements, not a latency guarantee. The faster packet-In experiment is retained
+as research evidence but is not the final implementation. Per-dialog verified
+facts are reused across settings changes; source/range snapshots and generations
+govern validity, with fresh identity checks at submission.
+
+Focused qualification: 168 PASS. Full Release, refreshed package, original-source
+exports and final provenance are recorded in the complete I03 evidence ZIP. Any
+unrelated baseline-native failure must be retained without claiming clean full
+qualification. Historical maintenance remains not warranted for this bounded fix.
+
+## Earlier iteration records
+
 ## I02 correction — owner-approved EOF policy
 
 I01 owner acceptance is **NEEDS WORK**. The owner approved the separate exclusive

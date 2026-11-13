@@ -72,6 +72,8 @@ public partial class PlayerViewerHost
         _pixelWidth = _pixelHeight = 0;
         _pixelZoom = null; _panX = _panY = 0;
         _updatingReview = true;
+        SpeedChoice.IsDropDownOpen = false;
+        _speedBeforePopup = -1;
         SpeedChoice.SelectedIndex = 3; ZoomChoice.SelectedIndex = 0;
         CadenceChoiceBox.ItemsSource = CadenceChoice.ForSource(0);
         CadenceChoiceBox.SelectedIndex = 0;
@@ -85,6 +87,8 @@ public partial class PlayerViewerHost
     {
         if (_updatingReview || _service is not { } service || SpeedChoice.SelectedIndex < 0 ||
             CadenceChoiceBox.SelectedItem is not CadenceChoice cadence) return;
+        if (ReferenceEquals(sender, SpeedChoice) && !SpeedChoice.IsDropDownOpen)
+            RestorePlayerFocusAfterSpeedInteraction();
         var generation = _generation;
         try
         {

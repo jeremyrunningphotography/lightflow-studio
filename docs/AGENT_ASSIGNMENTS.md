@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Research only; owner implementation gate pending |
+| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Focus-only implementation authorized; local validation/owner acceptance pending; decoder research deferred |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), tracking #491 | Prepared closeout; owner accepted 10/10 PASS (zero observations) at 9923753; Windows focused 274 and independent full 2561 PASS; accepted production preserved; single release/1.0 PR, exact-head CI status in PR; new explicit merge authorization pending; not merged/Done |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
@@ -90,3 +90,17 @@ production Catalog operation is authorized. Historical maintenance:
 
 Owner allocated LF-WIN-RES-049 for #498 research only. 049 absent from freshly cloned main/release registries and remote branch inventory; owner allocations 047 and 048 remain reserved. Independent full clone: C:\Git\Agents\LF-WIN-RES-049-PlayerFrameStepping; branch codex/498-player-frame-stepping-research; release base 90f4f94d72f4397325ba6547f486966044208a3f, tree 1b65a123ad0bdf81711c512859eddebe2cd5b79b. No production edits, PR, merge, release or production Catalog changes authorized. Stop at analysis and recommendation for owner review.
 
+
+## Assignment 049 — focus-only implementation authorized (2026-11-13)
+
+The owner approved only the confirmed playback-speed/Player keyboard-focus
+correction under #498. Existing identity, clone and research branch continue.
+Baseline release/1.0 ca929e586b929d721656a5ca5c5c5fb8fff5f905 includes #496 / #501.
+Issue scope updated before implementation; native parent #491 and Project #4
+In Progress / Player / P1 reconciled from authoritative issue/owner scope.
+No decoder, frame-step calculation, queue, scheduling, range or export changes.
+Backward latency, native EOF/VFR/duplicate-PTS/zero-boundary and teardown findings
+remain deferred; all prior ZIPs are preserved. Focused/full Windows tests,
+installer/portable packaging and isolated owner acceptance precede any PR.
+No PR, acceptance, merge or release is claimed. Historical maintenance:
+Not warranted for a bounded focus correction.

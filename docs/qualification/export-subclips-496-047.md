@@ -7,8 +7,8 @@ zero observations: “All works great!” Accepted source is
 `99237538ffb46df10b7d521c81be506ca04a24f2`, tree
 `49c56660de57712d052d16ab3612471c602656f3`; production application tree
 `3290e0013f2f325f19816120f4075afb84ff7229`. This supersedes historical pending/
-NEEDS WORK iteration status below. Final closeout changes documentation only;
-accepted application, tests, scripts and dependencies are preserved exactly.
+NEEDS WORK iteration status below. Final closeout preserves the accepted application, scripts and dependencies exactly.
+A CI-only test-readiness correction is described below; no production behavior changes.
 No further hands-on acceptance cycle is requested.
 
 A separate full clone at `C:\Git\Agents\LF-WIN-DEV-047-Qualification` qualified
@@ -37,6 +37,17 @@ unresolved outside this Export fix; no test is filtered, weakened, or relabeled.
 All failed attempts, baseline comparison, and latest full PASS remain evidence.
 Historical Clipboard.Clear failures also remain preserved, not current failures.
 
+Exact-head CI attempt 1 at `188ad84` failed two new ExportPreflightLiveTests
+cases at the fixed 100 ms/two-dispatcher-tick sample, with 2555 PASS / 2 FAIL /
+7 opt-in SKIP. This is separate from the baseline Browser exception. The test now
+waits at most two seconds for the same two ticks while both controlled probe gates
+remain blocked. It retains the heartbeat assertion, animation/dimensions, per-file
+states, footer/button and stale-setting checks. This tests dispatcher liveness
+without assuming a hosted runner's timer/render cadence; it does not change or
+claim a two-second product performance target. No production or Browser test code
+changed. Failed CI logs/TRX are preserved; the new head receives fresh focused/full
+validation and the normal exact-head CI gates. No test is skipped or assertion
+removed to obtain a green result.
 The owner authorizes one implementation PR targeting `release/1.0` after local
 qualification. Exact-head full CI and package gates run on that PR; final run/PR
 provenance is recorded in PR metadata and the portable qualification ZIP without

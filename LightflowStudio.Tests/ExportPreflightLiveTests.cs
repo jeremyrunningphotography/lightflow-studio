@@ -42,7 +42,10 @@ public sealed class ExportPreflightLiveTests
                 {
                     window.Show(); heartbeat.Start();
                     await Until(() => runner.Entered == 2);
-                    await Task.Delay(100);
+                    // Check dispatcher liveness while both probe gates remain blocked.
+                    // A fixed 100 ms sample depends on runner timer/render scheduling.
+                    await Until(() => ticks >= 2, 2000,
+                        "Dispatcher heartbeat did not tick twice while preflight was pending.");
                     Assert.True(ticks >= 2);
                     window.UpdateLayout();
                     var rings = Descendants<JobsRadialProgress>(window).ToArray();
@@ -81,10 +84,11 @@ public sealed class ExportPreflightLiveTests
         finally { Directory.Delete(root, true); }
     }
 
-    private static async Task Until(Func<bool> condition)
+    private static async Task Until(Func<bool> condition, int timeoutMs = 10000,
+        string diagnostic = "Preflight state did not settle.")
     {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!condition()) { Assert.True(DateTime.UtcNow < deadline, "Preflight state did not settle."); await Task.Delay(10); }
+        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+        while (!condition()) { Assert.True(DateTime.UtcNow < deadline, diagnostic); await Task.Delay(10); }
     }
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
     {

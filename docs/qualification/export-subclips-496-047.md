@@ -1,5 +1,50 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## Final owner acceptance and Windows qualification — 2026-11-13
+
+Owner accepted I03 **6/6 PASS** plus I05 **4/4 PASS**, combined **10/10 PASS**,
+zero observations: “All works great!” Accepted source is
+`99237538ffb46df10b7d521c81be506ca04a24f2`, tree
+`49c56660de57712d052d16ab3612471c602656f3`; production application tree
+`3290e0013f2f325f19816120f4075afb84ff7229`. This supersedes historical pending/
+NEEDS WORK iteration status below. Final closeout changes documentation only;
+accepted application, tests, scripts and dependencies are preserved exactly.
+No further hands-on acceptance cycle is requested.
+
+A separate full clone at `C:\Git\Agents\LF-WIN-DEV-047-Qualification` qualified
+exact accepted I05, with its own independently downloaded/hash-verified native
+dependencies, build outputs, data roots and hidden private desktops. Focused
+Release in the implementation clone: **274 PASS / 0 FAIL / 3 opt-in SKIP**,
+including actual owner-path replay and native overwrite/preservation. Independent
+unfiltered full Release: **2561 PASS / 0 FAIL / 5 opt-in SKIP**, 2566 total.
+Independent accepted-source package startup, Browser/splash/Jobs activation,
+graceful shutdown, isolated Catalog backup/restore protection, executable icon
+and FFmpeg/playback dependency checks PASS. Packaged real-source export results
+and final PR-head packaging provenance are included in the final evidence ZIP.
+
+The documented Browser exception was compared proportionally, without changing
+Browser production code or assertions. On unchanged release/1.0
+`90f4f94d72f4397325ba6547f486966044208a3f`, both startup-restoration variants failed
+with missing Media Root/RecursiveRoot containers, matching the accepted I05
+failure. Older isolated baseline PASS and current independent full PASS establish
+intermittency. Traces show the correct restored Browser path but no materialized
+containers at the icon assertion. Tests await navigation completion/address text,
+then one ApplicationIdle/layout pass; the separate async ancestor reveal awaits
+folder enumeration before container realization. Navigation readiness is therefore
+not a guarantee that those visual containers already exist. No incorrect recursive
+icon flag was established at this failure. The root/tree readiness exception remains
+unresolved outside this Export fix; no test is filtered, weakened, or relabeled.
+All failed attempts, baseline comparison, and latest full PASS remain evidence.
+Historical Clipboard.Clear failures also remain preserved, not current failures.
+
+The owner authorizes one implementation PR targeting `release/1.0` after local
+qualification. Exact-head full CI and package gates run on that PR; final run/PR
+provenance is recorded in PR metadata and the portable qualification ZIP without
+creating an administrative PR or changing this qualified production tree.
+**New explicit owner merge authorization remains required.** No merge, release,
+tag, main forward-port, production Catalog change or branch cleanup is authorized
+at this stage. Registry status is prepared closeout, not merged/Done. Historical
+maintenance is **Not warranted** for this bounded reliability correction.
 ## I05 confirmed messaging correction
 
 Owner screenshot and confirmation resolve the earlier destination hypothesis:

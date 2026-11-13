@@ -13,6 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491 | Research only; owner implementation gate pending |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
 | 042 | LF-WIN-DEV-042 | Windows Details Presentation Parity | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Done through corrected source ce35e036 / c700cb3d and owner Windows 4/4 PASS; full Release 2884/0/2; final integration/CI/merge by 043 |
@@ -83,3 +84,8 @@ Final merge/post-merge provenance belongs in issue/PR discussion without another
 administrative PR. No main forward-port, other bug-bash fix, release/tag or
 production Catalog operation is authorized. Historical maintenance:
 **Not warranted** for a bounded targeting correction.
+
+## Assignment 049 — 2026-11-13
+
+Owner allocated LF-WIN-RES-049 for #498 research only. 049 absent from freshly cloned main/release registries and remote branch inventory; owner allocations 047 and 048 remain reserved. Independent full clone: C:\Git\Agents\LF-WIN-RES-049-PlayerFrameStepping; branch codex/498-player-frame-stepping-research; release base 90f4f94d72f4397325ba6547f486966044208a3f, tree 1b65a123ad0bdf81711c512859eddebe2cd5b79b. No production edits, PR, merge, release or production Catalog changes authorized. Stop at analysis and recommendation for owner review.
+

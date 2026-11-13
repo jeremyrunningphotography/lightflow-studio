@@ -6,9 +6,25 @@
 >
  <Application.Resources>
   <ResourceDictionary>
+
+
    <ResourceDictionary.MergedDictionaries>
     <ResourceDictionary Source="Themes/LightflowShell.xaml"/>
    </ResourceDictionary.MergedDictionaries>
+   <!-- Jobs geometry/dimensions, with the existing Browser Jobs activity rotation. -->
+   <Style x:Key="JobsActivityIndicatorStyle" TargetType="local:JobsRadialProgress">
+    <Setter Property="Width" Value="21"/><Setter Property="Height" Value="21"/>
+    <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+    <Setter Property="RenderTransform"><Setter.Value><RotateTransform/></Setter.Value></Setter>
+    <Style.Triggers>
+     <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsVisible" Value="True"/><Condition Property="State" Value="Generating"/></MultiTrigger.Conditions>
+      <MultiTrigger.EnterActions><BeginStoryboard Name="JobsActivityRotation"><Storyboard>
+       <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:1.2" RepeatBehavior="Forever"/>
+      </Storyboard></BeginStoryboard></MultiTrigger.EnterActions>
+      <MultiTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="JobsActivityRotation"/></MultiTrigger.ExitActions>
+     </MultiTrigger>
+    </Style.Triggers>
+   </Style>
   <Color x:Key="WindowColor">#0E1014</Color>
   <Color x:Key="NavigationColor">#090A0E</Color>
   <Color x:Key="CardColor">#171A20</Color>

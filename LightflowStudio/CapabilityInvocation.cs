@@ -12,7 +12,7 @@ internal sealed record EncodingHandoffInput(Guid AssetId, Guid RootId, string So
     ExportItemProvenance? ExportProvenance = null,
     string? NamingOriginalName = null,
     string? NamingIndexNumberBasis = null,
-    bool RangeIsFixed = false, VideoRotation Rotation = default);
+    bool RangeIsFixed = false, VideoRotation Rotation = default, TrimSourceIdentity? SourceIdentity = null);
 
 internal sealed record EncodingHandoffResult(IReadOnlyList<EncodingHandoffInput> Inputs,
     IReadOnlyList<string> Errors, string? InputFolder = null, bool IncludeSubfolders = false)
@@ -166,7 +166,8 @@ internal sealed class EncodingCapabilityHandoff
             var rotation = rotations?.GetValueOrDefault(assetId)?.Rotation ?? default;
             inputs.Add(new(assetId, resolved.Asset.RootId, resolved.PhysicalPath, name,
                 resolved.Asset.FileSizeBytes, Snapshot(range), color,
-                new(ExportItemKind.OrdinarySource, assetId), Rotation: rotation));
+                new(ExportItemKind.OrdinarySource, assetId), Rotation: rotation,
+                SourceIdentity: new(Path.GetFullPath(resolved.PhysicalPath), resolved.Asset.FileSizeBytes, resolved.Asset.LastWriteUtcTicks)));
         }
 
         if (errors.Count != 0) return new([], errors);

@@ -13,4 +13,5 @@ internal sealed record MediaMetadata(
     string? AudioCodec = null,
     int? AudioSampleRate = null,
     int? AudioChannels = null,
-    string? AudioChannelLayout = null);
+    string? AudioChannelLayout = null,
+    SourceEofEvidence? EofEvidence = null);

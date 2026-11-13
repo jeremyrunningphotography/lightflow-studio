@@ -37,6 +37,8 @@ internal sealed class EncodingJobExecutor
         var lifecycle = new EncodingOutputLifecycle(output, input, _identityCacheDirectory);
         try
         {
+            if (item.Definition.ResolvedRange?.BoundaryDiagnostic is { } boundaryDiagnostic)
+                _diagnostic?.Invoke($"{Path.GetFileName(input)}: {boundaryDiagnostic}");
             Directory.CreateDirectory(Path.GetDirectoryName(output)!);
             lifecycle.Prepare();
             var settings = item.Definition.MaterializedExport ?? EncodingJobPlanner.LegacySettings(options, item.Definition);

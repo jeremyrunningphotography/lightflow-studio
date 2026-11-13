@@ -39,7 +39,10 @@ internal static class MediaMetadataParser
                 hasAudio ? ReadString(audio, "codec_name") : null,
                 hasAudio ? ReadNullableInt(audio, "sample_rate") : null,
                 hasAudio ? ReadNullableInt(audio, "channels") : null,
-                hasAudio ? ReadString(audio, "channel_layout") : null);
+                hasAudio ? ReadString(audio, "channel_layout") : null,
+                formatDuration > 0 && streamDuration > 0
+                    ? new(TimeSpan.FromSeconds(formatDuration),
+                        TimeSpan.FromSeconds(streamDuration), ReadString(video, "time_base")) : null);
             return width > 0 && height > 0;
         }
         catch (JsonException)

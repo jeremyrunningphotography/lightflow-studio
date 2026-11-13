@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,13 +11,17 @@ public partial class ExportDialog : Window
     private readonly ExportDialogModel _model;
     private readonly ExportJobCoordinator _coordinator;
     private readonly string? _ffprobe;
+    private readonly ExportPreflightCoordinator? _preflight;
+    private readonly CancellationTokenSource _preflightCancellation = new();
+    private bool _closed;
     private bool _initializing = true;
     private System.Windows.Point _dragStart;
     private int? _dragPartIndex;
 
-    internal ExportDialog(ExportDialogModel model, ExportJobCoordinator coordinator, string? ffprobe)
+    internal ExportDialog(ExportDialogModel model, ExportJobCoordinator coordinator, string? ffprobe,
+        ExportPreflightCoordinator? preflight = null)
     {
-        _model = model; _coordinator = coordinator; _ffprobe = ffprobe;
+        _model = model; _coordinator = coordinator; _ffprobe = ffprobe; _preflight = preflight;
         InitializeComponent();
         Title = ExportHeading.Text = model.Title;
         FilesToExportHeading.Text = $"Files to Export · {model.Inputs.Count}";
@@ -54,14 +56,22 @@ public partial class ExportDialog : Window
         PresetCombo.ItemsSource = ExportPresentation.EncoderPresets; Select(PresetCombo, ExportPresentation.EncoderPresets, model.Encoding.EncoderPreset);
         QualitySlider.Value = ExportPresentation.ConstantQuality(model.Encoding.Quality); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
+        _model.PropertyChanged += ModelChanged;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _model.PropertyChanged -= ModelChanged;
+            _preflightCancellation.Cancel();
+        };
+        EncoderCombo.ItemsSource = ExportPresentation.Encoders; EncoderCombo.SelectedIndex = 0;
         _initializing = false; Sync(); Loaded += async (_, _) =>
         {
             ConstrainToCurrentWorkArea();
             try { await InitializePreflightAsync(); }
-            catch (Exception exception)
+            catch (OperationCanceledException) when (_closed) { }
+            catch (Exception exception) when (!_closed)
             {
-                _model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc,
-                    EncoderCapabilityState.ImplementedButUnavailable, exception.Message));
+                _model.ApplyPreflightFailure($"Preflight could not complete: {exception.Message}");
                 QueueError.Text = $"Preflight could not complete: {exception.Message}";
                 Sync();
             }
@@ -83,60 +93,41 @@ public partial class ExportDialog : Window
 
     private async Task InitializePreflightAsync()
     {
-        var capabilities = await new EncoderCapabilityService(_ffprobe is null ? null : Path.Combine(Path.GetDirectoryName(_ffprobe)!, "ffmpeg.exe"), new FfmpegEncoderCapabilityProbe()).GetAsync();
-        var nvenc = capabilities.Single(x => x.Backend == EncoderBackend.NvidiaNvenc);
-        EncoderCombo.ItemsSource = ExportPresentation.Encoders; EncoderCombo.SelectedIndex = 0;
+        if (_preflight is not null) { await _preflight.RunAsync(_model, _preflightCancellation.Token); return; }
+        var ffmpeg = _ffprobe is null ? null : Path.Combine(Path.GetDirectoryName(_ffprobe)!, "ffmpeg.exe");
+        void Log(string message) => App.ActivityLog?.TryAppend("[Export preflight] " + message);
+        var service = new ExportSourcePreflight(_ffprobe, new ProbeProcessRunner(), Log);
+        var coordinator = new ExportPreflightCoordinator(service, async token =>
+        {
+            var capabilities = await new EncoderCapabilityService(ffmpeg, new FfmpegEncoderCapabilityProbe()).GetAsync(token);
+            return capabilities.Single(value => value.Backend == EncoderBackend.NvidiaNvenc);
+        }, Log);
+        await coordinator.RunAsync(_model, _preflightCancellation.Token);
+    }
+
+    private void ModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (!_closed && args.PropertyName == string.Empty) SyncPreflightStatus();
+    }
+
+    private void SyncPreflightStatus()
+    {
+        // Progress updates must not rebuild the name composer or interrupt editing.
+        FilesToExportItems.ItemsSource = _model.SubmissionItems;
+        NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
+        ExtensionPreview.Text = _model.RepresentativeExtension + (_model.HasHeterogeneousExtensions ? "  (varies)" : "");
+        var lines = _model.GlobalErrors.Where(issue => issue.Code != "export.metadata-pending")
+            .Select(issue => "Error — " + issue.Message).Concat(_model.GlobalWarnings.Select(issue => "Warning — " + issue.Message)).ToList();
+        ValidationText.Text = string.Join(Environment.NewLine, lines);
+        ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ReadySummaryText.Text = _model.ReadySummary;
+        ExportButton.IsEnabled = _model.CanExport;
+        if (_model.EncoderCapability is not { } nvenc) return;
         var hardware = ExportPresentation.Hardware(nvenc);
         HardwareStatusHeading.Text = hardware.Heading;
         HardwareStatusHeading.Foreground = (System.Windows.Media.Brush)FindResource(hardware.Available ? "SuccessBrush" : "WarningBrush");
         EncoderDiagnostic.Text = hardware.Detail;
         EncoderDiagnostic.ToolTip = hardware.Diagnostic;
-        _model.ApplyEncoderCapability(nvenc);
-        var metadata = new List<MediaMetadata?>();
-        foreach (var input in _model.PreflightInputs) metadata.Add(await ProbeAsync(input.SourcePath));
-        _model.ApplyMetadata(metadata);
-        var ranges = new List<ResolvedMediaRange?>();
-        for (var index = 0; index < _model.PreflightInputs.Count; index++)
-            ranges.Add(await ResolveRangeAsync(_model.PreflightInputs[index], metadata[index]));
-        _model.ApplyResolvedRanges(ranges); Sync();
-    }
-
-    private async Task<MediaMetadata?> ProbeAsync(string path)
-    {
-        if (_ffprobe is null) return null;
-        try
-        {
-            var start = new ProcessStartInfo(_ffprobe) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-            foreach (var arg in FfmpegCommandBuilder.ProbeMetadata(path)) start.ArgumentList.Add(arg);
-            using var process = Process.Start(start)!; var output = await process.StandardOutput.ReadToEndAsync(); await process.WaitForExitAsync();
-            return process.ExitCode == 0 && MediaMetadataParser.TryParse(output, new FileInfo(path).Length, out var value) ? value : null;
-        }
-        catch { return null; }
-    }
-
-    private async Task<ResolvedMediaRange?> ResolveRangeAsync(EncodingHandoffInput input, MediaMetadata? metadata)
-    {
-        if (input.InitialTrim is not { IsFullSource: false } range || _ffprobe is null) return null;
-        var identity = TrimSourceIdentity.Read(input.SourcePath);
-        if (identity is null || identity.FileSizeBytes != input.FileSizeBytes) return null;
-        var startTimestamp = metadata?.StartTimestamp ?? TimeSpan.Zero;
-        var packets = await CaptureProbeAsync(FfmpegCommandBuilder.ProbeVideoPackets(input.SourcePath, range, startTimestamp));
-        try { return EncodingRangeResolver.Resolve(range, startTimestamp, packets); }
-        catch (Exception ex) when (ex is ArgumentException or InvalidDataException)
-        {
-            var frames = await CaptureProbeAsync(FfmpegCommandBuilder.ProbeVideoFrames(input.SourcePath, range, startTimestamp));
-            return EncodingRangeResolver.Resolve(range, startTimestamp, frames);
-        }
-    }
-
-    private async Task<string> CaptureProbeAsync(IReadOnlyList<string> arguments)
-    {
-        var start = new ProcessStartInfo(_ffprobe!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start FFprobe.");
-        var output = await process.StandardOutput.ReadToEndAsync(); await process.WaitForExitAsync();
-        if (process.ExitCode != 0) throw new InvalidDataException("FFprobe could not validate the saved range.");
-        return output;
     }
 
     private void Configuration_Changed(object sender, RoutedEventArgs e) { if (!_initializing) ReadControls(); }
@@ -188,11 +179,7 @@ public partial class ExportDialog : Window
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,
             AdvancedExpander.IsExpanded ? "Advanced export settings expanded" : "Advanced export settings collapsed");
-        var lines = _model.IsAnalyzing ? [] : _model.GlobalErrors.Select(x => "Error — " + x.Message).Concat(_model.GlobalWarnings.Select(x => "Warning — " + x.Message)).ToList();
-        ValidationText.Text = string.Join(Environment.NewLine, lines);
-        ValidationBorder.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        ReadySummaryText.Text = _model.ReadySummary;
-        ExportButton.IsEnabled = _model.CanExport;
+        SyncPreflightStatus();
     }
     private void RangeUse_Changed(object sender, RoutedEventArgs e)
     {

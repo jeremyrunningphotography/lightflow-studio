@@ -205,7 +205,7 @@ public sealed class FfmpegCommandBuilderTests
     public void ProbeAndInspectArgumentsTargetProvidedFile()
     {
         Assert.Equal(["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", "clip.mov"], FfmpegCommandBuilder.ProbeDuration("clip.mov"));
-        Assert.Equal(["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", "clip.mov"], FfmpegCommandBuilder.ProbeMetadata("clip.mov"));
+        Assert.Equal(["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,time_base,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", "clip.mov"], FfmpegCommandBuilder.ProbeMetadata("clip.mov"));
         var derived = FfmpegCommandBuilder.ProbeDerivedMetadata("clip.mov");
         Assert.Contains("format_tags=creation_time,timecode,encoder", derived[3]);
         Assert.Contains("stream_tags=creation_time,timecode,encoder,rotate", derived[3]);
@@ -219,7 +219,7 @@ public sealed class FfmpegCommandBuilderTests
         AssertContainsSequence(thumbnail, "-vf", "scale=512:512:force_original_aspect_ratio=decrease");
         AssertContainsSequence(thumbnail, "-c:v", "mjpeg", "-q:v", "3", "-f", "image2", "thumb.tmp");
         Assert.Equal(["-hide_banner", "-show_format", "-show_streams", "clip.mov"], FfmpegCommandBuilder.Inspect("clip.mov"));
-        Assert.Equal(["-v", "error", "-select_streams", "v:0", "-read_intervals", "7%10", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", "clip.mov"],
+        Assert.Equal(["-v", "error", "-select_streams", "v:0", "-read_intervals", "7%10", "-show_entries", "frame=best_effort_timestamp,best_effort_timestamp_time,duration,duration_time", "-of", "json", "clip.mov"],
             FfmpegCommandBuilder.ProbeVideoFrames("clip.mov", new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(9))));
         Assert.Equal(["-v", "error", "-select_streams", "v:0", "-read_intervals", "7%10", "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", "clip.mov"],
             FfmpegCommandBuilder.ProbeVideoPackets("clip.mov", new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(9))));

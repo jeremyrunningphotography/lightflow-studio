@@ -28,13 +28,16 @@ internal sealed record ExportSubmissionItem(
     string RangeToolTip,
     string TimelineAutomationName,
     IReadOnlyList<JobIssue> Issues,
-    ExportFilePreflightState State = ExportFilePreflightState.Ready)
+    ExportFilePreflightState State = ExportFilePreflightState.Ready,
+    bool WillSkip = false,
+    bool WillOverwrite = false)
 {
     public bool IsChecking => State is ExportFilePreflightState.Pending or ExportFilePreflightState.Checking;
     public string IndicatorState => IsChecking ? "Generating" : "Completed";
-    public string StatusAutomationName => $"{SourceFileName}: {(State == ExportFilePreflightState.Pending ? "Preparing video" : IsChecking ? "Checking video" : HasError ? "Needs attention" : HasIssues ? "Ready with warning" : "Ready")}";
+    public string StatusAutomationName => $"{SourceFileName}: {(State == ExportFilePreflightState.Pending ? "Preparing video" : IsChecking ? "Checking video" : HasError ? "Needs attention" : WillSkip ? "Will be skipped" : WillOverwrite ? "Existing file will be replaced" : HasIssues ? "Ready with warning" : "Ready")}";
     private IEnumerable<JobIssue> OrderedIssues => Issues
         .OrderByDescending(issue => issue.Severity)
+        .ThenBy(issue => issue.Code is "encoding.source-overwrite" or "encoding.partial-source-collision" ? 0 : issue.Code == "encoding.output-collision" ? 1 : 2)
         .ThenBy(issue => issue.Code, StringComparer.Ordinal);
     public bool HasIssues => !IsChecking && Issues.Count > 0;
     public bool HasError => !IsChecking && Issues.Any(issue => issue.Severity == JobIssueSeverity.Error);
@@ -44,14 +47,25 @@ internal sealed record ExportSubmissionItem(
         get
         {
             if (!HasIssues) return "";
-            var output = OutputText.TrimStart('→', ' ');
-            var messages = OrderedIssues
-                .Select(issue => $"{(issue.Severity == JobIssueSeverity.Error ? "Error" : "Warning")} — {issue.Message}");
-            return $"{IssueSeverityText} for {SourceFileName} → {output}{Environment.NewLine}{string.Join(Environment.NewLine, messages)}";
+            var issue = OrderedIssues.First();
+            return issue.Code switch
+            {
+                "encoding.source-overwrite" or "encoding.partial-source-collision" =>
+                    "Output conflicts with source\nChoose another destination or filename to protect the original video.",
+                "encoding.output-collision" =>
+                    "Duplicate output filename\nChoose unique filenames or destinations for these exports.",
+                "encoding.existing-output-differs" =>
+                    "Existing file will be skipped\nEnable Overwrite existing files to replace it, or choose another filename or destination.",
+                "encoding.existing-output-replaced" =>
+                    "Existing file will be replaced\nThis export will overwrite the existing output file.",
+                "naming.path-too-long" =>
+                    "Output path is too long\nChoose a shorter destination or filename.",
+                _ => issue.Message
+            };
         }
     }
     public string IssueAutomationName => HasIssues
-        ? $"{IssueSeverityText} for {SourceFileName}, output {OutputText.TrimStart('→', ' ')}. {string.Join(" ", OrderedIssues.Select(issue => $"{(issue.Severity == JobIssueSeverity.Error ? "Error" : "Warning")}: {issue.Message}"))}"
+        ? $"{IssueSeverityText}: {IssueToolTip}"
         : "";
 }
 
@@ -135,6 +149,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public IReadOnlyList<JobIssue> GlobalWarnings => _plan?.Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList() ?? [];
     public EncoderCapability? EncoderCapability => _encoder;
     public bool CanExport => _plan?.IsValid == true && _encoder?.IsUsable == true
+        && _plan.ExecutableItems.Count > 0
         && SubmissionItems.All(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning);
     public bool IsAnalyzing => ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null;
     public string ReadySummary
@@ -144,14 +159,25 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             var items = SubmissionItems;
             var count = items.Count;
             var noun = count == 1 ? "video" : "videos";
-            var ready = items.Count(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning);
+            var validated = items.Where(item => item.State is ExportFilePreflightState.Ready or ExportFilePreflightState.Warning).ToArray();
+            var skipped = validated.Count(item => item.WillSkip);
+            var overwritten = validated.Count(item => item.WillOverwrite);
+            var ready = validated.Length - skipped - overwritten;
+            var outputCounts = new List<string>();
+            if (ready > 0) outputCounts.Add($"{ready} ready");
+            if (overwritten > 0) outputCounts.Add($"{overwritten} will be overwritten");
+            if (skipped > 0) outputCounts.Add($"{skipped} will be skipped");
             var errors = items.Count(item => item.State == ExportFilePreflightState.Error);
             if (items.Any(item => item.IsChecking))
                 return items.All(item => item.State == ExportFilePreflightState.Pending)
                     ? $"Preparing {count} {noun}…"
-                    : $"Analyzing {noun}… {ready} of {count} ready" + (errors > 0 ? $" · {errors} {(errors == 1 ? "needs" : "need")} attention" : "");
+                    : $"Analyzing {noun}… {ready} of {count} ready" + (overwritten > 0 ? $" · {overwritten} will be overwritten" : "")
+                        + (skipped > 0 ? $" · {skipped} will be skipped" : "")
+                        + (errors > 0 ? $" · {errors} {(errors == 1 ? "needs" : "need")} attention" : "");
             if (errors > 0) return $"{errors} of {count} {noun} {(errors == 1 ? "needs" : "need")} attention";
             if (GlobalErrors.Any(issue => issue.Code != "export.metadata-pending")) return "Review export settings";
+            if (skipped == count && count > 0) return $"{count} will be skipped · Nothing to export";
+            if (skipped > 0 || overwritten > 0) return string.Join(" · ", outputCounts);
             var text = $"{count} {noun} ready to export";
             var rotated = ActiveInputs().Count(value => value.input.Rotation.Degrees != 0);
             if (rotated > 0) text += $" · Lightflow rotation baked into {rotated} {(rotated == 1 ? "video" : "videos")}";
@@ -361,7 +387,10 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         }, token);
         if (revision != _revision || generation != _preflightGeneration)
             throw new InvalidOperationException("Export settings or selection changed during final validation. Review the current settings and try again.");
-        return BuildPlan(camera, creative);
+        var plan = BuildPlan(camera, creative);
+        if (plan.IsValid && plan.ExecutableItems.Count == 0)
+            throw new InvalidOperationException("All existing outputs will be skipped. Enable Overwrite existing files or choose another destination or filename.");
+        return plan;
     }
 
     private JobPlan<EncodingJobOptions> BuildPlan(ColorStagePolicy? camera = null, ColorStagePolicy? creative = null)
@@ -529,7 +558,9 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             return new ExportSubmissionItem(index, item?.Definition.Id ?? Guid.Empty, displayName, outputText, $"Output for {displayName}: {outputText.TrimStart('→', ' ')}",
                 !input.RangeIsFixed && hasRange, useRange,
                 !input.RangeIsFixed && hasRange && _rangesGloballyEnabled, rangeAutomationName, timeline.SegmentLeft, timeline.SegmentWidth,
-                timeline.ToolTip, timeline.AutomationName, issues, state);
+                timeline.ToolTip, timeline.AutomationName, issues, state,
+                item?.Disposition == JobPlanDisposition.Skip,
+                item?.Issues.Any(issue => issue.Code == "encoding.existing-output-replaced") == true);
         }).ToArray();
     }
 

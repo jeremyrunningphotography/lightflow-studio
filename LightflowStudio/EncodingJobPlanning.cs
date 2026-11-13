@@ -211,6 +211,9 @@ internal static class EncodingJobPlanner
                     "An output file already exists at this location. It will be skipped unless “Overwrite existing files” is enabled.",
                     JobIssueSeverity.Warning));
             }
+            else if (snapshot.Exists && definition.Options.OverwriteExistingFiles)
+                itemIssues.Add(new("encoding.existing-output-replaced",
+                    "The existing output file will be replaced by this export.", JobIssueSeverity.Warning));
             var estimate = useDuration
                 ? JobWorkEstimate.Determinate(JobWorkUnit.MediaDuration, output.Item.MediaRange!.EffectiveDuration.TotalSeconds)
                 : JobWorkEstimate.Determinate(JobWorkUnit.Items, 1);

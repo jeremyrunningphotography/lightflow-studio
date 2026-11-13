@@ -242,9 +242,9 @@ public sealed class ExportDialogModelTests : IDisposable
     [Fact]
     public void EncoderUnavailableDisablesExportAndWarningsDoNot()
     {
-        var model = CreateModel("clip.mp4", inspect: _ => new(true, 10));
+        var model = CreateModel("clip.mp4", "new.mp4", inspect: path => new(Path.GetFileName(path).StartsWith("clip-"), 10));
         model.OverwriteExisting = false;
-        model.ApplyMetadata([Metadata("h264", "mp4")]);
+        model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
         model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedButUnavailable, "No NVIDIA encoder was found."));
         Assert.False(model.CanExport);
         Assert.Contains(model.Errors, x => x.Code == "export.encoder-unavailable");
@@ -297,14 +297,14 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotEqual(warning.PlannedItemId, clean.PlannedItemId);
         Assert.True(warning.HasIssues);
         Assert.False(warning.HasError);
-        Assert.Contains("Warning for warning.mp4", warning.IssueToolTip);
-        Assert.Contains("warning-001.mp4", warning.IssueToolTip);
+        Assert.StartsWith("Existing file will be skipped", warning.IssueToolTip);
+        Assert.DoesNotContain("warning-001.mp4", warning.IssueToolTip);
         Assert.False(clean.HasIssues);
         Assert.Empty(model.GlobalWarnings);
     }
 
     [Fact]
-    public void RepeatedItemWarningsStayInlineAndOverwriteRematerializationClearsThem()
+    public void RepeatedItemWarningsStayInlineAndOverwriteRematerializationUpdatesThem()
     {
         var model = CreateModel("first.mp4", "second.mp4", inspect: _ => new(true, 10));
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
@@ -315,7 +315,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         model.OverwriteExisting = true;
 
-        Assert.All(model.SubmissionItems, item => Assert.False(item.HasIssues));
+        Assert.All(model.SubmissionItems, item => { Assert.True(item.HasIssues); Assert.False(item.HasError); Assert.StartsWith("Existing file will be replaced", item.IssueToolTip); });
         Assert.All(model.CurrentPlan!.Items, item => Assert.Equal(JobPlanDisposition.Process, item.Disposition));
     }
 
@@ -331,10 +331,9 @@ public sealed class ExportDialogModelTests : IDisposable
         var row = Assert.Single(model.SubmissionItems);
         Assert.True(row.HasError);
         Assert.True(row.Issues.Count >= 2);
-        Assert.StartsWith("Error for clip.mp4", row.IssueToolTip);
-        Assert.True(row.IssueToolTip.IndexOf("Error —", StringComparison.Ordinal) <
-                    row.IssueToolTip.IndexOf("Warning —", StringComparison.Ordinal));
-        Assert.Contains("Error for clip.mp4", row.IssueAutomationName);
+        Assert.Contains("filename", row.IssueToolTip);
+        Assert.DoesNotContain("will be skipped", row.IssueToolTip);
+        Assert.StartsWith("Error:", row.IssueAutomationName);
     }
 
     [Fact]

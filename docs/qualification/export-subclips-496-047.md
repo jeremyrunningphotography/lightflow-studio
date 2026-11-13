@@ -1,5 +1,41 @@
 # LF-WIN-DEV-047 — Export Subclips Reliability
 
+## I04 overwrite and conflict presentation
+
+Owner accepted all six core I03 checks. That acceptance is preserved: no changes
+in I04 to frame probing, EOF resolution, metadata discovery or NVENC execution.
+No PR is authorized until owner accepts the focused I04 correction.
+
+The existing planner already treats nonempty unrelated existing output as Skip
+when Overwrite is off, and Process when on. Canonical selected-source and duplicate
+planned-output conflicts remain separate blocking errors under either setting.
+The owner's 22-file observation does not identify which typed error blocked that
+selection; do not infer it was safe to overwrite a source or duplicate destination.
+I03 removed all existing-output warnings when overwrite was enabled, counted skipped
+rows as ready, and concatenated all issue paths/names in each tooltip. I04 makes
+replacement an explicit nonblocking warning, counts skip/replace separately, selects
+the highest-priority condition for the concise tooltip, and preserves full typed
+issues/paths internally. Source/partial-source safety errors have priority over
+other errors, then duplicate outputs, then other errors, then warnings.
+
+Overwrite edits synchronously rematerialize the current plan from immutable source
+facts; no metadata or decoded frame probes are added or repeated. Existing async
+generation and final-submission revision guards remain in place. Skipped-only
+selections show Nothing to export and keep Export disabled; final materialization
+also rejects a skip-only submission. Mixed submissions retain skipped Jobs and
+accurate accounting through the existing scheduler. The existing amber warning /
+red error icon, tooltip theme, status slot and Jobs pending indicator are reused;
+no dialog layout or resources change. Existing nonempty-file skip policy, atomic
+validated partial-file replacement and queue reservation/admission safeguards are
+unchanged.
+
+Regression coverage includes a 22-file batch, actual checkbox/footer/icon updates,
+late metadata and obsolete generations, a settings change during final validation,
+all-skipped behavior, selected-source and duplicate-output rejection under both
+policies, and real filesystem queue skip/preservation and NVENC replacement with
+source hashes unchanged. Validation details and exact packaged provenance belong
+in the complete I04 ZIP report. Historical maintenance: Not warranted for this
+bounded correction. No production Catalog changes, PR, merge or release.
 ## I03 preflight UX and performance
 
 I02 owner acceptance remains pending; no PR is authorized. I03 adds explicit

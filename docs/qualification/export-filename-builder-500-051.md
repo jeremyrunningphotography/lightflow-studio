@@ -70,3 +70,16 @@ I01 local qualification: focused Export/native/planning tests 160 PASS / 4 exist
 opt-in SKIP; full Windows Release 2,584 PASS / 0 FAIL / 8 existing opt-in SKIP.
 Premiere companion 90/90 PASS. Before/after timing evidence is retained in the
 I01 ZIP. Packaged media/installer gates and owner acceptance remain separate.
+
+Packaged-tool NVENC qualification: active ranges 8/8 PASS, saved EOF boundaries
+3/3 PASS, overwrite/source protection 1/1 PASS. Initial active-range run had
+7 failures because the fixture requested a plan after closing its dialog; the
+new close guard correctly refused that lifecycle. The test now captures the
+immutable accepted plan while the dialog is open, retaining every video/audio,
+source-identity and range assertion; corrected 8/8 PASS. This is a test-lifecycle
+adaptation, not a production guard relaxation. Initial failures are retained.
+
+Installer/staged-package gates passed on implementation commit 551ec959; final
+source retains the same production tree. Final local full-suite confirmation and
+required executable refresh are recorded in the portable evidence report. Owner
+acceptance and any later exact-head PR/merge checks remain outstanding.

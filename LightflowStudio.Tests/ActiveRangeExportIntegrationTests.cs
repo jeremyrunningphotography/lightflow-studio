@@ -59,6 +59,7 @@ public sealed class ActiveRangeExportIntegrationTests
         var model = new ExportDialogModel(handoff, new(), [], [], resources,
             revalidate: (_, _) => Task.FromResult(handoff), namingDefault: ExportNamingDefault.Subclip);
         model.Destination = Path.Combine(root, "output"); model.CreateSubfolder = false;
+        JobPlan<EncodingJobOptions>? plan = null;
         await StaDispatcher.RunAsync(async () =>
         {
             TestWpfApplication.EnsureLoaded();
@@ -85,6 +86,9 @@ public sealed class ActiveRangeExportIntegrationTests
                 var row = Assert.Single(model.SubmissionItems);
                 Assert.Equal(range is not null, row.UseRange);
                 Assert.StartsWith(mode == "saved" ? "Saved Subclip" : range is null ? "Full video" : "Active In/Out", row.RangeToolTip);
+                // Accept the current plan while the dialog is still open. Closing
+                // invalidates pending/subsequent submissions, not this immutable plan.
+                plan = await model.MaterializeAcceptedPlanAsync();
             }
             finally { window.Close(); }
         });
@@ -96,7 +100,8 @@ public sealed class ActiveRangeExportIntegrationTests
             { mode, offset, rejected = true, reasons = model.Errors.Select(issue => issue.Message), unchangedSourceIdentity = true }));
             return;
         }
-        var plan = await model.MaterializeAcceptedPlanAsync(); var item = Assert.Single(plan.Items);
+        Assert.NotNull(plan);
+        var item = Assert.Single(plan.Items);
         Assert.Equal(kind, item.Definition.ExportProvenance!.Kind);
         var resolved = item.Definition.ResolvedRange;
         var executor = new EncodingJobExecutor(ffmpeg, ffprobe, Path.Combine(root, "identities"), resources);

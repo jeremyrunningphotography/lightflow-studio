@@ -51,6 +51,63 @@ public sealed class EncodingRangeResolverTests
         Assert.Equal(TimeSpan.FromSeconds(.35), EncodingRangeResolver.Resolve(requested, TimeSpan.Zero, packets).EffectiveDuration);
     }
 
+    [Theory]
+    [InlineData(0, .2, .16, .04)]
+    [InlineData(5, .2, .16, .04)]
+    [InlineData(0, .12, .08, .04)]
+    public void Resolve_BoundedDecodedOutPreservesInclusiveFrameIntent(double start, double end, double last, double step)
+    {
+        var range = new MediaRange(TimeSpan.FromSeconds(end), null, TimeSpan.FromSeconds(end));
+        var frames = "{\"frames\":[" + string.Join(',', new[] { start, start + last - step, start + last }
+            .Distinct().Select(value => $"{{\"best_effort_timestamp_time\":\"{value}\",\"duration_time\":\"{step}\"}}")) + "]}";
+        var result = EncodingRangeResolver.Resolve(range, TimeSpan.FromSeconds(start), frames,
+            new(TimeSpan.FromSeconds(end), TimeSpan.FromSeconds(last + step), "1/1000000"));
+        Assert.Equal(TimeSpan.FromSeconds(start + end), result.ExclusiveOut);
+        Assert.NotNull(result.BoundaryDiagnostic);
+        Assert.Equal(range, result.RequestedRange);
+    }
+
+    [Theory]
+    [InlineData(.2, .1, .1)] // 50 ms cap
+    [InlineData(.2, .16, .02)] // local interval
+    [InlineData(.2, .22, .04)] // would select a later frame
+    public void Resolve_RejectsUnprovenEofCorrection(double end, double last, double step)
+        => Assert.Throws<ArgumentException>(() => EncodingRangeResolver.Resolve(
+            new(TimeSpan.FromSeconds(end), null, TimeSpan.FromSeconds(end)), TimeSpan.Zero,
+            Frames(0, last - step, last)));
+
+    [Fact]
+    public void Resolve_InteriorCorrectionUsesNearestEarlierFrameAndActualVfrSuccessor()
+    {
+        var result = EncodingRangeResolver.Resolve(new(TimeSpan.FromSeconds(1), null, TimeSpan.FromSeconds(.105)),
+            TimeSpan.Zero, Frames(0, .08, .14, .18));
+        Assert.Equal(TimeSpan.FromSeconds(.14), result.ExclusiveOut);
+        Assert.NotNull(result.BoundaryDiagnostic);
+    }
+
+    [Fact]
+    public void Resolve_AmbiguousMidpointRejectedAndExactPreferred()
+    {
+        Assert.Throws<ArgumentException>(() => EncodingRangeResolver.Resolve(
+            new(TimeSpan.FromSeconds(1), null, TimeSpan.FromSeconds(.1)), TimeSpan.Zero, Frames(0, .08, .12)));
+        Assert.Null(EncodingRangeResolver.Resolve(new(TimeSpan.FromSeconds(1), null, TimeSpan.FromSeconds(.08)),
+            TimeSpan.Zero, Frames(0, .08, .12)).BoundaryDiagnostic);
+    }
+
+    [Fact]
+    public void Resolve_PacketsCannotAuthorizeCorrection()
+        => Assert.Throws<ArgumentException>(() => EncodingRangeResolver.Resolve(
+            new(TimeSpan.FromSeconds(.2), null, TimeSpan.FromSeconds(.2)), TimeSpan.Zero,
+            """{"packets":[{"pts_time":"0"},{"pts_time":"0.12"},{"pts_time":"0.16"}]}"""));
+
+    [Fact]
+    public void Resolve_DoesNotSkipHighFrameRateSuccessorWithinRoundingTolerance()
+    {
+        var result = EncodingRangeResolver.Resolve(new(TimeSpan.FromSeconds(.01), null, TimeSpan.FromSeconds(.003)),
+            TimeSpan.Zero, Frames(0, .003, .004, .005));
+        Assert.Equal(TimeSpan.FromSeconds(.004), result.ExclusiveOut);
+    }
+
     private static string Frames(params double[] values) =>
         "{\"frames\":[" + string.Join(',', values.Select(value => $"{{\"best_effort_timestamp_time\":\"{value}\"}}")) + "]}";
 }

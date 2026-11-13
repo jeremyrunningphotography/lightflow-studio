@@ -6,6 +6,77 @@ public sealed class ExportDialogModelTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("lightflow-export-modal-").FullName;
 
+    [Theory]
+    [InlineData("hevc", true)]
+    [InlineData("h264", false)]
+    public void SameAsSourceValidatesTenBitAgainstResolvedCodec(string codec, bool supported)
+    {
+        var model = CreateModel("source.mp4");
+        model.Encoding = model.Encoding with { PixelFormat = VideoPixelFormat.P010 };
+        Ready(model, Metadata(codec, "mp4"));
+        Assert.Equal(supported, model.CanExport);
+        Assert.Equal(!supported, model.Errors.Any(issue => issue.Code == "export.options"));
+    }
+
+    [Fact]
+    public void MetadataPendingIsNotReportedAsUnsupportedAndCompletionRefreshesPlan()
+    {
+        var model = CreateModel("source.mp4");
+        Assert.True(model.IsAnalyzing);
+        Assert.False(model.CanExport);
+        Assert.DoesNotContain(model.Issues, issue => issue.Message.Contains("'unknown'"));
+        Assert.Equal(ExportFilePreflightState.Pending, model.SubmissionItems.Single().State);
+        Assert.False(model.SubmissionItems.Single().HasError);
+        Ready(model, Metadata("hevc", "mov,mp4,m4a,3gp,3g2,mj2"));
+        Assert.False(model.IsAnalyzing);
+        Assert.True(model.CanExport);
+        Assert.Equal(VideoCodec.Hevc, model.CurrentPlan!.Items.Single().Definition.MaterializedExport!.Encoding.Codec);
+    }
+
+    [Fact]
+    public void FailedMetadataHasActionableFailureAndCanRecoverWithoutEncoderMutation()
+    {
+        var model = CreateModel("source.mp4");
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedAndAvailable, "Probe succeeded"));
+        model.ApplyMetadata([null], ["FFprobe failed: source offline"]);
+        Assert.False(model.IsAnalyzing);
+        Assert.False(model.CanExport);
+        Assert.Contains(model.Errors, issue => issue.Code == "export.metadata-failed" && issue.Message.Contains("offline"));
+        Assert.DoesNotContain(model.Errors, issue => issue.Message.Contains("'unknown'") || issue.Code == "export.encoder-unavailable");
+        model.ApplyMetadata([Metadata("hevc", "mp4")]);
+        Assert.True(model.CanExport);
+    }
+
+    [Theory]
+    [InlineData("hevc", "mp4", true)]
+    [InlineData("h264", "mov", true)]
+    [InlineData("av1", "mp4", false)]
+    [InlineData("hevc", "avi", false)]
+    public void MetadataAvailableBeforeDialogConstructionPreservesCompatibility(string codec, string container, bool supported)
+    {
+        var model = CreateModel("source.mp4");
+        Ready(model, Metadata(codec, container));
+        Assert.False(model.IsAnalyzing);
+        Assert.Equal(supported, model.CanExport);
+        Assert.Equal(!supported, model.Errors.Any(issue => issue.Code == "encoding.materialization-unsupported"));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PreflightFailurePreservesIndependentEncoderResult(bool available)
+    {
+        var model = CreateModel("clip.mp4");
+        Ready(model, Metadata("h264", "mp4"));
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, available
+            ? EncoderCapabilityState.ImplementedAndAvailable : EncoderCapabilityState.ImplementedButUnavailable,
+            "Independent execution probe"));
+        model.ApplyPreflightFailure("Saved Out frame cannot be safely resolved.");
+        Assert.Contains(model.Errors, issue => issue.Code == "export.preflight");
+        Assert.Equal(!available, model.Errors.Any(issue => issue.Code == "export.encoder-unavailable"));
+        Assert.False(model.CanExport);
+    }
+
     [Fact]
     public void Defaults_AreModernIndependentAndBounded()
     {
@@ -17,7 +88,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Creative.Mode);
         Assert.Equal(AudioEncodingMode.Copy, model.Encoding.AudioMode);
         Assert.True(model.CreateSubfolder);
-        Assert.Equal("1 file ready to export", model.ReadySummary);
+        Assert.Equal("Preparing 1 video…", model.ReadySummary);
     }
 
     [Fact]
@@ -171,9 +242,9 @@ public sealed class ExportDialogModelTests : IDisposable
     [Fact]
     public void EncoderUnavailableDisablesExportAndWarningsDoNot()
     {
-        var model = CreateModel("clip.mp4", inspect: _ => new(true, 10));
+        var model = CreateModel("clip.mp4", "new.mp4", inspect: path => new(Path.GetFileName(path).StartsWith("clip-"), 10));
         model.OverwriteExisting = false;
-        model.ApplyMetadata([Metadata("h264", "mp4")]);
+        model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
         model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedButUnavailable, "No NVIDIA encoder was found."));
         Assert.False(model.CanExport);
         Assert.Contains(model.Errors, x => x.Code == "export.encoder-unavailable");
@@ -226,14 +297,14 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.NotEqual(warning.PlannedItemId, clean.PlannedItemId);
         Assert.True(warning.HasIssues);
         Assert.False(warning.HasError);
-        Assert.Contains("Warning for warning.mp4", warning.IssueToolTip);
-        Assert.Contains("warning-001.mp4", warning.IssueToolTip);
+        Assert.StartsWith("A file with this name already exists here. This export will be skipped.", warning.IssueToolTip);
+        Assert.DoesNotContain("warning-001.mp4", warning.IssueToolTip);
         Assert.False(clean.HasIssues);
         Assert.Empty(model.GlobalWarnings);
     }
 
     [Fact]
-    public void RepeatedItemWarningsStayInlineAndOverwriteRematerializationClearsThem()
+    public void RepeatedItemWarningsStayInlineAndOverwriteRematerializationUpdatesThem()
     {
         var model = CreateModel("first.mp4", "second.mp4", inspect: _ => new(true, 10));
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
@@ -244,7 +315,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         model.OverwriteExisting = true;
 
-        Assert.All(model.SubmissionItems, item => Assert.False(item.HasIssues));
+        Assert.All(model.SubmissionItems, item => { Assert.True(item.HasIssues); Assert.False(item.HasError); Assert.StartsWith("A file with this name already exists here. It will be replaced.", item.IssueToolTip); });
         Assert.All(model.CurrentPlan!.Items, item => Assert.Equal(JobPlanDisposition.Process, item.Disposition));
     }
 
@@ -260,10 +331,9 @@ public sealed class ExportDialogModelTests : IDisposable
         var row = Assert.Single(model.SubmissionItems);
         Assert.True(row.HasError);
         Assert.True(row.Issues.Count >= 2);
-        Assert.StartsWith("Error for clip.mp4", row.IssueToolTip);
-        Assert.True(row.IssueToolTip.IndexOf("Error —", StringComparison.Ordinal) <
-                    row.IssueToolTip.IndexOf("Warning —", StringComparison.Ordinal));
-        Assert.Contains("Error for clip.mp4", row.IssueAutomationName);
+        Assert.Contains("filename", row.IssueToolTip);
+        Assert.DoesNotContain("will be skipped", row.IssueToolTip);
+        Assert.StartsWith("Error:", row.IssueAutomationName);
     }
 
     [Fact]
@@ -358,7 +428,7 @@ public sealed class ExportDialogModelTests : IDisposable
     {
         var model = CreateModel("a.mp4", "b.mp4");
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
 
         model.Encoding = model.Encoding with
         {
@@ -367,12 +437,12 @@ public sealed class ExportDialogModelTests : IDisposable
             AudioMode = AudioEncodingMode.Aac,
             AudioBitrateKbps = 192
         };
-        Assert.Equal("2 files ready to export · Est. 26 MB", model.ReadySummary);
+        Assert.Equal("2 videos ready to export · Est. 26 MB", model.ReadySummary);
 
         model.Encoding = model.Encoding with { RateControl = RateControlMode.VariableBitrate };
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
         model.Encoding = model.Encoding with { RateControl = RateControlMode.ConstantQuality };
-        Assert.Equal("2 files ready to export", model.ReadySummary);
+        Assert.Equal("2 videos ready to export", model.ReadySummary);
     }
 
     [Fact]
@@ -406,6 +476,7 @@ public sealed class ExportDialogModelTests : IDisposable
         model.ApplyResolvedRanges([null, new(second.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(6),
             TimeSpan.FromSeconds(9), TimeSpan.FromSeconds(3))]);
 
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedAndAvailable, "ok"));
         Assert.True(model.SubmissionItems[0].HasError);
         Assert.False(model.SubmissionItems[1].HasIssues);
         Assert.NotEqual(model.SubmissionItems[0].PlannedItemId, model.SubmissionItems[1].PlannedItemId);
@@ -418,7 +489,9 @@ public sealed class ExportDialogModelTests : IDisposable
         var saved = new MediaRange(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3));
         var model = CreateModelWithRanges(("trimmed.mp4", saved));
         Ready(model, Metadata("h264", "mp4"));
-
+        Assert.True(model.IsAnalyzing);
+        Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.range-unresolved");
+        model.ApplyResolvedRanges([null]); // A completed failed validation, not pending work.
         Assert.Contains(model.Errors, issue => issue.Code == "export.range-unresolved");
         model.SetGlobalUseRanges(false);
         Assert.DoesNotContain(model.Errors, issue => issue.Code == "export.range-unresolved");

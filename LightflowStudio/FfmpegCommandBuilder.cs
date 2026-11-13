@@ -59,6 +59,9 @@ internal static class FfmpegCommandBuilder
 
         AddAudio(args, recovery, options, trim);
         AddContainerCompatibility(args, options);
+        if (trim?.RetainsSourceEof == true && options.Container is OutputContainer.Mp4 or OutputContainer.Mov)
+            // Default millisecond edit-list rounding can obscure preserved sub-frame audio tails.
+            args.AddRange(["-movie_timescale", "1000000"]);
         if (options.FastStart && options.Container is OutputContainer.Mp4 or OutputContainer.Mov)
             args.AddRange(["-movflags", "+faststart"]);
         args.AddRange(["-progress", "pipe:1", "-nostats", "-f", OutputMuxer(options.Container), output]);
@@ -149,7 +152,7 @@ internal static class FfmpegCommandBuilder
 
     public static List<string> ProbeDuration(string file) => ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file];
     public static List<string> ProbeMetadata(string file) =>
-        ["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", file];
+        ["-v", "error", "-show_entries", "format=format_name,duration,start_time:stream=codec_type,codec_name,width,height,avg_frame_rate,time_base,start_time,duration,sample_rate,channels,channel_layout", "-of", "json", file];
     public static List<string> ProbeDerivedMetadata(string file) =>
         ["-v", "error", "-show_entries",
             "format=format_name,format_long_name,duration,start_time,size,bit_rate:format_tags=creation_time,timecode,encoder:" +
@@ -157,10 +160,10 @@ internal static class FfmpegCommandBuilder
             "stream_tags=creation_time,timecode,encoder,rotate:stream_disposition=attached_pic:stream_side_data=side_data_type,displaymatrix,rotation",
             "-of", "json", file];
     public static List<string> ProbeVideoFrames(string file) =>
-        ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];
+        ["-v", "error", "-select_streams", "v:0", "-show_entries", "frame=best_effort_timestamp,best_effort_timestamp_time,duration,duration_time", "-of", "json", file];
     public static List<string> ProbeVideoFrames(string file, MediaRange range, TimeSpan sourceStartTimestamp = default) =>
         ["-v", "error", "-select_streams", "v:0", "-read_intervals", EncodingFrameProbeWindow.For(range, sourceStartTimestamp),
-            "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", file];
+            "-show_entries", "frame=best_effort_timestamp,best_effort_timestamp_time,duration,duration_time", "-of", "json", file];
     public static List<string> ProbeVideoPackets(string file, MediaRange range, TimeSpan sourceStartTimestamp = default) =>
         ["-v", "error", "-select_streams", "v:0", "-read_intervals", EncodingFrameProbeWindow.For(range, sourceStartTimestamp),
             "-show_packets", "-show_entries", "packet=pts_time", "-of", "json", file];

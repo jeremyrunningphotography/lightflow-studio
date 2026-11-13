@@ -1942,6 +1942,9 @@ public partial class MainWindow : Window
         if (NavigateBrowserKeyboard(e)) { e.Handled = true; return; }
         if (e.Key == Key.A && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
+            // Exact Ctrl+A shares the window's ownership checks. Keep the existing grid-only
+            // extra-modifier behavior; the window fallback must not broaden those shortcuts.
+            if (Keyboard.Modifiers == ModifierKeys.Control && !BrowserOwnsSelectAll(e.OriginalSource as DependencyObject)) return;
             _browserGrid.SelectAll();
             UpdateBrowserStatusText();
             e.Handled = true;
@@ -1962,6 +1965,56 @@ public partial class MainWindow : Window
     }
 
     private void BrowserContextOpen_Click(object sender, RoutedEventArgs e) => OpenBrowserSelection();
+
+    // Bubble after native text/list handling. Do not move focus to make a Browser command reachable.
+    private void MainWindow_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.A || Keyboard.Modifiers != ModifierKeys.Control ||
+            !BrowserOwnsSelectAll(e.OriginalSource as DependencyObject)) return;
+        _browserGrid.SelectAll();
+        UpdateBrowserStatusText();
+        e.Handled = true;
+    }
+
+    private bool BrowserOwnsSelectAll(DependencyObject? source)
+    {
+        if (!IsEnabled || MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) ||
+            _browserPresentation != BrowserPresentationMode.Grid || !BrowserGridRows.IsVisible ||
+            !BrowserQueryToolbar.IsEnabled || source is null || Window.GetWindow(source) != this ||
+            BrowserFilterPopup.IsOpen || BrowserRatingOperatorPopup.IsOpen || HasOpenSelectionInputSurface(this)) return false;
+
+        var browserContext = false;
+        for (var node = source; node is not null; node = SelectionInputParent(node))
+        {
+            if (node is System.Windows.Controls.Primitives.TextBoxBase or PasswordBox or
+                System.Windows.Controls.Primitives.MenuBase or MenuItem or System.Windows.Controls.Primitives.Popup or ComboBoxItem ||
+                node is System.Windows.Controls.ComboBox { IsEditable: true } ||
+                node is System.Windows.Controls.Primitives.Selector and not System.Windows.Controls.ComboBox && !ReferenceEquals(node, MainTabs) ||
+                node is System.Windows.Controls.TreeView && !ReferenceEquals(node, BrowserFolderTree) && !ReferenceEquals(node, BrowserCollectionTree) ||
+                node is PlayerViewerHost || ReferenceEquals(node, HomeRightPanel) || ReferenceEquals(node, RightPanelSplitter)) return false;
+            if (ReferenceEquals(node, BrowserWorkspaceRoot)) browserContext = true;
+        }
+        return browserContext || ReferenceEquals(source, this) || ReferenceEquals(source, MainTabs) ||
+            ReferenceEquals(source, RightPanelToggle) || ReferenceEquals(source, ApplicationMenuButton);
+    }
+
+    private static DependencyObject? SelectionInputParent(DependencyObject node) =>
+        node is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+            ? System.Windows.Media.VisualTreeHelper.GetParent(node) ?? LogicalTreeHelper.GetParent(node)
+            : LogicalTreeHelper.GetParent(node);
+
+    // Popup content has its own presentation source. Also guard the owning control while its
+    // menu/dropdown is open, even if keyboard focus has not moved into the popup yet.
+    private static bool HasOpenSelectionInputSurface(DependencyObject node)
+    {
+        if (node is FrameworkElement { ContextMenu.IsOpen: true } ||
+            node is System.Windows.Controls.ComboBox { IsDropDownOpen: true } ||
+            node is System.Windows.Controls.Primitives.Popup { IsOpen: true }) return true;
+        if (node is not System.Windows.Media.Visual && node is not System.Windows.Media.Media3D.Visual3D) return false;
+        for (var index = 0; index < System.Windows.Media.VisualTreeHelper.GetChildrenCount(node); index++)
+            if (HasOpenSelectionInputSurface(System.Windows.Media.VisualTreeHelper.GetChild(node, index))) return true;
+        return false;
+    }
 
     private void OpenBrowserSelection()
     {

@@ -1983,6 +1983,10 @@ public partial class MainWindow : Window
             !BrowserQueryToolbar.IsEnabled || source is null || Window.GetWindow(source) != this ||
             BrowserFilterPopup.IsOpen || BrowserRatingOperatorPopup.IsOpen || HasOpenSelectionInputSurface(this)) return false;
 
+        // Only the Inspector container focused by a neutral click may release its panel's ownership.
+        // Editors, buttons and other descendants still take the normal exclusion path below.
+        if (ReferenceEquals(source, _inspector) && ReferenceEquals(Keyboard.FocusedElement, _inspector)) return true;
+
         var browserContext = false;
         for (var node = source; node is not null; node = SelectionInputParent(node))
         {
@@ -2445,6 +2449,21 @@ public partial class MainWindow : Window
         if (_synchronizingBrowserQuery) return;
         _browserSearchDebounceTimer.Stop();
         _browserSearchDebounceTimer.Start();
+    }
+
+    private void BrowserSearchBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Handled || e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None ||
+            !BrowserSearchBox.IsKeyboardFocused || MainTabs.SelectedIndex != ShellDestinationSelection.Index(ShellDestination.Home) ||
+            _browserPresentation != BrowserPresentationMode.Grid || !BrowserGridRows.IsVisible ||
+            !BrowserQueryToolbar.IsEnabled || BrowserFilterPopup.IsOpen || BrowserRatingOperatorPopup.IsOpen ||
+            HasOpenSelectionInputSurface(this)) return;
+        // Commit the current live query before handing off. No queued focus restoration can
+        // steal focus back after a subsequent click, navigation or popup interaction.
+        _browserSearchDebounceTimer.Stop();
+        ApplyBrowserQuery(query => query with { SearchText = BrowserSearchBox.Text });
+        BrowserGridRows.Focus();
+        e.Handled = true;
     }
 
     private void BrowserSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

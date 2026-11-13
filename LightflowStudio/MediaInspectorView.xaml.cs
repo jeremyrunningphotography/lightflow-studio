@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace LightflowStudio;
 
@@ -35,6 +37,35 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     internal IDisposable? SuspendEditing() => _descriptions?.SuspendEditing();
 
     public MediaInspectorView() => InitializeComponent();
+
+    private void Inspector_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!e.Handled && IsNeutralPointerSource(e.OriginalSource as DependencyObject, Mouse.Captured))
+        {
+            // A neutral focus sink, not a new save or selection action. PropertyChanged
+            // description drafts and marker LostKeyboardFocus commits keep their existing lifecycle.
+            Focus();
+        }
+    }
+
+    internal bool IsNeutralPointerSource(DependencyObject? source, IInputElement? captured)
+    {
+        if (captured is not null) return false;
+        for (var node = source; node is not null; node =
+            node is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node) ?? LogicalTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node))
+        {
+            if (ReferenceEquals(node, this))
+                return true;
+            if (node is System.Windows.Documents.Hyperlink or System.Windows.Controls.Primitives.Selector or
+                System.Windows.Controls.Primitives.MenuBase or System.Windows.Controls.TreeView ||
+                node is FrameworkElement { DataContext: InspectorMarkerCard } ||
+                node is System.Windows.Controls.Control and not ScrollViewer and not ItemsControl ||
+                node is UIElement { Focusable: true } and not ScrollViewer and not ItemsControl) return false;
+        }
+        return false;
+    }
     internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
     {
         _service = service;

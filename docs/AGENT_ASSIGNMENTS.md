@@ -14,7 +14,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), tracking #491 | Prepared closeout; owner accepted 10/10 PASS (zero observations) at 9923753; Windows focused 274 and independent full 2561 PASS; accepted production preserved; single release/1.0 PR, exact-head CI status in PR; new explicit merge authorization pending; not merged/Done |
-| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | Owner approved policy; local implementation and qualification; packaged owner acceptance pending; no PR |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I01 owner 12 PASS / 2 NEEDS WORK / 0 FAIL; focused I02 Search Enter and neutral Inspector correction; owner I02 acceptance pending; no PR |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
 | 043 | LF-WIN-ADM-043 | Details final qualification and closeout | Issue #483, parent #480 | Prepared closeout; accepted source preserved; fresh Windows 2884/0/2, Details 14, shared 355 and Premiere 90 PASS; owner authorizes normal merge after package/exact-head CI; actual merge/post-merge provenance in #483/PR |
 | 042 | LF-WIN-DEV-042 | Windows Details Presentation Parity | [Issue #483](https://github.com/jeremyrunningphotography/lightflow-studio/issues/483), parent #480 | Done through corrected source ce35e036 / c700cb3d and owner Windows 4/4 PASS; full Release 2884/0/2; final integration/CI/merge by 043 |
@@ -89,3 +89,7 @@ production Catalog operation is authorized. Historical maintenance:
 ## Assignment 050 reservation — 2026-11-13
 
 LF-WIN-RES-050 — Browser Select All, issue #499, tracking #491. Owner allocated; absent from fetched main 46201b4 and release/1.0 90f4f94 registries. Independent full clone C:\Git\Agents\LF-WIN-RES-050-BrowserSelectAll; branch codex/499-browser-select-all-research. Owner approved guarded Browser-level implementation on 2026-11-13; local implementation/qualification underway. Research evidence preserved; owner packaged acceptance remains required. No PR, merge, release or main forward-port authorized. Concurrent 048 Export Active In/Out and 049 Player Frame Stepping retain ownership. Reservation local pending normal authorized integration.
+
+## Assignment 050 I02 — owner focus corrections
+
+I01 d133db2 accepted 12 PASS, 2 NEEDS WORK, 0 FAIL. Same identity, clone and branch. Owner authorized Search Enter handoff and neutral Inspector focus only; accepted I01 behaviors/evidence preserved. Current release ca929e5 remains compatible; no unnecessary rebase. Focused 172 PASS; I02 full/package and separate owner acceptance required. No PR, merge, release or main forward-port authorized.

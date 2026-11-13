@@ -54,3 +54,43 @@ does not modify PlayerViewerHost or Player arrow/speed handling. No other task's
 workspace, data or process is used. #491 stays open with remaining findings.
 
 Historical documentation maintenance: **Not warranted** for a bounded shortcut fix.
+
+## I02 — owner focus observations
+
+Owner I01 hands-on result: **12 PASS, 2 NEEDS WORK, 0 FAIL**. Original source
+`d133db2`, I01 evidence ZIP and packaged runtime are preserved. Current fetched
+release head is still `ca929e5`; no rebase or integration difference is needed.
+The I01 behavior remains accepted except for Search Enter and neutral Inspector
+focus; no PR is authorized during I02.
+
+Search now handles unmodified Enter locally after child input handling, flushes
+the current debounce into the same live query, and synchronously focuses the
+Browser grid/Details selection surface. Text, filters and ordering remain intact.
+Active popups/menus, modified Enter and not-ready results retain local ownership.
+There is no deferred focus callback.
+
+The Inspector has a pointer-only neutral focus sink, outside keyboard Tab order.
+Neutral content/background clicks focus the Inspector container without marking
+the pointer event handled. Only this exact focused container is eligible for the
+existing Browser Select All resolver; its interactive descendants remain excluded.
+Controls, selectors, links, marker cards and pointer capture retain ownership.
+Player and not-ready Browser guards still apply before the neutral exception.
+Transparent hit testing adds no visual layout or styling change.
+
+Focus does not apply or discard description drafts: PropertyChanged binding,
+explicit Apply and the existing selection-transition confirmation/veto remain
+authoritative. Marker rename keeps its existing LostKeyboardFocus save. No new
+save path, selection model, generic focus manager or Player focus change is added.
+
+Expanded focused qualification: **172 PASS / 0 FAIL**, including real WPF routed
+keyboard/pointer events and real task-owned Catalog description/marker saves.
+Native mouse capture cannot be acquired on the private non-input desktop; its
+owner exclusion is tested at the local classifier boundary, with real routed
+scrollbar/control pointer cases. Physical drag/scroll is an owner check. Full
+Release, installer/portable and packaged gates are recorded in the I02 evidence.
+Original compile/fixture failures remain evidence; no production behavior or
+assertion was weakened to obtain a pass.
+
+Stop at the eight-point I02 owner acceptance checklist. Do not create a PR,
+merge, release or main forward-port; separate final qualification/PR authorization
+will follow explicit acceptance.

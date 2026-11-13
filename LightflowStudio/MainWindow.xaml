@@ -1091,7 +1091,7 @@
             <Grid Grid.Column="1" Margin="7,0,10,0">
              <TextBox x:Name="BrowserSearchBox" Background="Transparent" BorderThickness="0" Margin="0" Padding="0"
               VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
-              AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+              AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged" KeyDown="BrowserSearchBox_KeyDown"/>
              <TextBlock VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"
               Text="Search assets…" Visibility="{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
             </Grid>

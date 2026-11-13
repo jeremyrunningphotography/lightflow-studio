@@ -25,15 +25,15 @@ public sealed class ExportFilenameValidationTests
         model.AddPart(NamePartKind.CustomText); calls = 0;
         Enable(model);
         for(var i=0;i<30;i++) model.UpdateCustomText(2,"edit"+i);
-        model.UpdateCustomText(2,"Text");
+        model.UpdateCustomText(2,"");
         Assert.False(model.CanExport); Assert.Null(model.CurrentPlan);
-        Assert.EndsWith("Text.mp4",model.PreviewName);
+        Assert.Equal("clip0-001.mp4",model.PreviewName);
         Assert.Equal(0,Volatile.Read(ref calls));
         await Until(() => !model.IsPlanPending);
         Assert.Equal(100,calls); Assert.True(model.CanExport);
-        Assert.All(model.CurrentPlan!.Items,item => Assert.EndsWith("Text.mp4",item.OutputPaths.Single()));
+        Assert.Equal("",model.CurrentPlan!.Definition.Options.Naming!.Parts[2].Text);
         var plan=model.CurrentPlan;
-        model.UpdateCustomText(2,"Text");
+        model.UpdateCustomText(2,"");
         Assert.Same(plan,model.CurrentPlan); Assert.False(model.IsPlanPending);
         model.CloseValidation();
     });
@@ -200,7 +200,7 @@ public sealed class ExportFilenameValidationTests
             }
             Assert.Equal(50,box.SelectionLength);Assert.True(box.IsKeyboardFocusWithin);
             Assert.Equal(box.Text,model.NameParts[2].Text);Assert.Contains(box.Text,model.PreviewName);
-            var directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../i01-evidence"));Directory.CreateDirectory(directory);
+            var directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../artifacts/filename-validation"));Directory.CreateDirectory(directory);
             File.WriteAllLines(Path.Combine(directory,"native-after.csv"),observations);
             gate.Release();await Until(()=>!model.IsPlanPending);Assert.True(dialog.ExportButton.IsEnabled);
             gate.Arm();box.Text="close-pending";await Until(()=>gate.Entered);
@@ -248,7 +248,7 @@ public sealed class ExportFilenameValidationTests
     public Task MeasureBackgroundPlanningWithComparableSlowDestinationAndRealLutWorkloads() => StaDispatcher.RunAsync(async () =>
     {
         using var fixture=new Fixture(100);
-        var directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../i01-evidence"));Directory.CreateDirectory(directory);
+        var directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../artifacts/filename-validation"));Directory.CreateDirectory(directory);
         var store=new EncodingLutResourceStore(Path.Combine(fixture.Root,"luts"));
         var cube="LUT_3D_SIZE 33\n"+string.Concat(Enumerable.Repeat("0.25 0.5 0.75\n",33*33*33));
         var bytes=System.Text.Encoding.UTF8.GetBytes(cube);var path=Path.Combine(fixture.Root,"synthetic.cube");File.WriteAllBytes(path,bytes);
@@ -262,7 +262,9 @@ public sealed class ExportFilenameValidationTests
             var inputs=fixture.Inputs.Take(count).Select(i=>i with{AssignedColor=scenario=="lut"?new(true,lut):null}).ToArray();
             int calls=0;bool slow=false;
             var model=new ExportDialogModel(new(inputs,[],fixture.Root),new(),[],[],store,_=>{Interlocked.Increment(ref calls);if(slow)Thread.Sleep(25);return new(false,0);});
-            model.ApplyMetadata(inputs.Select(_=>(MediaMetadata?)Metadata).ToArray());model.ApplyEncoderCapability(Available);model.AddPart(NamePartKind.CustomText);
+            model.ApplyMetadata(inputs.Select(_=>(MediaMetadata?)Metadata).ToArray());model.ApplyEncoderCapability(Available);
+            model.AddPart(NamePartKind.Sequence001); // Keep the I01 comparison workload explicit.
+            model.AddPart(NamePartKind.CustomText);
             Enable(model);await Until(()=>model.CanExport);calls=0;slow=scenario=="slow-destination";
             var pending=0;var applied=0;model.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(ExportDialogModel.IsPlanPending))pending++;if(e.PropertyName==string.Empty)applied++;};
             var heartbeat=new DispatcherTimer(DispatcherPriority.Input){Interval=TimeSpan.FromMilliseconds(10)};
@@ -298,6 +300,7 @@ public sealed class ExportFilenameValidationTests
                 inputs=inputs.Select(i=>i with{AssignedColor=new(true,lut)}).ToArray();
             }
             var model=new ExportDialogModel(new(inputs,[],Root),new(),[],[],resources??new Resources(),inspect??(_=>new(false,0)));
+            model.AddPart(NamePartKind.Sequence001); // These mutation/race fixtures use an explicit three-part recipe.
             model.ApplyMetadata(inputs.Select(_=>(MediaMetadata?)Metadata).ToArray());model.ApplyEncoderCapability(Available);return model;
         }
         public void Dispose(){Directory.Delete(Root,true);}

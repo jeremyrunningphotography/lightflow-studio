@@ -51,7 +51,9 @@ internal static partial class NamePartsRenderer
             switch (part.Kind)
             {
                 case NamePartKind.OriginalName: values.Add(input.OriginalName); break;
-                case NamePartKind.CustomText: values.Add(part.Text ?? ""); break;
+                case NamePartKind.CustomText:
+                    if (!string.IsNullOrEmpty(part.Text)) values.Add(part.Text);
+                    break;
                 case NamePartKind.Date when input.Timestamp is { } timestamp:
                     values.Add(timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)); break;
                 case NamePartKind.Time when input.Timestamp is { } timestamp:

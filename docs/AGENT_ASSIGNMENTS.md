@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01 locally qualified; owner hands-on acceptance pending; no PR |
+| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01 owner accepted 10/10; I02 defaults/placeholder refinement and qualification in progress; no PR |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -143,3 +143,16 @@ single-line editor without a visible scrollbar. Local qualification and owner
 hands-on acceptance precede any PR. No merge, release/tag, forward-port or
 production Catalog operation is authorized. Historical maintenance: Not warranted
 for this bounded defect correction. See `qualification/export-filename-builder-500-051.md`.
+
+### Assignment 051 — I02 continuation
+
+Owner accepted I01 at `962e99a4e7c182716d07c6777583bff6e5b8d218`, **10/10 PASS**.
+Accepted source, original research and I01 evidence ZIP/portable package are retained.
+I02 branch `codex/500-export-filename-builder-i02` continues from accepted I01;
+fetched release remains `293cd4b9`, with #496/#497 merged and completed.
+Owner authorized Original Name-only defaults and a display-only Custom placeholder
+with genuinely empty Custom text. Existing saved-Subclip token meaning is explicitly
+preserved. No #503 persistence or Reset Defaults implementation; its default contract
+is documented in `EXPORT_FILENAME_DEFAULTS.md`. Native validation is serialized
+behind active 050 and 049; retired 047/048 are not routine coordination targets.
+No PR before I02 owner acceptance. Historical maintenance: Not warranted.

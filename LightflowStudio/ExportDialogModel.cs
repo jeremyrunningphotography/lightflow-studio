@@ -136,9 +136,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         CreativeChoices = BuildLutChoices(creativeLuts);
         _camera = CameraChoices[0];
         _creative = CreativeChoices[0];
-        var naming = restoredNaming ?? (namingDefault == ExportNamingDefault.Subclip
-            ? new NamePartsDefinition([new(NamePartKind.OriginalName)], NamePartSeparator.Hyphen)
-            : new NamePartsDefinition([new(NamePartKind.OriginalName), new(NamePartKind.Sequence001)], NamePartSeparator.Hyphen));
+        // Both entry points share the default; explicit restored recipes remain authoritative.
+        var naming = restoredNaming ?? new NamePartsDefinition([new(NamePartKind.OriginalName)], NamePartSeparator.Hyphen);
         _separator = naming.Separator;
         NameParts = new ObservableCollection<NamePart>(naming.Parts);
         NameParts.CollectionChanged += (_, _) => { _revision++; Refresh(); };
@@ -389,7 +388,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _metadataDiagnostics = diagnostics;
         Refresh();
     }
-    public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "Text" : null));
+    public void AddPart(NamePartKind kind) => NameParts.Add(new(kind, kind == NamePartKind.CustomText ? "" : null));
     public void RemovePart(int index) { if (index >= 0 && index < NameParts.Count) NameParts.RemoveAt(index); }
     public void MovePart(int index, int delta)
     {

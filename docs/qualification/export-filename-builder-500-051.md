@@ -83,3 +83,39 @@ Installer/staged-package gates passed on implementation commit 551ec959; final
 source retains the same production tree. Final local full-suite confirmation and
 required executable refresh are recorded in the portable evidence report. Owner
 acceptance and any later exact-head PR/merge checks remain outstanding.
+
+## I02 — owner acceptance of I01 and focused refinement
+
+Owner accepted I01 **10/10 PASS** at `962e99a4`, including responsive text editing,
+readability, preview/readiness, source/duplicate/output protections, range behavior
+and safe reopen. Preserve this accepted implementation and evidence.
+
+I02 adds only Original Name as the initial filename token for both entry points;
+manual tokens and explicit restored recipes remain available. Owner explicitly
+confirmed preserving the existing Original Name meaning for saved Subclips.
+Custom is an existing TextInputHint displayed by a local style when empty and
+unfocused. The style clears only the hint on focus; model text starts/stays empty
+until user input. Shared TextBox styling and other hints are unchanged.
+
+Only empty/null Custom components are omitted from separator joining. The token
+remains configured; a Custom-only empty recipe remains blocked as an empty filename.
+No other whitespace/token rules, destinations, subfolder/creation rules, codec/range
+or safety behavior are changed. See [the #503 default contract](../EXPORT_FILENAME_DEFAULTS.md).
+No preferences store, persistence or Reset Defaults behavior is implemented.
+
+I02 owner checklist:
+
+1. Add Custom: the empty/unfocused field displays Custom.
+2. Focus it: placeholder disappears and typing starts with an empty value.
+3. Clear and leave it: placeholder returns.
+4. Placeholder never appears in previews; empty Custom adds no stray separators.
+5. Original Name is the only initial token on a fresh dialog.
+6. Manual tokens, including sequence numbers, remain available.
+7. Default destination and enabled Exports subfolder are unchanged.
+8. Duplicate names and source collisions remain blocked, including Overwrite.
+9. Typing, deletion/paste, caret/selection and long text preserve accepted I01 behavior.
+10. Saved Subclips, active marks, full-source fallback and current validation/readiness remain correct.
+
+Qualification and exact package/source identity are recorded in the I02 evidence ZIP.
+No PR yet; stop at I02 hands-on acceptance. No significant visual redesign or
+additional screenshot review is required. Historical maintenance: Not warranted.

@@ -1983,10 +1983,6 @@ public partial class MainWindow : Window
             !BrowserQueryToolbar.IsEnabled || source is null || Window.GetWindow(source) != this ||
             BrowserFilterPopup.IsOpen || BrowserRatingOperatorPopup.IsOpen || HasOpenSelectionInputSurface(this)) return false;
 
-        // Only the Inspector container focused by a neutral click may release its panel's ownership.
-        // Editors, buttons and other descendants still take the normal exclusion path below.
-        if (ReferenceEquals(source, _inspector) && ReferenceEquals(Keyboard.FocusedElement, _inspector)) return true;
-
         var browserContext = false;
         for (var node = source; node is not null; node = SelectionInputParent(node))
         {

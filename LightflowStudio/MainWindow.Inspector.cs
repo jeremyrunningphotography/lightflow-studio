@@ -33,6 +33,11 @@ public partial class MainWindow
         };
         _inspector.SeekMarker = marker => _playerViewerHost?.SeekMarkerAsync(marker) ?? Task.CompletedTask;
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
+        _inspector.BrowserFocusRequested += (_, _) =>
+        {
+            if (IsActive && HomeRightPanel.ActiveSurface == "inspector" && BrowserOwnsSelectAll(BrowserGridRows))
+                BrowserGridRows.Focus();
+        };
         HomeRightPanel.PreviewMouseLeftButtonDown += (_, e) =>
         {
             if (e.Handled || Mouse.Captured is not null || HomeRightPanel.ActiveSurface != "inspector") return;

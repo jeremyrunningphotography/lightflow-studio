@@ -327,7 +327,7 @@ public sealed class BrowserSelectAllRoutingTests
     });
 
     [Fact]
-    public Task NeutralInspectorClickReleasesOnlyEditingFocusAndKeepsDraftAndExplicitSave() => RunAsync(async (window, model) =>
+    public Task NeutralInspectorClickKeepsInspectorOwnershipAndDraftAndExplicitSave() => RunAsync(async (window, model) =>
     {
         // Finish the initial navigation's existing Loaded-priority tree reveal before editing.
         await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
@@ -371,15 +371,17 @@ public sealed class BrowserSelectAllRoutingTests
                 Assert.Equal(title, inspector.TitleText.Text);
                 Assert.True(editor.HasDraft); Assert.Equal(0, store.Saves);
             }
-            Press(window, inspector); // Normal selection transition veto preserves the unapplied draft.
+            Press(window, inspector); // Neutral Inspector focus never selects Browser media.
             Assert.Single(model.SelectedKeys); Assert.True(editor.HasDraft); Assert.Equal(0, store.Saves);
+            Focus(window, window.BrowserGoButton); Press(window, window.BrowserGoButton);
+            Assert.Single(model.SelectedKeys); Assert.True(editor.HasDraft); // Existing transition veto.
             Assert.True(await editor.ApplyAsync());
             Assert.Equal(1, store.Saves);
             var saved = (await storage.AssetDescriptions.GetAsync([id]))[id];
             Assert.Equal("I02 title", saved.Title); Assert.Equal("I02 caption", saved.Description);
             Assert.Equal(1, saved.Revision);
             NeutralPress(neutral); Press(window, inspector);
-            Assert.Equal(3, model.SelectedKeys.Count); Assert.Equal(1, store.Saves);
+            Assert.Single(model.SelectedKeys); Assert.Equal(1, store.Saves);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
             Assert.True(ReferenceEquals(inspector, Keyboard.FocusedElement), focusTrace);
         }
@@ -515,6 +517,234 @@ public sealed class BrowserSelectAllRoutingTests
         public Task<IReadOnlyDictionary<Guid, AssetDescription>> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken token = default) => inner.GetAsync(ids, token);
         public Task ApplyAsync(IReadOnlyDictionary<Guid, long> expected, AssetDescriptionPatch patch, CancellationToken token = default)
         { Saves++; return inner.ApplyAsync(expected, patch, token); }
+    }
+
+    [Theory]
+    [InlineData("Grid", false)]
+    [InlineData("Details", false)]
+    [InlineData("Grid", true)]
+    [InlineData("Details", true)]
+    public Task ApplySuccessAloneReturnsFocusAndNextCtrlASelectsVisibleResults(string layout, bool filtered) => RunAsync(async (window, model) =>
+    {
+        window.ApplyBrowserLayout(Enum.Parse<BrowserLayoutMode>(layout), true);
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        if (filtered)
+        {
+            Focus(window, window.BrowserSearchBox); window.BrowserSearchBox.Text = "visible";
+            Press(window, window.BrowserSearchBox, ModifierKeys.None, Key.Enter);
+        }
+        var (view, editor, store) = await PrepareApplyAsync(window, model, filtered ? 1 : 2);
+        try
+        {
+            var selection = model.SelectedKeys.ToHashSet(); var query = model.Query;
+            var title = view.TitleText.Text; var ids = model.SelectedAssetIdsInBrowserOrder.ToArray();
+            var handoffs = 0; view.BrowserFocusRequested += (_, _) => handoffs++;
+            EditTitle(window, view, "I03 saved title");
+            var confirmed = false;
+            if (!filtered)
+            {
+                view.ConfirmDescriptions = null; // Exercise the actual styled bulk confirmation.
+                _ = window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+                {
+                    var dialog = Application.Current.Windows.OfType<ConfirmationDialog>().Single();
+                    confirmed = true;
+                    dialog.ConfirmButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                }));
+            }
+            ClickApply(window, view);
+            if (!filtered) Assert.True(confirmed);
+            await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(view.IsKeyboardFocused); Assert.False(window.BrowserGridRows.IsKeyboardFocused);
+            Assert.Equal(1, store.Attempts); Assert.Equal(0, store.Writes); Assert.Equal(0, handoffs);
+            Press(window, view); Assert.True(selection.SetEquals(model.SelectedKeys));
+            store.Release.TrySetResult();
+            await WaitForAsync(() => window.BrowserGridRows.IsKeyboardFocused);
+            Assert.Equal(1, handoffs); Assert.Equal(1, store.Writes); Assert.False(editor.HasDraft);
+            Assert.True(selection.SetEquals(model.SelectedKeys));
+            Assert.Equal(query, model.Query); Assert.Equal(title, view.TitleText.Text);
+            var storage = Field<LightflowStorageCoordinator>(window, "_storage");
+            var saved = await storage.AssetDescriptions.GetAsync(ids);
+            Assert.All(saved.Values, item => Assert.Equal("I03 saved title", item.Title));
+            Press(window, window.BrowserGridRows);
+            Assert.Equal(filtered ? 2 : 3, model.SelectedKeys.Count);
+            NeutralPress(view.TitleText); Assert.Same(view, Keyboard.FocusedElement);
+            var all = model.SelectedKeys.ToHashSet(); Press(window, view);
+            Assert.True(all.SetEquals(model.SelectedKeys)); // Clicking back restores Inspector ownership.
+        }
+        finally { await FinishApplyAsync(view, editor, store); }
+    });
+
+    [Theory]
+    [InlineData("Validation")]
+    [InlineData("Save failure")]
+    [InlineData("Cancellation")]
+    [InlineData("Confirmation declined")]
+    public Task UnsuccessfulApplyNeverTransfersBrowserFocus(string outcome) => RunAsync(async (window, model) =>
+    {
+        var (view, editor, store) = await PrepareApplyAsync(window, model, outcome == "Confirmation declined" ? 2 : 1);
+        try
+        {
+            var before = model.SelectedKeys.ToHashSet(); var handoffs = 0;
+            view.BrowserFocusRequested += (_, _) => handoffs++;
+            EditTitle(window, view, outcome == "Validation" ? "invalid\0title" : "unsaved title");
+            if (outcome == "Confirmation declined") view.ConfirmDescriptions = _ => false;
+            if (outcome == "Save failure") store.Failure = new IOException("controlled save failure");
+            if (outcome == "Cancellation") store.Failure = new OperationCanceledException("controlled cancellation");
+            ClickApply(window, view);
+            if (outcome is "Save failure" or "Cancellation")
+            {
+                await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.True(view.IsKeyboardFocused); store.Release.TrySetResult();
+            }
+            await WaitForAsync(() => editor.CanLeaveContext);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.True(view.IsKeyboardFocused); Assert.Equal(0, handoffs); Assert.Equal(0, store.Writes);
+            Assert.Equal(outcome is "Validation" or "Confirmation declined" ? 0 : 1, store.Attempts);
+            Assert.True(editor.HasDraft); Press(window, view);
+            Assert.True(before.SetEquals(model.SelectedKeys));
+        }
+        finally { await FinishApplyAsync(view, editor, store); }
+    });
+
+    [Theory]
+    [InlineData("Search")]
+    [InlineData("Inspector control")]
+    [InlineData("Away and back")]
+    [InlineData("Neutral pointer")]
+    [InlineData("Workspace away and back")]
+    [InlineData("Superseded editor")]
+    [InlineData("Player context")]
+    [InlineData("Menu and back")]
+    public Task PendingApplyRespectsLaterFocusAndContext(string change) => RunAsync(async (window, model) =>
+    {
+        var (view, editor, store) = await PrepareApplyAsync(window, model);
+        var handoffs = 0;
+        KeyboardFocusChangedEventHandler focusChanged = (_, args) =>
+        {
+            if (ReferenceEquals(args.NewFocus, window.BrowserGridRows)) handoffs++;
+        };
+        window.AddHandler(Keyboard.GotKeyboardFocusEvent, focusChanged, true);
+        try
+        {
+            var before = model.SelectedKeys.ToHashSet();
+            EditTitle(window, view, "captured original target"); ClickApply(window, view);
+            await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (change == "Search") Focus(window, window.BrowserSearchBox);
+            if (change == "Inspector control")
+            {
+                var button = new Button { Content = "Inspector action", Height = 34 };
+                var host = Assert.IsType<DockPanel>(view.Content); DockPanel.SetDock(button, Dock.Top); host.Children.Insert(0, button);
+                Focus(window, button);
+            }
+            if (change == "Away and back") { Focus(window, window.BrowserSearchBox); Focus(window, view); }
+            if (change == "Neutral pointer") NeutralPress(view.TitleText);
+            if (change == "Menu and back")
+            {
+                var menu = new ContextMenu(); var item = new MenuItem { Header = "Inspector action" }; menu.Items.Add(item);
+                view.ContextMenu = menu;
+                try { menu.IsOpen = true; Keyboard.Focus(item); }
+                finally { menu.IsOpen = false; }
+                Focus(window, view);
+            }
+            if (change == "Workspace away and back")
+            {
+                window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Jobs); window.UpdateLayout();
+                window.MainTabs.SelectedIndex = ShellDestinationSelection.Index(ShellDestination.Home); window.UpdateLayout(); Focus(window, view);
+            }
+            if (change == "Superseded editor")
+            {
+                var storage = Field<LightflowStorageCoordinator>(window, "_storage");
+                view.Initialize(() => new MediaInspectorService(storage.Previews, storage.AssetClassifications,
+                    storage.Locations.PreviewsDirectory, storage.Markers), storage.AssetDescriptions);
+            }
+            if (change == "Player context")
+            {
+                Call(window, "EnsurePlayerViewerHost"); Call(window, "SetBrowserPresentationMode", BrowserPresentationMode.PlayerViewer);
+            }
+            var intentionalFocus = Keyboard.FocusedElement;
+            store.Release.TrySetResult(); await WaitForAsync(() => editor.CanLeaveContext);
+            await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal(1, store.Writes); Assert.Equal(0, handoffs); // Actual focus transfers, not internal requests.
+            Assert.False(window.BrowserGridRows.IsKeyboardFocused);
+            if (change is "Search" or "Inspector control" or "Away and back" or "Neutral pointer") Assert.Same(intentionalFocus, Keyboard.FocusedElement);
+            Assert.True(before.SetEquals(model.SelectedKeys));
+        }
+        finally
+        {
+            window.RemoveHandler(Keyboard.GotKeyboardFocusEvent, focusChanged);
+            await FinishApplyAsync(view, editor, store);
+        }
+    });
+
+    [Fact]
+    public Task RepeatedApplyOperationsDoNotRetainStaleFocusHandlers() => RunAsync(async (window, model) =>
+    {
+        var (view, editor, store) = await PrepareApplyAsync(window, model);
+        try
+        {
+            var handoffs = 0; view.BrowserFocusRequested += (_, _) => handoffs++;
+            for (var i = 1; i <= 3; i++)
+            {
+                await WaitForAsync(() =>
+                {
+                    view.UpdateLayout();
+                    return editor.Fields.Count == 5 && Descendants<TextBox>(view.DescriptionSection).Count() == 5;
+                });
+                EditTitle(window, view, $"title {i}"); ClickApply(window, view);
+                if (i == 1) { await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10)); store.Release.TrySetResult(); }
+                await WaitForAsync(() => window.BrowserGridRows.IsKeyboardFocused);
+                Assert.Equal(i, handoffs); Assert.Equal(i, store.Writes); Assert.Single(model.SelectedKeys);
+                Assert.False(editor.HasDraft);
+            }
+        }
+        finally { await FinishApplyAsync(view, editor, store); }
+    });
+
+    private static async Task<(MediaInspectorView, InspectorDescriptionEditor, ControlledDescriptions)> PrepareApplyAsync(MainWindow window, BrowserGridModel model, int count = 1)
+    {
+        await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+        model.SelectSingle(0); for (var i = 1; i < count; i++) model.ToggleCtrl(i);
+        var storage = Field<LightflowStorageCoordinator>(window, "_storage");
+        var store = new ControlledDescriptions(storage.AssetDescriptions);
+        var view = Field<MediaInspectorView>(window, "_inspector");
+        view.Initialize(() => new MediaInspectorService(storage.Previews, storage.AssetClassifications, storage.Locations.PreviewsDirectory, storage.Markers), store);
+        view.ConfirmDescriptions = _ => true; view.ConfirmTransition = _ => false;
+        window.HomeRightPanel.SelectSurface("inspector"); Call(window, "SetRightPanelOpen", true); Call(window, "UpdateInspectorContext", true);
+        await WaitForAsync(() => Descendants<TextBox>(view.DescriptionSection).Count() == 5);
+        window.UpdateLayout();
+        return (view, Assert.IsType<InspectorDescriptionEditor>(view.DescriptionSection.DataContext), store);
+    }
+
+    private static void EditTitle(MainWindow window, MediaInspectorView view, string value)
+    {
+        var field = Descendants<TextBox>(view.DescriptionSection).First(); Focus(window, field); field.Text = value;
+        Assert.True(view.ApplyDescriptionsButton.IsEnabled);
+    }
+
+    private static void ClickApply(MainWindow window, MediaInspectorView view)
+    {
+        Focus(window, view.ApplyDescriptionsButton);
+        view.ApplyDescriptionsButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+    }
+
+    private static async Task FinishApplyAsync(MediaInspectorView view, InspectorDescriptionEditor editor, ControlledDescriptions store)
+    {
+        store.Release.TrySetResult(); await WaitForAsync(() => editor.CanLeaveContext); view.ConfirmTransition = _ => true;
+    }
+
+    private sealed class ControlledDescriptions(IAssetDescriptionStore inner) : IAssetDescriptionStore
+    {
+        internal readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int Attempts, Writes;
+        internal Exception? Failure;
+        public Task<IReadOnlyDictionary<Guid, AssetDescription>> GetAsync(IReadOnlyCollection<Guid> ids, CancellationToken token = default) => inner.GetAsync(ids, token);
+        public async Task ApplyAsync(IReadOnlyDictionary<Guid, long> expected, AssetDescriptionPatch patch, CancellationToken token = default)
+        {
+            Attempts++; Started.TrySetResult(); await Release.Task;
+            if (Failure is not null) throw Failure;
+            await inner.ApplyAsync(expected, patch, token); Writes++;
+        }
     }
 
     private static Task RunAsync(Func<MainWindow, BrowserGridModel, Task> test) => StaDispatcher.RunAsync(async () =>

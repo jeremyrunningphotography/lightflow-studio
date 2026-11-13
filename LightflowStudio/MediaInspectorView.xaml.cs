@@ -18,6 +18,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     private bool _refreshAgain;
     private InspectorDescriptionEditor? _descriptions;
     private bool _transitionPending;
+    private long _applyFocusRevision;
+    internal event EventHandler? BrowserFocusRequested;
     internal Func<DescriptionConfirmation, bool>? ConfirmDescriptions { get; set; }
     internal Func<InspectorDescriptionEditor, bool>? ConfirmTransition { get; set; }
     internal bool TryLeaveContext()
@@ -68,6 +70,7 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     }
     internal void Initialize(Func<MediaInspectorService> service, IAssetDescriptionStore descriptions)
     {
+        ++_applyFocusRevision;
         _service = service;
         _descriptions?.Dispose();
         _descriptions = new(descriptions, request => ConfirmDescriptions?.Invoke(request) ?? ConfirmDescriptionChanges(request));
@@ -84,6 +87,8 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         if (_descriptions?.HasDraft == true &&
             (player != _playerContext || !context.Select(a => a.AssetId).ToHashSet().SetEquals(_context.Select(a => a.AssetId))))
             return; // A missed caller guard must never silently destroy a draft.
+        if (player != _playerContext || !context.Select(a => a.AssetId).ToHashSet().SetEquals(_context.Select(a => a.AssetId)))
+            ++_applyFocusRevision;
         _context = context;
         _playerContext = player;
         if (_descriptions is not null) _ = _descriptions.SetContextAsync(context.Select(a => a.AssetId), player);
@@ -179,7 +184,39 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
     }
     private void OpenPlayer_Click(object sender, RoutedEventArgs e) => OpenPlayerRequested?.Invoke(this, EventArgs.Empty);
     private async void ApplyDescriptions_Click(object sender, RoutedEventArgs e)
-    { if (_descriptions is not null) await _descriptions.ApplyAsync(); }
+    {
+        var editor = _descriptions;
+        if (editor?.CanApply != true) return;
+        var revision = ++_applyFocusRevision;
+        var owner = Window.GetWindow(this);
+        // The Apply button becomes disabled while saving. Keep a stable Inspector focus
+        // anchor, rather than mistaking that automatic focus loss for user navigation.
+        var mayReturn = IsKeyboardFocusWithin && Focus() && ReferenceEquals(Keyboard.FocusedElement, this);
+        var save = editor.ApplyAsync(); // Includes authoritative validation and confirmation.
+        mayReturn &= ReferenceEquals(Keyboard.FocusedElement, this);
+        KeyboardFocusChangedEventHandler changed = (_, args) =>
+        {
+            if (!ReferenceEquals(args.NewFocus, this)) mayReturn = false;
+        };
+        MouseButtonEventHandler pointer = (_, _) => mayReturn = false;
+        EventHandler deactivated = (_, _) => mayReturn = false;
+        owner?.AddHandler(Keyboard.LostKeyboardFocusEvent, changed, true);
+        owner?.AddHandler(Mouse.PreviewMouseDownEvent, pointer, true);
+        if (owner is not null) owner.Deactivated += deactivated;
+        try
+        {
+            if (await save && mayReturn && revision == _applyFocusRevision &&
+                ReferenceEquals(editor, _descriptions) && IsVisible && owner?.IsActive == true &&
+                ReferenceEquals(Keyboard.FocusedElement, this))
+                BrowserFocusRequested?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            owner?.RemoveHandler(Keyboard.LostKeyboardFocusEvent, changed);
+            owner?.RemoveHandler(Mouse.PreviewMouseDownEvent, pointer);
+            if (owner is not null) owner.Deactivated -= deactivated;
+        }
+    }
     private async void ReloadDescriptions_Click(object sender, RoutedEventArgs e)
     { if (_descriptions is not null) await _descriptions.ReloadAsync(); }
     private bool ConfirmDescriptionChanges(DescriptionConfirmation request) => ConfirmationDialog.Confirm(
@@ -188,9 +225,14 @@ public partial class MediaInspectorView : System.Windows.Controls.UserControl, I
         request.IsApply ? $"Change descriptive Catalog data for {request.AssetCount:N0} selected asset(s)."
             : "Reloading Catalog values will discard your unapplied descriptive edits.",
         string.Join(", ", request.Fields), request.IsApply ? "Apply changes" : "Discard and reload", "Keep editing");
-    private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e) => _ = RefreshAsync();
+    private void Inspector_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is false) ++_applyFocusRevision;
+        _ = RefreshAsync();
+    }
     public void Dispose()
     {
+        ++_applyFocusRevision;
         _descriptions?.Dispose();
         _markerThumbnails?.Dispose();
         ++_generation;

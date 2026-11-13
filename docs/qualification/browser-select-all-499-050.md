@@ -96,3 +96,38 @@ assertion was weakened to obtain a pass.
 Stop at the eight-point I02 owner acceptance checklist. Do not create a PR,
 merge, release or main forward-port; separate final qualification/PR authorization
 will follow explicit acceptance.
+
+## I03 — superseding Inspector ownership policy
+
+Owner I02: **7 PASS / 1 FAIL**. The failed neutral Inspector-to-Browser check is
+superseded. Neutral Inspector interaction now retains Inspector ownership; the
+other seven accepted behaviors and original I01/I02 evidence remain preserved.
+Release `293cd4b` (#502) is reconciled by local merge `d0d8bea`, preserving prior
+source ancestry. #501 is verified merged at `ca929e5`. Only assignment rows
+conflicted; authoritative release rows and all 050 history were retained.
+
+The explicit Apply handler uses InspectorDescriptionEditor.ApplyAsync's existing
+authoritative result. A stable non-Tab-stop Inspector focus anchor owns pending
+saves while the Apply button is disabled. Save-scoped focus-loss, pointer and
+deactivation handlers cancel a return after later user interaction. Media/editor
+revision and visibility checks prevent stale restoration. All handlers detach at
+completion; no timer infers success and persistence code is unchanged.
+
+Only successful, still-current completion requests Browser focus. MainWindow
+rechecks ready Home Grid/Details and popup ownership through the existing guard,
+then focuses BrowserGridRows without changing selection, filters, sorting or
+metadata. Failed validation/save, cancellation and superseded focus/context do
+not return focus. The old neutral Inspector Browser-shortcut exception is removed.
+Local neutral focus remains to establish Inspector ownership when clicking back
+from Browser and to preserve accepted marker focus-loss saves; it never selects
+Browser media. No generic focus manager or Player change was introduced.
+
+Focused qualification: **266 PASS / 0 FAIL** with real routed clicks/keys, actual
+styled bulk confirmation, controlled pending/failure/cancellation boundaries
+around the real Catalog store, saved values/revisions, stable selection until
+Ctrl+A, focus changes away/back, menus/workspaces, superseded editors and repeated
+Apply. Initial fixture failures and their corrections remain in the I03 evidence.
+Full Release and installer/portable/smoke results are recorded in the handoff ZIP.
+
+Stop at the eight-point I03 owner acceptance gate. No PR, merge, tag/release or
+main forward-port is authorized before acceptance and subsequent required gates.

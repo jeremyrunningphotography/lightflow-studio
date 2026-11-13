@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I01 owner 12 PASS / 2 NEEDS WORK / 0 FAIL; focused I02 Search Enter and neutral Inspector correction; owner I02 acceptance pending; no PR |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I02 owner 7 PASS / 1 FAIL; neutral Browser handoff superseded; I03 successful Apply focus return; owner acceptance pending; no PR |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -132,3 +132,7 @@ LF-WIN-RES-050 — Browser Select All, issue #499, tracking #491. Owner allocate
 ## Assignment 050 I02 — owner focus corrections
 
 I01 d133db2 accepted 12 PASS, 2 NEEDS WORK, 0 FAIL. Same identity, clone and branch. Owner authorized Search Enter handoff and neutral Inspector focus only; accepted I01 behaviors/evidence preserved. Current release ca929e5 remains compatible; no unnecessary rebase. Focused 172 PASS; I02 full/package and separate owner acceptance required. No PR, merge, release or main forward-port authorized.
+
+## Assignment 050 I03 — successful Apply completion
+
+Owner I02: 7 PASS / 1 FAIL; neutral Inspector-to-Browser requirement superseded. Inspector retains ownership on neutral clicks; Browser focus returns only after successful explicit Apply, respecting later focus/context changes and preserving selection/persistence. Current release 293cd4b reconciled by merge d0d8bea; #501/#502 merged. Prior source/evidence retained. Focused 266 PASS; full/package and I03 owner acceptance remain gates. No PR, release/tag or main forward-port.

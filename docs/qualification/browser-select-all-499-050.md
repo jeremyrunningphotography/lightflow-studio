@@ -185,3 +185,47 @@ is unchanged and explicitly historical, not a fresh final-qualified build.
 Owner I03 8/8 acceptance remains valid for unchanged behavior; the required new
 final suite is red. Issue499 stays open/Review, parent491 incomplete. Unmerged
 branch/evidence/acceptance data retained pending owner review of this blocker.
+
+## Recovery disposition — 2026-11-14
+
+Current release `675182c1c1ac7cc188f76273916fa4a8143c1983` verified; #505 merged.
+Reconciliation `a9155ecbcd0af5e88fcbbd003a6901f5574a76d5` has only a registry
+conflict (both records retained), no app/test conflict. Accepted feature blobs
+remain exactly I03, and the complete release-to-feature production patch hashes
+identically to the I03 patch. Merged Player files are release provenance, not new
+#499 changes or another workspace's unmerged source.
+
+Original thirteenth failure: NeutralInspectorClickKeepsInspectorOwnershipAndDraftAndExplicitSave,
+RunAsync line769 expected startup true, actual false, before feature execution.
+The WPF activity log records UnauthorizedAccessException in ExportQueueStore.Save
+line98 during startup scheduler configuration, MainWindow.xaml.cs line320. That
+operation/source is unchanged, but common MainWindow construction installs the
+accepted Inspector event wiring; timing/source specificity cannot be excluded
+merely from the stack. No original file-lock/handle observation proves the cause.
+
+Exclusive ownership acknowledged by051 (no conflicting work active/queued), with
+clear process inventory; retired agents not contacted. Two source comparisons:
+- Release675182c: exact common startup-fixture probe 1/1 PASS, twice.
+- Reconciled accepted sourcea9155ec: probe and original unchanged case2/2 PASS, twice.
+
+Release lacks the new #499 feature case, so the diagnostic probe copies its common
+setup and unchanged startup/navigation assertions. It does not claim baseline
+neutral-Inspector behavior parity. Probe source was identical on both clones,
+untracked, preserved in evidence, then removed. All original assertions remain;
+no full Release/clipboard/GPU/package batch or production change. Four runs total
+use the original comparison plus at most two additional isolated repetitions.
+Window released after no owned native processes remained.
+
+Twelve original failures are all Clipboard.Clear setup at line37, HRESULT0x800401D0,
+before fixture/command assertions. Source blob a0fb8a94f210d0c08f68190dbed0cf8c0da7b0cb
+matches release and accepted sources and #504.049's isolated comparisons failed
+teardown line201; both phases remain sensitive. No new OLE investigation/retry or
+root-cause claim is made. The #504 signature supports treating these separately,
+but does not dispose of the startup failure.
+
+**Startup cause remains inconclusive.** Passing isolated diagnostics do not prove
+unrelatedness or justify a startup exception. Per owner's explicit decision gate,
+stop before packaging/PR/CI/merge; no further repetitions. Owner I03 acceptance
+remains8/8 with unchanged behavior, but its local full gate remains2613/13/8.
+#499 stays open/Review under491, #504 separate/open; no branch retirement/release/
+tag/main forward-port. Historical maintenance: Not warranted, bounded focus fix.

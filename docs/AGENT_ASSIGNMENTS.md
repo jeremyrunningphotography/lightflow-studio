@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 owner accepted 8/8 PASS; final qualification stopped at red gate: focused 357 PASS, companion 90 PASS, full 2613 PASS / 13 FAIL / 8 SKIP; no PR/merge |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; recovery reconciled release 675182c; bounded startup comparisons PASS but original cause inconclusive; stopped before package/PR/merge; evidence retained |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
@@ -221,3 +221,28 @@ No test/configuration/production changes or another local full retry are authori
 Only049's record is updated; unrelated assignment records remain as fetched.
 Completion is prepared for this single PR. Actual normal merge/post-merge CI and
 Done provenance are recorded in #498/PR once conditions hold; no administrative PR.
+
+## Assignment 050 — bounded recovery stopped (2026-11-14)
+
+Owner authorized independent startup classification and supported clipboard exception,
+not a waiver of an unexplained startup failure. Current release `675182c` (#505
+merged) reconciled as `a9155ecbcd0af5e88fcbbd003a6901f5574a76d5`; only registry
+conflicts required resolution, preserving both records. The five accepted Browser
+production files and original regression test remain byte-identical to I03; the
+release-to-feature production patch is SHA-256 identical before/after reconciliation.
+
+Under acknowledged exclusive ownership with051, the unchanged-release common
+startup probe passed twice (1/1 each); accepted probe plus original case passed
+twice (2/2 each). The startup probe preserves the original fixture setup/assertions;
+release does not contain the new #499 feature case. Two additional runs were used,
+within the explicit bound. No full suite, clipboard tests or assertion changes.
+Temporary diagnostic source removed; no native processes remain; window released.
+
+All twelve original clipboard failures match #504 setup line37 /0x800401D0, before
+command assertions, with identical test blob across sources. Their separate local
+exception is supported by that signature and049's baseline evidence, without a
+confirmed root-cause claim. The additional startup UnauthorizedAccessException
+was not reproduced and remains independently inconclusive; isolated passes do
+not prove it unrelated/harmless. Owner's startup decision gate applies: no package,
+PR, CI, merge or further repetition. #499 remains OPEN/Review; #491 incomplete;
+#504 stays separate/open. Original acceptance and all evidence/data retained.

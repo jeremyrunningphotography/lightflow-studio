@@ -131,3 +131,31 @@ Full Release and installer/portable/smoke results are recorded in the handoff ZI
 
 Stop at the eight-point I03 owner acceptance gate. No PR, merge, tag/release or
 main forward-port is authorized before acceptance and subsequent required gates.
+
+## Owner I03 acceptance and final qualification — 2026-11-13
+
+Owner accepted all **8/8 checks, no observations**, at I03
+`48316bdfa0b923553ece346d7733efaa34793315` (tree
+`46715082103a55e3ebe32c74e008a5ffb11dedde`). Accepted production subtree:
+`79d5730fdeb59d61f9c5e4b2d9b7df6546bbb619`; accepted test subtree:
+`8e45234de554c0b56641358be1c10941794187c7`.
+The eight checks cover native Inspector editing, neutral Inspector ownership,
+Apply persistence/confirmation, successful Browser handoff, unchanged selection,
+no premature/stale focus return, Search/filtered results, and other selection
+contexts in both Grid and Details. No repeat acceptance is required while this
+production behavior remains unchanged. Original I01-I03 source, ZIPs, runtime
+and isolated acceptance data are retained.
+
+Release `293cd4b` remains an ancestor of the accepted source; no production
+reconciliation is needed at this checkpoint. The complete PR production delta
+consists of MainWindow.xaml(.cs), MainWindow.Inspector.cs and
+MediaInspectorView.xaml(.cs); the regression file is BrowserSelectAllRoutingTests.cs.
+No Player frame-stepping, Export filename, metadata persistence, Browser selection
+model, dependency or application-wide focus-manager changes are included.
+
+Final focused/full Windows Release, companion, installer/portable and isolated
+smoke qualification precede a single implementation PR. The owner conditionally
+authorizes normal merge only on green exact-head required CI and unchanged
+accepted production behavior. Auto-merge stays disabled. Post-merge verification
+and direct issue/Project closeout remain gates. Historical documentation work is
+**Not warranted** for this bounded bug fix. No release/tag/main forward-port.

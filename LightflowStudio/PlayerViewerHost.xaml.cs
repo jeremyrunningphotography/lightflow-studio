@@ -1518,6 +1518,7 @@ public partial class PlayerViewerHost : UserControl
 
     internal bool TryHandleShortcut(Key key, DependencyObject? inputOwner, ModifierKeys modifiers)
     {
+        if (SpeedChoice.IsDropDownOpen) return false;
         if (IsTextEntryControl(inputOwner)) return false;
         var activeModifiers = modifiers;
         if (activeModifiers == ModifierKeys.None && key == Key.M)

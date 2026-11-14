@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 owner accepted 8/8 PASS, zero observations; final qualification and single release/1.0 PR authorized; prepared closeout, conditional normal merge only after all gates |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 owner accepted 8/8 PASS; final qualification stopped at red gate: focused 357 PASS, companion 90 PASS, full 2613 PASS / 13 FAIL / 8 SKIP; no PR/merge |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -152,3 +152,12 @@ Prepared closeout is not a claim of merge or Done. Post-merge CI, issue/Project
 reconciliation and safe branch retirement remain required. Preserve all evidence
 and isolated data; no release/tag/main forward-port. Historical maintenance:
 **Not warranted**, a bounded focus-routing correction.
+
+050 final qualification red gate: focused **357/357**, companion **90/90**;
+unfiltered Release **2613 PASS / 13 FAIL / 8 opt-in SKIP**, duration5m53s.
+One common MainWindow startup assertion failed with task-log UnauthorizedAccessException
+in ExportQueueStore.Save; twelve folder-context fixtures failed Clipboard.Clear
+with CLIPBRD_E_CANT_OPEN. Native overlap with049 was reported during the run;
+causality is unproven. All raw evidence retained. No retry, production/test change,
+packaging, PR or merge proceeds past this gate. Owner I03 acceptance is preserved;
+issue499 remains open/Review, parent491 incomplete. Branch is unmerged and retained.

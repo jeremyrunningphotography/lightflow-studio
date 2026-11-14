@@ -159,3 +159,29 @@ authorizes normal merge only on green exact-head required CI and unchanged
 accepted production behavior. Auto-merge stays disabled. Post-merge verification
 and direct issue/Project closeout remain gates. Historical documentation work is
 **Not warranted** for this bounded bug fix. No release/tag/main forward-port.
+
+## Final qualification stopped — required red gate
+
+Docs-only checkpoint `a92e40177c2679644da7237bb99bcf6ff079da73` preserves the
+accepted application/test/companion/validation/CI inputs exactly. Focused expanded
+regressions: **357 PASS /0 FAIL**. Companion: **90 PASS /0 FAIL**. Full Release:
+**2613 PASS /13 FAIL /8 existing opt-in SKIP**, total2634, duration5m53s.
+
+NeutralInspectorClickKeepsInspectorOwnershipAndDraftAndExplicitSave failed in
+its common RunAsync startup assertion at line769, before the behavior case body.
+Task-owned WPF log records UnauthorizedAccessException in ExportQueueStore.Save
+(IndependentExportJobs.cs:98) during startup scheduler configuration at
+MainWindow.xaml.cs:320. Twelve BrowserFolderContextSafetyTests cases additionally
+failed Clipboard.Clear with CLIPBRD_E_CANT_OPEN. These are diagnostic locations;
+root cause and causality are not established. Native overlap with049 was reported
+after050 started against an idle process inventory; coordination messages were
+rejected by automatic approval review and not bypassed. Possible contention is
+recorded without dismissing failures or claiming baseline reproduction.
+
+All logs/TRX and the final WPF activity log are preserved. Per the owner's red-gate
+instruction: no retry/baseline native batch, no further packaging, no PR, no CI/merge,
+no assertion weakening or unrelated production correction. Existing I03 package
+is unchanged and explicitly historical, not a fresh final-qualified build.
+Owner I03 8/8 acceptance remains valid for unchanged behavior; the required new
+final suite is red. Issue499 stays open/Review, parent491 incomplete. Unmerged
+branch/evidence/acceptance data retained pending owner review of this blocker.

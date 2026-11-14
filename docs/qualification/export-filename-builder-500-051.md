@@ -131,3 +131,55 @@ placeholder style and its unchanged I01 base-style reference; sampled individual
 subsequent edits remained responsive. No universal latency bound is claimed and
 no accepted I01 planner/event code was changed. Final unfiltered Release and
 package/installer/portable results are recorded in the I02 evidence report.
+
+## Final owner authorization and source preservation
+
+Owner accepted I01 and I02 **10/10 each, 20/20 combined, zero outstanding
+observations**. This supersedes the historical pending-owner gates above.
+I01 source: `962e99a4e7c182716d07c6777583bff6e5b8d218`.
+I02 source: `54f6a1a4d6252728ee53c3ff75d70df44088af15`.
+Accepted production tree: `d9423a7b1cfcb08e37bcc4bab675b97b588a294a`.
+Final qualification preserves that entire application subtree, not just selected
+files. I02's three production files contain only the approved empty Custom/hint,
+empty-component separator and Original Name-only initial recipe refinements.
+
+The fetched release baseline is `293cd4b9ec43c0a7207d6cb271b08131c5d85f98`;
+PRs #501 and #502 are merged. #496/#497 range, metadata, saved-Subclip precedence,
+active marks, EOF and execution protections remain dependencies, unchanged here.
+No Player/Browser production files or build/workflow/dependency inputs changed.
+No #503 persistence/reset implementation. Its established default contract remains
+in [EXPORT_FILENAME_DEFAULTS.md](../EXPORT_FILENAME_DEFAULTS.md).
+
+Owner authorizes final Windows qualification, one implementation PR to
+`release/1.0`, required full/companion/installer/portable CI at its exact head,
+then a normal merge only if all gates pass. Auto-merge remains disabled.
+Unresolved regression or a meaningful production change requires owner review.
+No new hands-on gate applies to unchanged accepted production. No release/tag or
+main forward-port is authorized; release-line reconciliation into main is deferred
+by that explicit boundary, to a separately authorized review process.
+
+Final focused Export/defaults/planning/preflight/LUT/Subclip/range qualification:
+**279 PASS / 0 FAIL / 1 existing original-media opt-in SKIP**. The complete final
+local results and source/package hashes are recorded in the final portable evidence.
+Exact-head CI, merge SHA, automatic post-merge CI and issue/Project reconciliation
+are recorded in the single implementation PR/issue discussion once available,
+without a separate administrative PR or a premature claim of completion.
+Historical maintenance: **Not warranted**, bounded defect/default refinement.
+
+## Final qualification red gate — stopped before PR
+
+Final full Release: **2589 PASS / 12 FAIL / 8 existing opt-in SKIP**. All failures
+are the 12 `BrowserFolderContextSafetyTests.MenuCommandsKeepSelectionAndUseInvocationFolder`
+cases, raising `CLIPBRD_E_CANT_OPEN` at the initial `Clipboard.Clear()` before
+scenario setup. The fixture and private-desktop launcher match unchanged release.
+Bounded focused repeat: **1 PASS / 12 FAIL**, same exception. An independent
+task-owned clone at release `293cd4b9` reproduced **1 PASS / 12 FAIL**, same site.
+This establishes reproduction without #500; it does not waive the full-suite gate
+or establish the clipboard owner/root cause. Original logs/TRX are preserved.
+No further retry, test weakening/exclusion or production correction was made.
+Companion qualification passed **90/90**. Accepted production remains unchanged.
+
+Per the owner's conditional gate, stop here. No PR/push/merge, final packaging,
+exact-head CI or post-merge CI; issue #500 stays open / Review and parent #491
+stays open. Historical I02 package/GPU PASS evidence remains historical, not a
+substitute for final gates. Owner/environment review is required before resuming.

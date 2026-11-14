@@ -1,8 +1,8 @@
 # Export filename defaults contract — #500 I02 / future #503
 
-The owner accepted #500 I01 10/10 and approved the following I02 refinements on
-2026-11-13. I02 owner acceptance is still required. #503 must use this established
-contract after #500 is accepted/merged; it must not redefine defaults while adding
+The owner accepted #500 I01 and I02, each 10/10 PASS with zero observations, on
+2026-11-13. #503 must use this established
+contract after #500 is merged; it must not redefine defaults while adding
 preference persistence or Reset Defaults.
 
 | Setting | Default / established behavior |

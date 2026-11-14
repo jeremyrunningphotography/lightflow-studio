@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01 owner accepted 10/10; I02 source prepared; owner acceptance pending; no PR |
+| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01/I02 accepted 20/20; final full gate red (12 clipboard failures, reproduced on unchanged release); stopped before PR/merge; accepted production preserved |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -156,3 +156,25 @@ preserved. No #503 persistence or Reset Defaults implementation; its default con
 is documented in `EXPORT_FILENAME_DEFAULTS.md`. Native validation is serialized
 behind active 050 and 049; retired 047/048 are not routine coordination targets.
 No PR before I02 owner acceptance. Historical maintenance: Not warranted.
+
+### Assignment 051 — final qualification / prepared closeout
+
+Owner accepted I01 and I02 **20/20 PASS, zero outstanding observations**.
+Accepted I02 source is `54f6a1a4d6252728ee53c3ff75d70df44088af15`, production tree
+`d9423a7b1cfcb08e37bcc4bab675b97b588a294a`; accepted artifacts remain preserved.
+This supersedes the historical pending acceptance and no-PR/no-merge gates above.
+Owner authorizes final Windows qualification, one implementation PR to `release/1.0`,
+and normal merge only after green exact-head full/companion/package CI. Auto-merge
+stays disabled. Final merge/post-merge provenance belongs in issue/PR discussion;
+this is prepared closeout, not a claim that merge has occurred.
+No new production changes, #503 implementation, release/tag or main forward-port.
+The #503 default contract remains `EXPORT_FILENAME_DEFAULTS.md`. Historical
+maintenance: **Not warranted**, a bounded defect correction without a new milestone.
+
+Final qualification stopped before PR/merge: focused 279 PASS / 1 existing opt-in
+SKIP; companion 90/90 PASS; full Release 2589 PASS / 12 FAIL / 8 existing SKIP.
+All 12 failures are `Clipboard.Clear()` / `CLIPBRD_E_CANT_OPEN` in unchanged
+Browser context fixtures. Bounded focused diagnostic and unchanged release
+`293cd4b9` comparison both reproduce 12 FAIL / 1 PASS. No fix, exclusion or
+production change was made. Final package, exact-head CI and merge remain unrun
+gates. See qualification record and final evidence. Branch/artifacts retained.

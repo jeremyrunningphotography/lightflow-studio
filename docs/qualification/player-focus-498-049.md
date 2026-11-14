@@ -119,3 +119,34 @@ and source evidence remain preserved, with installer/portable moved within the s
 task workspace before rebuild could replace dist. Native validation cleanup confirmed;
 slot handed directly to051. Local registry records the block. No administrative PR,
 new scrubbing issue, release/tag, main forward-port or production Catalog operation.
+
+## Owner-approved qualification exception and closeout — 2026-11-14
+
+Owner accepted I01 8/8 and now explicitly authorizes proceeding despite the retained
+local native-presentation/clipboard failures, with no further hands-on gate. This
+supersedes prior local stop gates; no failure is reclassified as a pass or harmless.
+Focused358 PASS remains applicable: production/tests/validation inputs unchanged.
+All23 new focus/native regressions passed the recovery run; taskbar variants also
+passed there. Separate infrastructure follow-up [#504](https://github.com/jeremyrunningphotography/lightflow-studio/issues/504)
+tracks Clipboard.Clear/OLE failures and exclusive-desktop scheduling, not Player scope.
+No blocking dependency or new Bug Bash parentage is assigned to that independent work.
+
+Local exception: full2589 PASS/2 native presentation FAIL/8 SKIP; recovery2579 PASS/
+12 clipboard FAIL/8 SKIP; exclusive release and049 subsets each11 PASS/1 teardown
+clipboard FAIL. Explorer access is observed near failures; environmental contribution
+is probable, exact root cause and other-agent attribution unproven. Original TRX,
+logs, overlap limitation and diagnostic ZIP are preserved. No clipboard retries,
+setup/teardown changes, assertions, CI configuration or global parallelism changes.
+
+No repository rule explicitly prohibits this owner-approved local exception. It
+waives neither accepted-source preservation, focused Player regressions nor required
+full exact-head CI/companion/package gates. A red/inconclusive CI or package gate
+stops merge. No extra local full-suite retry. Main forward-port is explicitly deferred
+by owner; no release/tag. Unrelated agent records are preserved as fetched.
+
+Prepared completion: final source/head, exact package hashes/smoke/Player regression
+results, PR/full CI and normal merge/post-merge provenance live in #498/its single
+implementation PR and final verified evidence, avoiding self-referential source
+commits. Owner normal-merge authorization applies only when all required gates pass;
+no auto-merge, squash/rebase or branch-protection bypass. Historical maintenance:
+Not warranted for a bounded focus fix and routine qualification closeout.

@@ -13,6 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 052 | LF-WIN-DEV-052 | Export Settings Persistence | Issue #503; tracking #491; separate infrastructure #504 | I01 feature-level owner acceptance at d735dfc; production 8dfa4fd8 preserved; focused204 PASS, GPU12/12 PASS, installer/portable/restart PASS; two local full-suite exceptions retained; prepared closeout, one PR and normal merge conditional on green exact-head CI; actual provenance in #503/PR |
 | 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491; infrastructure #504; defaults contract #503 | I01/I02 accepted 20/20; accepted Export preserved on current release; owner-approved local clipboard exception; prepared closeout, one PR/normal merge conditional on green package/GPU/exact-head CI; actual provenance in #500/PR |
 | 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
@@ -420,3 +421,45 @@ button/range-error and source identity checks but failed no-directory assertion;
 Test setup conflict acknowledged; result remains failed. Owner GPU-stop rule
 applied: no correction/retry or packaging/smoke. See qualification/export-preferences-052-gpu-stop.md.
 No acceptance build/PR/merge/release/main forward-port. Research and prior evidence retained.
+
+052 GPU correction and packaging — 2026-11-15: owner-authorized test-only fixture
+commit d735dfc670717f0a87d6def843172bc1dc700841 preserves production8dfa4fd8.
+Single authorized GPU rerun12/12 PASS. Local Build-Release -Mode Release PASS:
+installer metadata/branding/icon, portable and25 matching extracted files,
+isolated startup/shutdown/dependency/Catalog-backup checks; no publication.
+Packaged ProductVersion1.0.2+d735dfc; exe timestamp newer than source. Explicit
+interactive startup with persistent isolated root PASS, but Export/reopen/restart
+UI smoke BLOCKED: capture0x80070057, input GetCursorPos0x80070005 after fresh
+window selection. No desktop bypass; user asked to unlock/confirm availability.
+Task-owned probe stopped, isolated profile retained; no packaged Export controls
+or preference persistence claim. Prior full2699/2/8 remains owner local exception,
+not PASS. No full retry/production edits/PR/merge/release/main forward-port.
+Owner hands-on acceptance and completion of blocked smoke remain outstanding.
+
+052 I01 packaged smoke completion — 2026-11-15: user confirmed desktop unlocked.
+Same d735dfc executable/hash/root resumed; generated SmokeClip selected. Packaged
+Export initialized with Same as Source, Exports and OriginalName; mode change
+showed pending circle/message and disabled Export, then Ready. Explicit isolated
+folder and SmokePersist subfolder persisted across Cancel/reopen and full graceful
+app exit/restart. Reset restored defaults and cleared overrides while preserving
+one MRU entry; final graceful shutdown/clean storage completion verified. No
+packaged media export queued and no production Catalog used. Previous desktop
+access blocker resolved; blocked evidence retained, no production changes/rebuild.
+GPU12/12, installer/portable25-file validation and packaged smoke PASS. Prior
+full2699/2/8 remains owner local exception, not PASS. I01 ready for owner hands-on
+acceptance only; no PR/merge/release/main forward-port. Runtime source d735dfc,
+production8dfa4fd8 unchanged. All18 owner scenarios remain in acceptance checklist.
+052 I01 handoff: Project #503 moved to established Review / Export & Jobs /
+priority unset for owner hands-on acceptance; issue open, #491 incomplete.
+No PR or merge authorization. Runtime source remains d735dfc, no code changes.
+
+052 final owner disposition — 2026-11-15: I01 accepted as a complete feature,
+not a claim of all18 checklist cases individually executed. Owner authorizes one
+PR, green exact-head CI, normal merge and post-merge closeout without further
+acceptance if production remains unchanged. Prior local full2699/2/8 is explicitly
+excepted locally, never relabeled PASS or waived in CI. See
+qualification/export-preferences-052-final.md. Final PR includes this prepared
+closeout; actual merge/post-merge provenance belongs in #503/PR discussion.
+Acceptance Catalog/assets retained; Release Engineering handoff only, no next
+assignment execution, release/tag/version/main-forward-port. Earlier stop and
+no-authorization statements above are historical, superseded by this disposition.

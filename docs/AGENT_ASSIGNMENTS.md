@@ -381,3 +381,13 @@ No launcher/clipboard infrastructure edits, workaround, retry or bypass. Per own
 stop rule, qualification awaits disposition. Local production work is partial and
 uncompiled; tests, full/GPU/installer/portable qualification and acceptance package
 are not complete. Research artifacts retained. No PR/merge/release authorized.
+
+052 bounded recovery — 2026-11-15: owner authorized narrow launcher investigation,
+recursion guard and independent baseline verification before feature continuation.
+Production desktop detection unchanged. Confirmed old unbounded control flow;
+original child desktop misclassification trigger remains unconfirmed. Three
+nonrecursive identity probes passed. Guard regression 4/4 PASS; independent
+unchanged release 4cf5e61 + launcher correction compiled and destination tests
+6/6 PASS, zero owned descendants. Stop under owner's unresolved-root-cause gate;
+feature checkpoint 6935a0f unchanged, no feature qualification/package/acceptance.
+See qualification/export-preferences-052-launcher-recovery.md. No PR/merge/release.

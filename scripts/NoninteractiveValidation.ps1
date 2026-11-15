@@ -1,7 +1,18 @@
 # Process-level boundary: desktop selection must precede CLR/STA/WPF initialization.
 if (-not ('ValidationDesktop' -as [type])) { Add-Type -Path @((Join-Path $PSScriptRoot 'ValidationDesktop.cs'), (Join-Path $PSScriptRoot '..\LightflowStudio\ValidationPresentation.cs')) }
+# A marker is a recursion tripwire, never proof of isolation. Always query the
+# real thread/input desktops as well. Fail before a payload can rewrap itself.
+if ($env:LIGHTFLOW_VALIDATION_EXPECTED_DESKTOP) {
+    $actualDesktop = [ValidationDesktop]::CurrentDesktopName
+    if ($actualDesktop -ne $env:LIGHTFLOW_VALIDATION_EXPECTED_DESKTOP -or -not [ValidationDesktop]::IsNoninteractive) {
+        throw "Validation child desktop mismatch: expected '$env:LIGHTFLOW_VALIDATION_EXPECTED_DESKTOP', actual '$actualDesktop'. Nested wrapping is prohibited."
+    }
+}
 function Invoke-NoninteractiveValidation {
     param([Parameter(Mandatory)][string]$ScriptPath, [hashtable]$Parameters = @{}, [int]$TimeoutSeconds = 7200)
+    if ($env:LIGHTFLOW_VALIDATION_EXPECTED_DESKTOP -or [ValidationDesktop]::IsNoninteractive) {
+        throw 'A validation wrapper has already been entered. Nested private-desktop launchers are prohibited.'
+    }
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     $run = Join-Path $root ('artifacts\validation\' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $run -Force | Out-Null
@@ -16,12 +27,12 @@ function Invoke-NoninteractiveValidation {
     # Paths are data in the request. EncodedCommand receives no interpolated script/parameter text.
     $quotedRequest = $request.Replace("'", "''")
     $quotedLog = $log.Replace("'", "''")
-    $body = "`$ErrorActionPreference = 'Stop'; try { `$r = Import-Clixml -LiteralPath '$quotedRequest'; `$env:TEMP = `$r.TemporaryDirectory; `$env:TMP = `$r.TemporaryDirectory; `$p = `$r.Parameters; & `$r.Script @p *> '$quotedLog'; if (`$LASTEXITCODE) { exit `$LASTEXITCODE }; exit 0 } catch { `$_ | Out-String | Add-Content -LiteralPath '$quotedLog'; exit 1 }"
-    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
     # Preserve the caller's edition/module environment (CI uses PowerShell 7;
     # the required local packaging command uses Windows PowerShell).
     $exe = Join-Path $PSHOME $(if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' })
     $desktop = New-Object ValidationDesktop
+    $body = "`$ErrorActionPreference = 'Stop'; try { `$env:LIGHTFLOW_VALIDATION_EXPECTED_DESKTOP = '$($desktop.Name)'; `$r = Import-Clixml -LiteralPath '$quotedRequest'; `$env:TEMP = `$r.TemporaryDirectory; `$env:TMP = `$r.TemporaryDirectory; `$p = `$r.Parameters; & `$r.Script @p *> '$quotedLog'; if (`$LASTEXITCODE) { exit `$LASTEXITCODE }; exit 0 } catch { `$_ | Out-String | Add-Content -LiteralPath '$quotedLog'; exit 1 }"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
     Write-Host "Noninteractive validation desktop: $($desktop.Name); log: $log"
     $timer = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -34,7 +45,10 @@ function Invoke-NoninteractiveValidation {
         $deadline = [DateTime]::UtcNow.AddSeconds(5)
         while ($desktop.ActiveProcesses -ne 0 -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
         if ($desktop.ActiveProcesses -ne 0) { throw "Validation left $($desktop.ActiveProcesses) owned processes running; cleanup will terminate them. Log: $log" }
-        if ($desktop.ExitCode -ne 0) { throw "Noninteractive validation failed (exit $($desktop.ExitCode)). Log: $log" }
+        if ($desktop.ExitCode -ne 0) {
+            Write-Host "Noninteractive validation failed (exit $($desktop.ExitCode)). Log: $log"
+            exit $desktop.ExitCode
+        }
         Write-Host 'Noninteractive validation completed; no owned processes remain.'
     } finally {
         $desktop.Dispose()

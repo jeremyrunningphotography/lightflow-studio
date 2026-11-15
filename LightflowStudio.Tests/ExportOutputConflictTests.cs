@@ -147,7 +147,7 @@ public sealed class ExportOutputConflictTests : IDisposable
     }
 
     [Fact]
-    public async Task RealCheckboxUpdatesModelFooterButtonAndAmberIconImmediately()
+    public async Task RealCheckboxDisablesExportUntilCurrentFooterAndAmberIconAreValidated()
     {
         var model = Model("existing", "new");
         var output = model.CurrentPlan!.Items[0].OutputPaths.Single();
@@ -167,7 +167,16 @@ public sealed class ExportOutputConflictTests : IDisposable
                 Assert.False(model.IsAnalyzing); Assert.Equal(2, runner.Calls);
                 foreach (var overwrite in new[] { false, true, false })
                 {
+                    var changed = model.OverwriteExisting != overwrite;
                     window.OverwriteExistingCheck.IsChecked = overwrite;
+                    if (changed)
+                    {
+                        Assert.False(window.ExportButton.IsEnabled);
+                        Assert.True(model.IsPlanPending);
+                        var validationDeadline = DateTime.UtcNow.AddSeconds(10);
+                        while (model.IsPlanPending && DateTime.UtcNow < validationDeadline) await Task.Delay(10);
+                        Assert.False(model.IsPlanPending);
+                    }
                     window.UpdateLayout();
                     Assert.Equal(overwrite, model.OverwriteExisting);
                     Assert.Equal(overwrite ? "1 ready · 1 will be overwritten" : "1 ready · 1 will be skipped", window.ReadySummaryText.Text);

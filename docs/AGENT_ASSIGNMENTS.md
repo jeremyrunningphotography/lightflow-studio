@@ -13,6 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491; infrastructure #504; defaults contract #503 | I01/I02 accepted 20/20; accepted Export preserved on current release; owner-approved local clipboard exception; prepared closeout, one PR/normal merge conditional on green package/GPU/exact-head CI; actual provenance in #500/PR |
 | 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
@@ -144,6 +145,59 @@ production change/regression requires review. See
 [qualification](qualification/export-active-in-out-497-048.md).
 048 final local qualification: focused 263 PASS / 1 opt-in SKIP; unfiltered Release 2568 PASS / 0 FAIL / 8 opt-in SKIP; packaged-tools export/safety 12 PASS; package startup/shutdown/Catalog/dependencies PASS. No new failures or production/test changes. Historical I01 Jobs access-denied evidence retained. Single-PR exact-head CI, explicit merge authorization, normal merge and post-merge reconciliation remain gates; not merged/Done.
 
+## Assignment 051 — I01 implementation (2026-11-13)
+
+LF-WIN-RES-051 continues in `C:\Git\Agents\LF-WIN-RES-051-ExportFilenameBuilder`.
+Original research source `90f4f94d72f4397325ba6547f486966044208a3f` and portable
+research ZIP are preserved. Owner approved the narrow background-planning and
+single-line readability correction. PRs #501 and #502 verified normally merged;
+implementation baseline `293cd4b9ec43c0a7207d6cb271b08131c5d85f98` on
+`release/1.0`; branch `codex/500-export-filename-builder-i01`.
+
+I01 retains existing preflight, range/EOF, collision, overwrite and final-submission
+protection. Latest-generation planning runs off the dispatcher after a 200 ms
+idle debounce; pending validation disables Export and obsolete completions cannot
+publish. Shared LUT integrity is validated once per plan, freshly at submission
+and independently by execution. Current custom text uses the existing dark,
+single-line editor without a visible scrollbar. Local qualification and owner
+hands-on acceptance precede any PR. No merge, release/tag, forward-port or
+production Catalog operation is authorized. Historical maintenance: Not warranted
+for this bounded defect correction. See `qualification/export-filename-builder-500-051.md`.
+
+### Assignment 051 — I02 continuation
+
+Owner accepted I01 at `962e99a4e7c182716d07c6777583bff6e5b8d218`, **10/10 PASS**.
+Accepted source, original research and I01 evidence ZIP/portable package are retained.
+I02 branch `codex/500-export-filename-builder-i02` continues from accepted I01;
+fetched release remains `293cd4b9`, with #496/#497 merged and completed.
+Owner authorized Original Name-only defaults and a display-only Custom placeholder
+with genuinely empty Custom text. Existing saved-Subclip token meaning is explicitly
+preserved. No #503 persistence or Reset Defaults implementation; its default contract
+is documented in `EXPORT_FILENAME_DEFAULTS.md`. Native validation is serialized
+behind active 050 and 049; retired 047/048 are not routine coordination targets.
+No PR before I02 owner acceptance. Historical maintenance: Not warranted.
+
+### Assignment 051 — final qualification / prepared closeout
+
+Owner accepted I01 and I02 **20/20 PASS, zero outstanding observations**.
+Accepted I02 source is `54f6a1a4d6252728ee53c3ff75d70df44088af15`, production tree
+`d9423a7b1cfcb08e37bcc4bab675b97b588a294a`; accepted artifacts remain preserved.
+This supersedes the historical pending acceptance and no-PR/no-merge gates above.
+Owner authorizes final Windows qualification, one implementation PR to `release/1.0`,
+and normal merge only after green exact-head full/companion/package CI. Auto-merge
+stays disabled. Final merge/post-merge provenance belongs in issue/PR discussion;
+this is prepared closeout, not a claim that merge has occurred.
+No new production changes, #503 implementation, release/tag or main forward-port.
+The #503 default contract remains `EXPORT_FILENAME_DEFAULTS.md`. Historical
+maintenance: **Not warranted**, a bounded defect correction without a new milestone.
+
+Final qualification stopped before PR/merge: focused 279 PASS / 1 existing opt-in
+SKIP; companion 90/90 PASS; full Release 2589 PASS / 12 FAIL / 8 existing SKIP.
+All 12 failures are `Clipboard.Clear()` / `CLIPBRD_E_CANT_OPEN` in unchanged
+Browser context fixtures. Bounded focused diagnostic and unchanged release
+`293cd4b9` comparison both reproduce 12 FAIL / 1 PASS. No fix, exclusion or
+production change was made. Final package, exact-head CI and merge remain unrun
+gates. See qualification record and final evidence. Branch/artifacts retained.
 ## Assignment 050 reservation — 2026-11-13
 
 LF-WIN-RES-050 — Browser Select All, issue #499, tracking #491. Owner allocated; absent from fetched main 46201b4 and release/1.0 90f4f94 registries. Independent full clone C:\Git\Agents\LF-WIN-RES-050-BrowserSelectAll; branch codex/499-browser-select-all-research. Owner approved guarded Browser-level implementation on 2026-11-13; local implementation/qualification underway. Research evidence preserved; owner packaged acceptance remains required. No PR, merge, release or main forward-port authorized. Concurrent 048 Export Active In/Out and 049 Player Frame Stepping retain ownership. Reservation local pending normal authorized integration.
@@ -265,3 +319,28 @@ squash/rebase or auto-merge. Prepared closeout is not Done/merged; actual merge,
 post-merge CI, issue Completed/Project Done and branch retirement provenance
 belongs in #499/its single PR. Parent491 and infrastructure504 stay open.
 No release/tag/main forward-port. Historical maintenance: Not warranted.
+
+### Assignment 051 — approved local exception and prepared closeout (2026-11-15)
+
+Owner explicitly approves the documented local qualification exception for all
+12 Clipboard.Clear failures reproduced on unchanged release. They remain failed
+local evidence, independently tracked by #504; the underlying cause is unproven.
+This supersedes the historical stop above, without waiving required PR CI or
+package/GPU gates. No tests, CI, clipboard infrastructure or production workaround
+was changed. No further full-suite retry solely to obtain a green local result.
+Owner acceptance remains I01/I02 20/20 PASS, zero observations.
+
+Release reconciled with normally merged #505 (675182c) and #506 (80d4fca).
+Reconciliation commit2b1ef824 preserves all accepted Export file blobs from54f6a1a;
+all other production matches release80d4fca. Combined production tree is
+58e11914c1e105e7276330d35d8d15874c724f1f. Registry-only append conflicts retained
+all peer records; no other agent record was revised. Retired047–050 not contacted.
+
+One implementation PR targets release/1.0. Normal merge is conditionally authorized
+only after green exact-head full Windows/companion/package CI and local package/GPU
+qualification, with auto-merge disabled. Prepared closeout does not claim merge.
+Final merge/post-merge CI and actual completion provenance belong in #500/PR
+metadata, without an administrative PR. #491 stays open for remaining findings;
+#504 separate/open, #503 open/unimplemented with EXPORT_FILENAME_DEFAULTS.md as its
+established contract. No release/tag/main forward-port or production Catalog access.
+Historical maintenance: Not warranted for this bounded defect/default refinement.

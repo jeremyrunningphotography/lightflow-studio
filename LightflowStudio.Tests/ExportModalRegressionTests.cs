@@ -235,7 +235,9 @@ public sealed class ExportModalRegressionTests
         Assert.Equal("6,2", (string?)customText.Attribute("Padding"));
         Assert.Equal("Center", (string?)customText.Attribute("VerticalContentAlignment"));
         Assert.Equal("0", (string?)customText.Attribute("Margin"));
-        Assert.Equal("Auto", (string?)customText.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("Hidden", (string?)customText.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("Disabled", (string?)customText.Attribute("VerticalScrollBarVisibility"));
+        Assert.Equal("NoWrap", (string?)customText.Attribute("TextWrapping"));
         Assert.Equal("{Binding Part.Text}", (string?)customText.Attribute("ToolTip"));
         var app = XDocument.Load(Path.Combine(FindRepositoryRoot(), "LightflowStudio", "App.xaml"));
         var textBoxStyle = app.Descendants().First(element => element.Name.LocalName == "Style" && (string?)element.Attribute("TargetType") == "TextBox");

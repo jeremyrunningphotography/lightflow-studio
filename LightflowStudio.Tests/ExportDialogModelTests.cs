@@ -81,7 +81,7 @@ public sealed class ExportDialogModelTests : IDisposable
     public void Defaults_AreModernIndependentAndBounded()
     {
         var model = CreateModel("clip.mp4");
-        Assert.Equal([NamePartKind.OriginalName, NamePartKind.Sequence001], model.NameParts.Select(x => x.Kind));
+        Assert.Equal([NamePartKind.OriginalName], model.NameParts.Select(x => x.Kind));
         Assert.Equal(ExportContainerChoice.SameAsSource, model.Container);
         Assert.Equal(ExportCodecChoice.SameAsSource, model.Codec);
         Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Camera.Mode);
@@ -92,7 +92,7 @@ public sealed class ExportDialogModelTests : IDisposable
     }
 
     [Fact]
-    public void SubclipDefaultUsesOnlyOriginalNameWhileOrdinaryAndExplicitRestoredRecipesRemainAuthoritative()
+    public void BothDefaultsUseOnlyOriginalNameWhileExplicitRestoredRecipesRemainAuthoritative()
     {
         var handoff = Handoff("clip.mp4");
         var ordinary = Model(handoff);
@@ -101,7 +101,7 @@ public sealed class ExportDialogModelTests : IDisposable
             [new(NamePartKind.CustomText, "kept"), new(NamePartKind.Sequence01)], NamePartSeparator.Underscore);
         var explicitRecipe = Model(handoff, namingDefault: ExportNamingDefault.Subclip, restoredNaming: restored);
 
-        Assert.Equal([NamePartKind.OriginalName, NamePartKind.Sequence001], ordinary.NameParts.Select(x => x.Kind));
+        Assert.Equal([NamePartKind.OriginalName], ordinary.NameParts.Select(x => x.Kind));
         Assert.Equal([NamePartKind.OriginalName], subclip.NameParts.Select(x => x.Kind));
         Assert.Contains(ExportPresentation.NameParts, choice => choice.Value == NamePartKind.Sequence001);
         Assert.Equal(restored.Parts, explicitRecipe.NameParts);
@@ -113,6 +113,7 @@ public sealed class ExportDialogModelTests : IDisposable
     {
         var model = CreateModel("clip42.mp4");
         Ready(model, Metadata("h264", "mp4"));
+        model.AddPart(NamePartKind.Sequence001); // Explicit user recipe, no longer a default.
         model.AddPart(NamePartKind.CustomText);
         model.UpdateCustomText(2, "web");
         model.MovePart(2, -1);
@@ -136,7 +137,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Ready(model, Metadata("h264", "mp4"), Metadata("hevc", "mov"));
         var plan = model.CurrentPlan!;
         Assert.True(plan.IsValid);
-        Assert.Equal(["a-001.mp4", "b-002.mov"], plan.Items.Select(x => Path.GetFileName(x.OutputPaths.Single())));
+        Assert.Equal(["a.mp4", "b.mov"], plan.Items.Select(x => Path.GetFileName(x.OutputPaths.Single())));
         Assert.All(plan.Items, x => Assert.Contains(Path.Combine("Delivery", ""), x.OutputPaths.Single()));
         Assert.Equal([VideoCodec.H264, VideoCodec.Hevc], plan.Items.Select(x => x.Definition.MaterializedExport!.Encoding.Codec));
     }
@@ -157,8 +158,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
 
         var paths = model.CurrentPlan!.Items.Select(item => item.OutputPaths.Single()).ToArray();
-        Assert.Equal(Path.Combine(_root, "Exports", "first-001.mp4"), paths[0]);
-        Assert.Equal(Path.Combine(_root, "Exports", "second-002.mp4"), paths[1]);
+        Assert.Equal(Path.Combine(_root, "Exports", "first.mp4"), paths[0]);
+        Assert.Equal(Path.Combine(_root, "Exports", "second.mp4"), paths[1]);
         Assert.All(paths, path => Assert.DoesNotContain("Shoot", path));
         Assert.False(model.CurrentPlan.Definition.Options.PreserveFolderStructure);
     }
@@ -178,8 +179,8 @@ public sealed class ExportDialogModelTests : IDisposable
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
 
         Assert.Equal([
-            Path.Combine(firstDirectory, "1080p", "first-001.mp4"),
-            Path.Combine(secondDirectory, "1080p", "second-002.mp4")],
+            Path.Combine(firstDirectory, "1080p", "first.mp4"),
+            Path.Combine(secondDirectory, "1080p", "second.mp4")],
             model.CurrentPlan!.Items.Select(item => item.OutputPaths.Single()));
     }
 
@@ -197,7 +198,7 @@ public sealed class ExportDialogModelTests : IDisposable
         model.CreateSubfolder = true;
         model.SubfolderName = "Changed";
 
-        Assert.Equal(Path.Combine(_root, "Accepted", "clip-001.mp4"), acceptedPath);
+        Assert.Equal(Path.Combine(_root, "Accepted", "clip.mp4"), acceptedPath);
         Assert.Equal(acceptedPath, accepted.Items.Single().OutputPaths.Single());
         Assert.NotEqual(acceptedPath, model.CurrentPlan!.Items.Single().OutputPaths.Single());
     }
@@ -278,7 +279,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal("Export 2 videos", model.Title);
         Assert.Equal("Files to Export, 2 files", model.FilesAutomationName);
         Assert.Equal(["zeta.mp4", "alpha.mov"], model.SubmissionItems.Select(item => item.SourceFileName));
-        Assert.Equal(["→ zeta-001.mp4", "→ alpha-002.mov"], model.SubmissionItems.Select(item => item.OutputText));
+        Assert.Equal(["→ zeta.mp4", "→ alpha.mov"], model.SubmissionItems.Select(item => item.OutputText));
         Assert.Equal(model.CurrentPlan!.Items.Select(item => Path.GetFileName(item.Definition.SourceIdentity)),
             model.SubmissionItems.Select(item => item.SourceFileName));
         Assert.Equal("Export 1 video", CreateModel("solo.mp4").Title);
@@ -288,7 +289,7 @@ public sealed class ExportDialogModelTests : IDisposable
     public void ItemPreflightWarningsAttachOnlyToTheirTypedPlannedRows()
     {
         var model = CreateModel("warning.mp4", "clean.mp4", inspect: path =>
-            new(Path.GetFileName(path).StartsWith("warning-", StringComparison.Ordinal), 10));
+            new(Path.GetFileNameWithoutExtension(path) == "warning", 10));
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
 
         var warning = model.SubmissionItems[0];
@@ -298,7 +299,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.True(warning.HasIssues);
         Assert.False(warning.HasError);
         Assert.StartsWith("A file with this name already exists here. This export will be skipped.", warning.IssueToolTip);
-        Assert.DoesNotContain("warning-001.mp4", warning.IssueToolTip);
+        Assert.DoesNotContain("warning.mp4", warning.IssueToolTip);
         Assert.False(clean.HasIssues);
         Assert.Empty(model.GlobalWarnings);
     }
@@ -358,7 +359,7 @@ public sealed class ExportDialogModelTests : IDisposable
 
         Assert.Equal(count, model.SubmissionItems.Count);
         Assert.Equal($"clip-{count:D2}.mp4", model.SubmissionItems[^1].SourceFileName);
-        Assert.Equal($"→ clip-{count:D2}-{count:D3}.mp4", model.SubmissionItems[^1].OutputText);
+        Assert.Equal($"→ clip-{count:D2}.mp4", model.SubmissionItems[^1].OutputText);
     }
 
     [Fact]
@@ -458,7 +459,8 @@ public sealed class ExportDialogModelTests : IDisposable
         model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
 
         Assert.Equal(2, model.SubmissionItems.Count);
-        Assert.Equal(["→ repeated-001.mp4", "→ repeated-002.mp4"], model.SubmissionItems.Select(item => item.OutputText));
+        Assert.Equal(["→ repeated.mp4", "→ repeated.mp4"], model.SubmissionItems.Select(item => item.OutputText));
+        Assert.Contains(model.Errors, issue => issue.Code == "encoding.output-collision");
         Assert.Equal([24d, 144d], model.SubmissionItems.Select(item => item.ExportSegmentLeft));
     }
 
@@ -472,6 +474,7 @@ public sealed class ExportDialogModelTests : IDisposable
         var second = first with { AssetId = Guid.NewGuid(), InitialTrim = new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(9)) };
         var model = new ExportDialogModel(new([first, second], [], _root), new EncodingOptions(), [], [],
             new FakeResources(), _ => new(false, 0));
+        model.AddPart(NamePartKind.Sequence001); // Isolate per-range errors from intentional default duplicate protection.
         model.ApplyMetadata([Metadata("h264", "mp4"), Metadata("h264", "mp4")]);
         model.ApplyResolvedRanges([null, new(second.InitialTrim!, TimeSpan.Zero, TimeSpan.FromSeconds(6),
             TimeSpan.FromSeconds(9), TimeSpan.FromSeconds(3))]);
@@ -550,7 +553,7 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.False(model.SubmissionItems[0].HasRange);
         Assert.True(model.SubmissionItems[0].UseRange);
         Assert.False(model.SubmissionItems[0].RangeControlEnabled);
-        Assert.Equal("→ Best Take-001.mov", model.SubmissionItems[0].OutputText);
+        Assert.Equal("→ Best Take.mov", model.SubmissionItems[0].OutputText);
         model.SetUseRange(0, false);
         model.SetGlobalUseRanges(false);
         Assert.Equal(range, model.CurrentPlan!.Items.Single().Definition.MediaRange);
@@ -824,13 +827,13 @@ public sealed class ExportDialogModelTests : IDisposable
         Assert.Equal(".mp4", model.RepresentativeExtension);
         Assert.True(model.HasHeterogeneousExtensions);
         Assert.Contains("Each file", model.ExtensionHelp);
-        Assert.Equal(2, model.NameParts.Count);
+        Assert.Single(model.NameParts);
 
         model.Container = ExportContainerChoice.Mkv;
         Assert.Equal(".mkv", model.RepresentativeExtension);
         Assert.EndsWith(".mkv", model.PreviewName);
         Assert.False(model.HasHeterogeneousExtensions);
-        Assert.Equal(2, model.NameParts.Count);
+        Assert.Single(model.NameParts);
     }
 
     [Theory]

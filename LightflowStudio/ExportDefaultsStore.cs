@@ -15,9 +15,16 @@ internal static class ExportDefaultsStore
         var path = PathFor(settingsPath);
         try
         {
-            return File.Exists(path)
-                ? EncodingOptions.Normalize(JsonSerializer.Deserialize<EncodingOptions>(File.ReadAllText(path)))
-                : EncodingPresetCatalog.Recommended;
+            if (!File.Exists(path)) return EncodingPresetCatalog.Recommended;
+            var text = File.ReadAllText(path);
+            using var document = JsonDocument.Parse(text);
+            if (document.RootElement.TryGetProperty("SchemaVersion", out _))
+            {
+                var saved = JsonSerializer.Deserialize<ExportPreferenceDocument>(text, ExportPreferenceSession.Json)!;
+                if (saved.SchemaVersion != 1) throw new InvalidDataException("Unsupported Export preference schema.");
+                return saved.LegacyEncodingBaseline;
+            }
+            return EncodingOptions.Normalize(JsonSerializer.Deserialize<EncodingOptions>(text));
         }
         catch (JsonException exception)
         {

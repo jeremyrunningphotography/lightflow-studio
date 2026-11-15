@@ -344,3 +344,40 @@ metadata, without an administrative PR. #491 stays open for remaining findings;
 #504 separate/open, #503 open/unimplemented with EXPORT_FILENAME_DEFAULTS.md as its
 established contract. No release/tag/main forward-port or production Catalog access.
 Historical maintenance: Not warranted for this bounded defect/default refinement.
+
+## Assignment 052 — owner-allocated research reservation (2026-11-15)
+
+LF-WIN-RES-052 — Export Settings Persistence Research; issue #503, context #491.
+Owner allocated 052; no conflicting assigned 052 in fetched main registry blob
+ ec0956dd9bd2f506eaf232ba4719923696213f13 or release registry.
+Independent full clone C:\Git\Agents\LF-WIN-RES-052-ExportSettingsPersistence;
+branch codex/503-export-settings-research; release baseline
+4cf5e61dbd7ada0019b23e62ff1dd9292d7651b0 (merged #507).
+Local reservation only; no commit/PR or publication required by this record.
+Research complete for owner architecture review; no production changes,
+implementation authorization, tests/build/launch, acceptance or merge claimed.
+Data/test directories are task-owned research/data and research/tests, unused.
+No production Catalog access; no retired-agent coordination or new agents.
+
+## Assignment 052 — owner-revised implementation activity (2026-11-15)
+
+Owner explicitly revises identity/title to LF-WIN-DEV-052 — Export Settings
+Persistence, retaining number 052 and existing independent RES-prefixed clone,
+research ZIP and branch history. This is the permitted explicit revision of a
+continuation, not a new allocation. Implementation branch codex/503-export-settings-i01,
+baseline 4cf5e61 (#507 merged), target release/1.0. #503 updated with approved
+Same as Source default, contextual suggestions, ten-folder MRU, sparse overrides,
+legacy baseline preservation, Reset/history semantics and current-generation
+validation; Project In Progress / Export & Jobs / priority unset. No native parent
+or dependencies exist; #491 remains release context and incomplete. Local I01
+implementation/qualification only; no PR/merge/release/tag/main forward-port or
+production Catalog access. No other agents. Owner packaged acceptance pending.
+
+052 I01 stopped at initial focused validation (2026-11-15): the unchanged
+Test-Noninteractive.ps1 launcher recursively spawned 76 private-desktop wrappers
+before dotnet compilation/test execution. Single attempt interrupted; task-owned
+process cleanup verified. Cause unclassified; not attributed to #504 clipboard.
+No launcher/clipboard infrastructure edits, workaround, retry or bypass. Per owner
+stop rule, qualification awaits disposition. Local production work is partial and
+uncompiled; tests, full/GPU/installer/portable qualification and acceptance package
+are not complete. Research artifacts retained. No PR/merge/release authorized.

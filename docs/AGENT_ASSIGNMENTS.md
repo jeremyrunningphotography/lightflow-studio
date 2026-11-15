@@ -409,3 +409,14 @@ baseline/harmless. No Export test failure or launcher recurrence. Stop under own
 required-gate rule; no retry, workaround, GPU/package/owner-acceptance claim.
 Schema/default contract in EXPORT_PREFERENCES.md; exact evidence/limits in
 qualification/export-preferences-503-i01-052.md. No PR/merge/release/main forward-port.
+
+052 owner local qualification exception / GPU stop — 2026-11-15: owner permits
+acceptance preparation despite prior full2699/2/8 (still failed; no baseline cause
+claim). No full rerun, unrelated investigation or production changes. Exact source
+55e37c2 preserves implementation43941ec and production subtree8dfa4fd8. Established
+GPU12 executed:11 PASS/1 FAIL/0 SKIP. Offset-EOF negative case passed refusal,
+button/range-error and source identity checks but failed no-directory assertion;
+052 fixture setup precreates that same directory (zero output files observed).
+Test setup conflict acknowledged; result remains failed. Owner GPU-stop rule
+applied: no correction/retry or packaging/smoke. See qualification/export-preferences-052-gpu-stop.md.
+No acceptance build/PR/merge/release/main forward-port. Research and prior evidence retained.

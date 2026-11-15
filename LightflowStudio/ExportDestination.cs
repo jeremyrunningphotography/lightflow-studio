@@ -28,7 +28,7 @@ internal sealed record ExportDestination(
             || subfolder.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
             || subfolder.Contains(Path.DirectorySeparatorChar)
             || subfolder.Contains(Path.AltDirectorySeparatorChar)
-            || subfolder is "." or ".."))
+            || subfolder is "." or ".." || WindowsOutputNameValidator.ValidateStem(subfolder) is not null))
             throw new ArgumentException("The output subfolder must be a single valid folder name.", nameof(Subfolder));
         return this with { SpecificFolder = folder, Subfolder = subfolder };
     }

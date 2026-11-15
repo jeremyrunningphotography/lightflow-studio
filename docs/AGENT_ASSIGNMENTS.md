@@ -13,6 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 052 | LF-WIN-DEV-052 | Export Settings Persistence | Issue #503; tracking #491; separate infrastructure #504 | I01 feature-level owner acceptance at d735dfc; production 8dfa4fd8 preserved; focused204 PASS, GPU12/12 PASS, installer/portable/restart PASS; two local full-suite exceptions retained; prepared closeout, one PR and normal merge conditional on green exact-head CI; actual provenance in #503/PR |
 | 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491; infrastructure #504; defaults contract #503 | I01/I02 accepted 20/20; accepted Export preserved on current release; owner-approved local clipboard exception; prepared closeout, one PR/normal merge conditional on green package/GPU/exact-head CI; actual provenance in #500/PR |
 | 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
@@ -344,3 +345,121 @@ metadata, without an administrative PR. #491 stays open for remaining findings;
 #504 separate/open, #503 open/unimplemented with EXPORT_FILENAME_DEFAULTS.md as its
 established contract. No release/tag/main forward-port or production Catalog access.
 Historical maintenance: Not warranted for this bounded defect/default refinement.
+
+## Assignment 052 — owner-allocated research reservation (2026-11-15)
+
+LF-WIN-RES-052 — Export Settings Persistence Research; issue #503, context #491.
+Owner allocated 052; no conflicting assigned 052 in fetched main registry blob
+ ec0956dd9bd2f506eaf232ba4719923696213f13 or release registry.
+Independent full clone C:\Git\Agents\LF-WIN-RES-052-ExportSettingsPersistence;
+branch codex/503-export-settings-research; release baseline
+4cf5e61dbd7ada0019b23e62ff1dd9292d7651b0 (merged #507).
+Local reservation only; no commit/PR or publication required by this record.
+Research complete for owner architecture review; no production changes,
+implementation authorization, tests/build/launch, acceptance or merge claimed.
+Data/test directories are task-owned research/data and research/tests, unused.
+No production Catalog access; no retired-agent coordination or new agents.
+
+## Assignment 052 — owner-revised implementation activity (2026-11-15)
+
+Owner explicitly revises identity/title to LF-WIN-DEV-052 — Export Settings
+Persistence, retaining number 052 and existing independent RES-prefixed clone,
+research ZIP and branch history. This is the permitted explicit revision of a
+continuation, not a new allocation. Implementation branch codex/503-export-settings-i01,
+baseline 4cf5e61 (#507 merged), target release/1.0. #503 updated with approved
+Same as Source default, contextual suggestions, ten-folder MRU, sparse overrides,
+legacy baseline preservation, Reset/history semantics and current-generation
+validation; Project In Progress / Export & Jobs / priority unset. No native parent
+or dependencies exist; #491 remains release context and incomplete. Local I01
+implementation/qualification only; no PR/merge/release/tag/main forward-port or
+production Catalog access. No other agents. Owner packaged acceptance pending.
+
+052 I01 stopped at initial focused validation (2026-11-15): the unchanged
+Test-Noninteractive.ps1 launcher recursively spawned 76 private-desktop wrappers
+before dotnet compilation/test execution. Single attempt interrupted; task-owned
+process cleanup verified. Cause unclassified; not attributed to #504 clipboard.
+No launcher/clipboard infrastructure edits, workaround, retry or bypass. Per owner
+stop rule, qualification awaits disposition. Local production work is partial and
+uncompiled; tests, full/GPU/installer/portable qualification and acceptance package
+are not complete. Research artifacts retained. No PR/merge/release authorized.
+
+052 bounded recovery — 2026-11-15: owner authorized narrow launcher investigation,
+recursion guard and independent baseline verification before feature continuation.
+Production desktop detection unchanged. Confirmed old unbounded control flow;
+original child desktop misclassification trigger remains unconfirmed. Three
+nonrecursive identity probes passed. Guard regression 4/4 PASS; independent
+unchanged release 4cf5e61 + launcher correction compiled and destination tests
+6/6 PASS, zero owned descendants. Stop under owner's unresolved-root-cause gate;
+feature checkpoint 6935a0f unchanged, no feature qualification/package/acceptance.
+See qualification/export-preferences-052-launcher-recovery.md. No PR/merge/release.
+
+052 continuation disposition — 2026-11-15: owner reviewed bbcf8b0 and accepts
+historical trigger uncertainty for continued #503 local development. Guard 4/4
+and independent baseline 6/6 remain preserved; original root cause is not claimed
+resolved. Feature 6935a0f retained; initial guarded feature compilation and
+ExportDestinationTests 6/6 PASS. Resume focused implementation/qualification,
+then packaged owner acceptance. No additional launcher investigation unless new
+failure/evidence. No PR/merge/release/tag/main forward-port authorized.
+
+052 I01 feature validation — 2026-11-15: implementation source
+43941ec8afb80c475b6d11b76dca8f371ce5e121; focused Export 204 PASS /0 FAIL /6
+existing opt-in SKIP. Full guarded Release 2699 PASS /2 FAIL /8 existing opt-in
+SKIP, 5m22s: unchanged Player NonDivisorCadence (two117ms intervals above101ms),
+unchanged Browser Cut Clipboard.Clear 0x800401D0. Causes unclassified; not proven
+baseline/harmless. No Export test failure or launcher recurrence. Stop under owner
+required-gate rule; no retry, workaround, GPU/package/owner-acceptance claim.
+Schema/default contract in EXPORT_PREFERENCES.md; exact evidence/limits in
+qualification/export-preferences-503-i01-052.md. No PR/merge/release/main forward-port.
+
+052 owner local qualification exception / GPU stop — 2026-11-15: owner permits
+acceptance preparation despite prior full2699/2/8 (still failed; no baseline cause
+claim). No full rerun, unrelated investigation or production changes. Exact source
+55e37c2 preserves implementation43941ec and production subtree8dfa4fd8. Established
+GPU12 executed:11 PASS/1 FAIL/0 SKIP. Offset-EOF negative case passed refusal,
+button/range-error and source identity checks but failed no-directory assertion;
+052 fixture setup precreates that same directory (zero output files observed).
+Test setup conflict acknowledged; result remains failed. Owner GPU-stop rule
+applied: no correction/retry or packaging/smoke. See qualification/export-preferences-052-gpu-stop.md.
+No acceptance build/PR/merge/release/main forward-port. Research and prior evidence retained.
+
+052 GPU correction and packaging — 2026-11-15: owner-authorized test-only fixture
+commit d735dfc670717f0a87d6def843172bc1dc700841 preserves production8dfa4fd8.
+Single authorized GPU rerun12/12 PASS. Local Build-Release -Mode Release PASS:
+installer metadata/branding/icon, portable and25 matching extracted files,
+isolated startup/shutdown/dependency/Catalog-backup checks; no publication.
+Packaged ProductVersion1.0.2+d735dfc; exe timestamp newer than source. Explicit
+interactive startup with persistent isolated root PASS, but Export/reopen/restart
+UI smoke BLOCKED: capture0x80070057, input GetCursorPos0x80070005 after fresh
+window selection. No desktop bypass; user asked to unlock/confirm availability.
+Task-owned probe stopped, isolated profile retained; no packaged Export controls
+or preference persistence claim. Prior full2699/2/8 remains owner local exception,
+not PASS. No full retry/production edits/PR/merge/release/main forward-port.
+Owner hands-on acceptance and completion of blocked smoke remain outstanding.
+
+052 I01 packaged smoke completion — 2026-11-15: user confirmed desktop unlocked.
+Same d735dfc executable/hash/root resumed; generated SmokeClip selected. Packaged
+Export initialized with Same as Source, Exports and OriginalName; mode change
+showed pending circle/message and disabled Export, then Ready. Explicit isolated
+folder and SmokePersist subfolder persisted across Cancel/reopen and full graceful
+app exit/restart. Reset restored defaults and cleared overrides while preserving
+one MRU entry; final graceful shutdown/clean storage completion verified. No
+packaged media export queued and no production Catalog used. Previous desktop
+access blocker resolved; blocked evidence retained, no production changes/rebuild.
+GPU12/12, installer/portable25-file validation and packaged smoke PASS. Prior
+full2699/2/8 remains owner local exception, not PASS. I01 ready for owner hands-on
+acceptance only; no PR/merge/release/main forward-port. Runtime source d735dfc,
+production8dfa4fd8 unchanged. All18 owner scenarios remain in acceptance checklist.
+052 I01 handoff: Project #503 moved to established Review / Export & Jobs /
+priority unset for owner hands-on acceptance; issue open, #491 incomplete.
+No PR or merge authorization. Runtime source remains d735dfc, no code changes.
+
+052 final owner disposition — 2026-11-15: I01 accepted as a complete feature,
+not a claim of all18 checklist cases individually executed. Owner authorizes one
+PR, green exact-head CI, normal merge and post-merge closeout without further
+acceptance if production remains unchanged. Prior local full2699/2/8 is explicitly
+excepted locally, never relabeled PASS or waived in CI. See
+qualification/export-preferences-052-final.md. Final PR includes this prepared
+closeout; actual merge/post-merge provenance belongs in #503/PR discussion.
+Acceptance Catalog/assets retained; Release Engineering handoff only, no next
+assignment execution, release/tag/version/main-forward-port. Earlier stop and
+no-authorization statements above are historical, superseded by this disposition.

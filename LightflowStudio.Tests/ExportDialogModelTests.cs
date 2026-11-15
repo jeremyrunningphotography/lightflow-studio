@@ -153,6 +153,7 @@ public sealed class ExportDialogModelTests : IDisposable
         var inputs = new[] { Input(first), Input(second) };
         var model = new ExportDialogModel(new(inputs, [], firstDirectory, IncludeSubfolders: true),
             new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0));
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
         model.Destination = Path.Combine(_root, "Exports");
         model.CreateSubfolder = false;
         Ready(model, Metadata("h264", "mp4"), Metadata("h264", "mp4"));
@@ -188,6 +189,7 @@ public sealed class ExportDialogModelTests : IDisposable
     public async Task AcceptedPlan_SnapshotsResolvedPathsAgainstLaterUiChanges()
     {
         var model = CreateModel("clip.mp4");
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
         model.Destination = Path.Combine(_root, "Accepted");
         model.CreateSubfolder = false;
         Ready(model, Metadata("h264", "mp4"));
@@ -213,6 +215,7 @@ public sealed class ExportDialogModelTests : IDisposable
         File.WriteAllText(first, "source"); File.WriteAllText(second, "source");
         var model = new ExportDialogModel(new([Input(first), Input(second)], [], firstDirectory, IncludeSubfolders: true),
             new EncodingOptions(), [], [], new FakeResources(), _ => new(false, 0));
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
         model.Destination = Path.Combine(_root, "Exports");
         model.CreateSubfolder = false;
         model.NameParts.Clear(); model.AddPart(NamePartKind.OriginalName);
@@ -342,6 +345,7 @@ public sealed class ExportDialogModelTests : IDisposable
     {
         var model = CreateModel("clip.mp4");
         Ready(model, Metadata("h264", "mp4"));
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
         model.Destination = "relative";
 
         Assert.Contains(model.GlobalErrors, issue => issue.Code == "export.destination");

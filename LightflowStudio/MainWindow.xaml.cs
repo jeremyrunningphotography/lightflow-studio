@@ -3777,6 +3777,22 @@ public partial class MainWindow : Window
         StatusText.Text = _ffmpeg is null ? "FFmpeg not found — configure it in Settings" : $"FFmpeg ready: {_ffmpeg}";
     }
 
+    private async Task<ExportPreferenceSession?> OpenExportPreferencesAsync()
+    {
+        try { return await ExportPreferenceSession.OpenAsync(_storage.Locations.SettingsPath); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            if (!ConfirmationDialog.Confirm(this, "Export preferences need attention", "Saved Export preferences could not be loaded",
+                "Keep the original file and reset Export preferences to continue, or cancel to leave everything unchanged.",
+                exception.Message, "Preserve File and Reset")) return null;
+            var recovered = await ExportPreferenceSession.RecoverAsync(_storage.Locations.SettingsPath);
+            recovered.Reset();
+            await recovered.FlushAsync();
+            if (recovered.SaveError is { } error) throw new IOException(error);
+            return recovered;
+        }
+    }
+
     private async Task ApplyEncodingHandoffAsync(CapabilityInvocation invocation)
     {
         _browserEncodingHandoffCts?.Cancel();
@@ -3804,10 +3820,13 @@ public partial class MainWindow : Window
             }
 
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
-            var model = new ExportDialogModel(result, ExportDefaultsStore.Load(_storage.Locations.SettingsPath),
+            var preferences = await OpenExportPreferencesAsync();
+            if (preferences is null || !ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            var model = new ExportDialogModel(result, preferences.Defaults.Encoding,
                 _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
-                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore);
-            var dialog = new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this };
+                _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore,
+                preferences: preferences.Current, deferInitialValidation: true);
+            var dialog = new ExportDialog(model, _exportCoordinator, _ffprobe, preferences: preferences) { Owner = this };
             dialog.ShowDialog();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
@@ -3849,7 +3868,9 @@ public partial class MainWindow : Window
                 return;
             }
             var resourceStore = new EncodingLutResourceStore(EncodingLutResourceStore.DefaultDirectory);
-            var model = new ExportDialogModel(result, ExportDefaultsStore.Load(_storage.Locations.SettingsPath),
+            var preferences = await OpenExportPreferencesAsync();
+            if (preferences is null || !ReferenceEquals(_browserEncodingHandoffCts, cancellation)) return;
+            var model = new ExportDialogModel(result, preferences.Defaults.Encoding,
                 _storage.LutCache.Snapshot(ColorLutStage.Camera).Resources,
                 _storage.LutCache.Snapshot(ColorLutStage.Creative).Resources, resourceStore,
                 revalidate: async (includeNoSubclipSources, token) => await new SubclipExportCapabilityHandoff(
@@ -3859,8 +3880,9 @@ public partial class MainWindow : Window
                     {
                         IncludeNoSubclipSources = invocation.EntryKind == SubclipExportEntryKind.BrowserSources &&
                             includeNoSubclipSources
-                    }, token), namingDefault: ExportNamingDefault.Subclip);
-            new ExportDialog(model, _exportCoordinator, _ffprobe) { Owner = this }.ShowDialog();
+                    }, token), namingDefault: ExportNamingDefault.Subclip,
+                preferences: preferences.Current, deferInitialValidation: true);
+            new ExportDialog(model, _exportCoordinator, _ffprobe, preferences: preferences) { Owner = this }.ShowDialog();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SqliteException)
         {

@@ -96,7 +96,12 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private bool _includeNoSubclipSources = true;
     private JobPlan<EncodingJobOptions>? _plan;
     private string _destination;
-    private ExportDestinationMode _destinationMode = ExportDestinationMode.SpecificFolder;
+    private ExportDestinationMode _destinationMode = ExportDestinationMode.SameFolderAsOriginal;
+    private bool _explicitDestination;
+    private bool _checkDestination;
+    private bool _batchPreferences;
+    private string? _draftError;
+    public event Action? PreferencesChanged;
     private bool _createSubfolder = true;
     private string _subfolderName = "Exports";
     private NamePartSeparator _separator = NamePartSeparator.Hyphen;
@@ -116,10 +121,11 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         IEncodingLutResourceStore resourceStore, Func<string, OutputFileSnapshot>? inspectOutput = null,
         Func<bool, CancellationToken, Task<EncodingHandoffResult>>? revalidate = null,
         ExportNamingDefault namingDefault = ExportNamingDefault.Ordinary,
-        NamePartsDefinition? restoredNaming = null)
+        NamePartsDefinition? restoredNaming = null, ExportPreferences? preferences = null,
+        bool deferInitialValidation = false)
     {
         _handoff = handoff;
-        _destination = handoff.InputFolder ?? "";
+        _destination = ContextualDestination;
         _encoding = EncodingOptions.Normalize(defaults) with { AudioMode = AudioEncodingMode.Copy, FrameRate = 0 };
         _metadata = Enumerable.Repeat<MediaMetadata?>(null, handoff.Inputs.Count).ToArray();
         _resolvedRanges = Enumerable.Repeat<ResolvedMediaRange?>(null, handoff.Inputs.Count).ToArray();
@@ -140,8 +146,9 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         var naming = restoredNaming ?? new NamePartsDefinition([new(NamePartKind.OriginalName)], NamePartSeparator.Hyphen);
         _separator = naming.Separator;
         NameParts = new ObservableCollection<NamePart>(naming.Parts);
-        NameParts.CollectionChanged += (_, _) => { _revision++; Refresh(); };
-        Refresh();
+        NameParts.CollectionChanged += (_, _) => { _revision++; Refresh(); if (!_batchPreferences) PreferencesChanged?.Invoke(); };
+        if (preferences is not null) ApplyPreferences(preferences, refresh: false);
+        if (!deferInitialValidation) Refresh();
     }
 
     // A worker owns this detached snapshot. No live collection, mutable preflight
@@ -157,6 +164,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _sourceIdentities = source._sourceIdentities.ToArray(); _useRanges = source._useRanges.ToArray();
         _rangesGloballyEnabled = source._rangesGloballyEnabled; _includeNoSubclipSources = source._includeNoSubclipSources;
         _destination = source._destination; _destinationMode = source._destinationMode;
+        _explicitDestination = source._explicitDestination; _checkDestination = source._checkDestination;
+        _draftError = source._draftError;
         _createSubfolder = source._createSubfolder; _subfolderName = source._subfolderName;
         _separator = source._separator; _container = source._container; _codec = source._codec;
         _resolution = source._resolution; _encoding = source._encoding; _overwrite = source._overwrite;
@@ -173,6 +182,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         if (_publishValidation is not null) return;
         _planningGate = new(1, 1);
         _publishValidation = publish;
+        _checkDestination = true;
         Refresh();
     }
 
@@ -186,8 +196,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     }
 
     public ObservableCollection<NamePart> NameParts { get; }
-    public IReadOnlyList<ExportLutChoice> CameraChoices { get; }
-    public IReadOnlyList<ExportLutChoice> CreativeChoices { get; }
+    public IReadOnlyList<ExportLutChoice> CameraChoices { get; private set; }
+    public IReadOnlyList<ExportLutChoice> CreativeChoices { get; private set; }
     public IReadOnlyList<JobIssue> Issues => _plan is null ? [] : _plan.Issues.Concat(_plan.Items.SelectMany(x => x.Issues)).ToList();
     public IReadOnlyList<JobIssue> Errors => Issues.Where(x => x.Severity == JobIssueSeverity.Error).ToList();
     public IReadOnlyList<JobIssue> Warnings => Issues.Where(x => x.Severity == JobIssueSeverity.Warning).ToList();
@@ -298,8 +308,78 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     public bool AdvancedExpanded { get => _advancedExpanded; set => Set(ref _advancedExpanded, value); }
     public ExportLutChoice Camera { get => _camera; set => Set(ref _camera, value); }
     public ExportLutChoice Creative { get => _creative; set => Set(ref _creative, value); }
-    private ExportDestination CurrentDestination() => new(DestinationMode, Destination,
-        CreateSubfolder ? SubfolderName : null);
+    public string ContextualDestination => _handoff.Inputs.FirstOrDefault() is { } first
+        ? Path.GetDirectoryName(first.SourcePath) ?? "" : "";
+
+    public void EditDestination(string value)
+    {
+        _explicitDestination = true;
+        Destination = value;
+        PreferencesChanged?.Invoke();
+    }
+
+    public void UpdateConfiguration(Action edit)
+    {
+        _batchPreferences = true;
+        try { edit(); }
+        finally { _batchPreferences = false; }
+        Refresh();
+        PreferencesChanged?.Invoke();
+    }
+
+    public void SetDraftError(string? error) => Set(ref _draftError, error, "DraftError");
+
+    public ExportPreferences CapturePreferences() => new()
+    {
+        DestinationMode = DestinationMode, SpecificFolder = _explicitDestination ? Destination : null,
+        CreateSubfolder = CreateSubfolder, SubfolderName = SubfolderName,
+        NameParts = NameParts.ToArray(), Separator = Separator, Container = Container,
+        Codec = Codec, Resolution = Resolution, Encoding = Encoding,
+        Camera = CaptureLut(Camera), Creative = CaptureLut(Creative)
+    };
+
+    private static ExportLutPreference CaptureLut(ExportLutChoice choice) => new(choice.Mode,
+        choice.Resource?.LutId, choice.Resource?.ContentSha256, choice.Resource?.DisplayName);
+
+    public void ApplyPreferences(ExportPreferences value, bool refresh = true)
+    {
+        value.Validate();
+        _batchPreferences = true;
+        try
+        {
+            _destinationMode = value.DestinationMode; _explicitDestination = value.SpecificFolder is not null;
+            _destination = value.SpecificFolder ?? ContextualDestination;
+            _createSubfolder = value.CreateSubfolder; _subfolderName = value.SubfolderName;
+            _separator = value.Separator; _container = value.Container; _codec = value.Codec;
+            _resolution = value.Resolution; _encoding = value.Encoding; _overwrite = false;
+            _draftError = null;
+            _camera = RestoreLut(value.Camera, CameraChoices);
+            _creative = RestoreLut(value.Creative, CreativeChoices);
+            if (!CameraChoices.Contains(_camera)) CameraChoices = CameraChoices.Append(_camera).ToArray();
+            if (!CreativeChoices.Contains(_creative)) CreativeChoices = CreativeChoices.Append(_creative).ToArray();
+            NameParts.Clear(); foreach (var part in value.NameParts) NameParts.Add(part);
+            _revision++;
+        }
+        finally { _batchPreferences = false; }
+        if (refresh) Refresh();
+    }
+
+    private static ExportLutChoice RestoreLut(ExportLutPreference value, IReadOnlyList<ExportLutChoice> choices)
+    {
+        if (value.Mode != ColorStagePolicyMode.Override) return choices.First(c => c.Mode == value.Mode);
+        return choices.FirstOrDefault(c => c.Resource is { } r && r.LutId == value.LutId
+                && r.ContentSha256 == value.ContentSha256)
+            ?? new ExportLutChoice($"{value.DisplayName ?? "Saved LUT"} (unavailable)", value.Mode,
+                new(value.LutId!.Value, value.DisplayName ?? "Saved LUT", "", value.ContentSha256!,
+                    LutDimension.ThreeDimensional, 0, LutResourceAvailability.Missing,
+                    Diagnostic: "The saved LUT is unavailable or its content has changed. Choose an available LUT."));
+    }
+    private ExportDestination CurrentDestination()
+    {
+        if (CreateSubfolder && string.IsNullOrWhiteSpace(SubfolderName))
+            throw new ArgumentException("Enter a subfolder name or turn off Create subfolder.");
+        return new(DestinationMode, Destination, CreateSubfolder ? SubfolderName : null);
+    }
 
     public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata, IReadOnlyList<string?>? diagnostics = null)
     {
@@ -497,6 +577,13 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             return item with { Issues = item.Issues.Where(value => value.Code != "encoding.materialization-unsupported").Append(issue).ToList() };
         }).ToList() };
         var extra = new List<JobIssue>();
+        if (_draftError is not null) extra.Add(new("export.input", _draftError, JobIssueSeverity.Error));
+        if (_checkDestination)
+            foreach (var directory in ActiveInputs().Select(value => destination.ResolveDirectory(value.input.SourcePath))
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+                if (ExportDestinationAvailability.Check(directory, DestinationMode == ExportDestinationMode.SpecificFolder
+                        ? Destination : null) is { } problem)
+                    extra.Add(new("export.destination-unavailable", problem, JobIssueSeverity.Error));
         if (ActiveInputs().Any(value => SourcePending(value.index)) || _encoder is null)
             extra.Add(new("export.metadata-pending", "Source metadata is still loading. Export will be available after preflight completes.", JobIssueSeverity.Error));
         if (_preflightError is not null)
@@ -546,6 +633,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
 
     private void Refresh()
     {
+        if (_batchPreferences) return;
         if (_planningClosed) return;
         if (_publishValidation is not null)
         {
@@ -773,7 +861,9 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         }
     }).ToArray();
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
-    { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; _revision++; Refresh(); OnChanged(name); }
+    { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; _revision++; Refresh(); OnChanged(name);
+        if (!_batchPreferences && name is not nameof(OverwriteExisting) and not nameof(AdvancedExpanded)
+            and not nameof(IncludeNoSubclipSources) and not "DraftError") PreferencesChanged?.Invoke(); }
     private void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new(name));
     public event PropertyChangedEventHandler? PropertyChanged;
 

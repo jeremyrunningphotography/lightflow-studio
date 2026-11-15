@@ -18,12 +18,18 @@ public partial class ExportDialog : Window
     private bool _initializing = true;
     private System.Windows.Point _dragStart;
     private int? _dragPartIndex;
+    private readonly ExportPreferenceSession? _preferences;
+    private bool _destinationEdited;
+    private bool _allowClose;
+    private bool _closing;
+    private bool _accepted;
 
     internal ExportDialog(ExportDialogModel model, ExportJobCoordinator coordinator, string? ffprobe,
-        ExportPreflightCoordinator? preflight = null)
+        ExportPreflightCoordinator? preflight = null, ExportPreferenceSession? preferences = null)
     {
         _model = model; _coordinator = coordinator; _ffprobe = ffprobe; _preflight = preflight;
         InitializeComponent();
+        _preferences = preferences;
         Title = ExportHeading.Text = model.Title;
         FilesToExportHeading.Text = $"Files to Export · {model.Inputs.Count}";
         System.Windows.Automation.AutomationProperties.SetName(FilesToExportScroll, model.FilesAutomationName);
@@ -32,16 +38,18 @@ public partial class ExportDialog : Window
         SpecificFolderRadio.IsChecked = model.DestinationMode == ExportDestinationMode.SpecificFolder;
         SameFolderRadio.IsChecked = model.DestinationMode == ExportDestinationMode.SameFolderAsOriginal;
         CreateSubfolderCheck.IsChecked = model.CreateSubfolder;
+        SubfolderText.Text = model.SubfolderName;
+        DestinationText.ItemsSource = preferences?.RecentFolders;
         AddPartCombo.ItemsSource = ExportPresentation.NameParts; AddPartCombo.SelectedIndex = 0;
         SeparatorCombo.ItemsSource = ExportPresentation.Separators; Select(SeparatorCombo, ExportPresentation.Separators, model.Separator);
         ContainerCombo.ItemsSource = ExportPresentation.Containers; Select(ContainerCombo, ExportPresentation.Containers, model.Container);
         CodecCombo.ItemsSource = ExportPresentation.Codecs; Select(CodecCombo, ExportPresentation.Codecs, model.Codec);
         RateControlCombo.ItemsSource = ExportPresentation.RateControls; Select(RateControlCombo, ExportPresentation.RateControls, model.Encoding.RateControl);
         ResolutionCombo.ItemsSource = ExportPresentation.Resolutions; Select(ResolutionCombo, ExportPresentation.Resolutions, model.Resolution);
-        FrameRateCombo.ItemsSource = new[] { "Same as Source", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60" }; FrameRateCombo.SelectedIndex = 0;
+        FrameRateCombo.ItemsSource = new[] { "Same as Source", "23.976", "24", "25", "29.97", "30", "50", "59.94", "60" }; FrameRateCombo.SelectedIndex = Array.IndexOf(FrameRates, model.Encoding.FrameRate);
         AudioCombo.ItemsSource = new[] { "Use source audio", "AAC", "No audio" }; AudioCombo.SelectedIndex = (int)model.Encoding.AudioMode;
-        CameraCombo.ItemsSource = model.CameraChoices; CameraCombo.SelectedIndex = 0;
-        CreativeCombo.ItemsSource = model.CreativeChoices; CreativeCombo.SelectedIndex = 0;
+        CameraCombo.ItemsSource = model.CameraChoices; CameraCombo.SelectedItem = model.Camera;
+        CreativeCombo.ItemsSource = model.CreativeChoices; CreativeCombo.SelectedItem = model.Creative;
         OverwriteExistingCheck.IsChecked = model.OverwriteExisting;
         if (model.IsSubclipExport)
         {
@@ -59,11 +67,30 @@ public partial class ExportDialog : Window
         QualitySlider.Value = ExportPresentation.ConstantQuality(model.Encoding.Quality); TargetText.Text = model.Encoding.TargetBitrateMbps.ToString(); MaxText.Text = model.Encoding.MaxBitrateMbps.ToString(); CbrText.Text = model.Encoding.TargetBitrateMbps.ToString(); AqStrengthSlider.Value = ExportPresentation.AqStrength(model.Encoding.AqStrength);
         SpatialAqCheck.IsChecked = model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = model.Encoding.TemporalAq; DeinterlaceCheck.IsChecked = model.Encoding.Deinterlace; FastStartCheck.IsChecked = model.Encoding.FastStart;
         _model.PropertyChanged += ModelChanged;
+        _model.PreferencesChanged += SavePreferences;
+        if (_preferences is not null) _preferences.SaveStateChanged += PreferenceSaveChanged;
+        Closing += async (_, e) =>
+        {
+            if (_allowClose || _preferences is null) return;
+            e.Cancel = true;
+            if (_closing) return;
+            _closing = true;
+            IsEnabled = false;
+            await System.Windows.Threading.Dispatcher.Yield();
+            CommitDestination();
+            await _preferences.FlushAsync();
+            if (_preferences.SaveError is { } error)
+                NoticeDialog.Show(this, "Export preferences", "Preferences were not saved", error);
+            _allowClose = true;
+            if (_accepted) DialogResult = true; else Close();
+        };
         _model.EnableBackgroundValidation(action => Dispatcher.BeginInvoke(action));
         Closed += (_, _) =>
         {
             _closed = true;
             _model.PropertyChanged -= ModelChanged;
+            _model.PreferencesChanged -= SavePreferences;
+            if (_preferences is not null) _preferences.SaveStateChanged -= PreferenceSaveChanged;
             _model.CloseValidation();
             _preflightCancellation.Cancel();
         };
@@ -80,6 +107,88 @@ public partial class ExportDialog : Window
                 Sync();
             }
         };
+    }
+
+    private static readonly double[] FrameRates = [0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+    private void SavePreferences()
+    {
+        if (_initializing || _closed || _preferences is null) return;
+        _preferences.Update(_model.CapturePreferences());
+        ResetDefaultsButton.IsEnabled = _preferences.HasOverrides;
+    }
+    private void PreferenceSaveChanged() => Dispatcher.BeginInvoke(() =>
+    {
+        if (!_closed) QueueError.Text = _preferences?.SaveError ?? "";
+    });
+
+    private void Destination_Changed(object sender, TextChangedEventArgs e)
+    {
+        // Applying the editable template raises TextChanged after construction.
+        // Only real editor input commits a suggestion; Browse/MRU commit explicitly.
+        if (_initializing || !DestinationText.IsKeyboardFocusWithin) return;
+        _destinationEdited = true;
+        _model.EditDestination(DestinationText.Text);
+        SyncPreflightStatus();
+    }
+    private void Destination_Selected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializing || DestinationText.SelectedItem is not string path) return;
+        _initializing = true; DestinationText.Text = path; _initializing = false;
+        _destinationEdited = true; _model.EditDestination(path); CommitDestination(); Sync();
+    }
+    private void Destination_Commit(object sender, KeyboardFocusChangedEventArgs e)
+    { if (!DestinationText.IsKeyboardFocusWithin) CommitDestination(); }
+    private void Destination_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    { if (e.Key == Key.Enter && !DestinationText.IsDropDownOpen) { CommitDestination(); e.Handled = true; } }
+    private void CommitDestination()
+    {
+        if (!_destinationEdited || _preferences is null) return;
+        _destinationEdited = false;
+        _preferences.CommitFolder(DestinationText.Text);
+        _initializing = true;
+        var text = DestinationText.Text;
+        DestinationText.ItemsSource = _preferences.RecentFolders;
+        DestinationText.Text = text;
+        _initializing = false;
+    }
+
+    private void ResetDefaults_Click(object sender, RoutedEventArgs e)
+    {
+        if (_preferences is null) return;
+        _initializing = true;
+        _destinationEdited = false;
+        _preferences.Reset();
+        _model.ApplyPreferences(_preferences.Defaults);
+        RestoreControls();
+        _initializing = false;
+        Sync();
+    }
+
+    private void RestoreControls()
+    {
+        DestinationText.Text = _model.Destination;
+        SpecificFolderRadio.IsChecked = _model.DestinationMode == ExportDestinationMode.SpecificFolder;
+        SameFolderRadio.IsChecked = _model.DestinationMode == ExportDestinationMode.SameFolderAsOriginal;
+        CreateSubfolderCheck.IsChecked = _model.CreateSubfolder; SubfolderText.Text = _model.SubfolderName;
+        Select(SeparatorCombo, ExportPresentation.Separators, _model.Separator);
+        Select(ContainerCombo, ExportPresentation.Containers, _model.Container);
+        Select(CodecCombo, ExportPresentation.Codecs, _model.Codec);
+        Select(ResolutionCombo, ExportPresentation.Resolutions, _model.Resolution);
+        Select(RateControlCombo, ExportPresentation.RateControls, _model.Encoding.RateControl);
+        FrameRateCombo.SelectedIndex = Array.IndexOf(FrameRates, _model.Encoding.FrameRate);
+        AudioCombo.SelectedIndex = (int)_model.Encoding.AudioMode;
+        CameraCombo.ItemsSource = _model.CameraChoices; CameraCombo.SelectedItem = _model.Camera;
+        CreativeCombo.ItemsSource = _model.CreativeChoices; CreativeCombo.SelectedItem = _model.Creative;
+        Select(TuneCombo, ExportPresentation.Tunes, _model.Encoding.Tune);
+        Select(MultipassCombo, ExportPresentation.MultipassModes, _model.Encoding.Multipass);
+        Select(PixelFormatCombo, ExportPresentation.PixelFormats, _model.Encoding.PixelFormat);
+        Select(PresetCombo, ExportPresentation.EncoderPresets, _model.Encoding.EncoderPreset);
+        QualitySlider.Value = _model.Encoding.Quality; AqStrengthSlider.Value = _model.Encoding.AqStrength;
+        TargetText.Text = CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString();
+        MaxText.Text = _model.Encoding.MaxBitrateMbps.ToString();
+        SpatialAqCheck.IsChecked = _model.Encoding.SpatialAq; TemporalAqCheck.IsChecked = _model.Encoding.TemporalAq;
+        DeinterlaceCheck.IsChecked = _model.Encoding.Deinterlace; FastStartCheck.IsChecked = _model.Encoding.FastStart;
+        OverwriteExistingCheck.IsChecked = false;
     }
 
     private void ConstrainToCurrentWorkArea()
@@ -157,6 +266,14 @@ public partial class ExportDialog : Window
     private void Configuration_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing) ReadControls(); }
     private void ReadControls()
     {
+        if (RateControlCombo.SelectedItem is ExportChoice<RateControlMode> mode && mode.Value != _model.Encoding.RateControl)
+        {
+            _initializing = true;
+            TargetText.Text = CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString();
+            _initializing = false;
+        }
+        _model.UpdateConfiguration(() =>
+        {
         _model.DestinationMode = SameFolderRadio.IsChecked == true
             ? ExportDestinationMode.SameFolderAsOriginal : ExportDestinationMode.SpecificFolder;
         _model.Destination = DestinationText.Text; _model.CreateSubfolder = CreateSubfolderCheck.IsChecked == true; _model.SubfolderName = SubfolderText.Text;
@@ -168,12 +285,23 @@ public partial class ExportDialog : Window
         var frameRates = new[] { 0d, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 };
         var encoding = _model.Encoding with { RateControl = (RateControlCombo.SelectedItem as ExportChoice<RateControlMode>)?.Value ?? _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = (TuneCombo.SelectedItem as ExportChoice<EncoderTune>)?.Value ?? _model.Encoding.Tune, Multipass = (MultipassCombo.SelectedItem as ExportChoice<MultipassMode>)?.Value ?? _model.Encoding.Multipass, PixelFormat = (PixelFormatCombo.SelectedItem as ExportChoice<VideoPixelFormat>)?.Value ?? _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };
         if (encoding.RateControl == RateControlMode.ConstantQuality) encoding = encoding with { Quality = ExportPresentation.ConstantQuality((int)Math.Round(QualitySlider.Value)) };
-        if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr)) encoding = encoding with { TargetBitrateMbps = cbr };
-        else if (int.TryParse(TargetText.Text, out var target)) encoding = encoding with { TargetBitrateMbps = target };
-        if (int.TryParse(MaxText.Text, out var max)) encoding = encoding with { MaxBitrateMbps = max };
+        if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr) && cbr is >= 1 and <= 500) encoding = encoding with { TargetBitrateMbps = cbr };
+        else if (int.TryParse(TargetText.Text, out var target) && target is >= 1 and <= 500) encoding = encoding with { TargetBitrateMbps = target };
+        if (int.TryParse(MaxText.Text, out var max) && max is >= 1 and <= 1000) encoding = encoding with { MaxBitrateMbps = max };
         if (PresetCombo.SelectedItem is ExportChoice<int> preset) encoding = encoding with { EncoderPreset = preset.Value };
         encoding = encoding with { AqStrength = ExportPresentation.AqStrength((int)Math.Round(AqStrengthSlider.Value)) };
-        _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded; Sync();
+        _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded;
+        var numericError = encoding.RateControl switch
+        {
+            RateControlMode.VariableBitrate when !int.TryParse(TargetText.Text, out var t) || t is < 1 or > 500
+                || !int.TryParse(MaxText.Text, out var m) || m is < 1 or > 1000 => "Enter a target bitrate from 1 to 500 and maximum bitrate from 1 to 1000 Mbps.",
+            RateControlMode.ConstantBitrate when !int.TryParse(CbrText.Text, out var b) || b is < 1 or > 500
+                => "Enter a CBR bitrate from 1 to 500 Mbps.",
+            _ => null
+        };
+        _model.SetDraftError(numericError);
+        });
+        Sync();
     }
     private void Sync()
     {
@@ -186,6 +314,7 @@ public partial class ExportDialog : Window
         NamePreview.Text = _model.PreviewName; PathPreview.Text = _model.PreviewPath;
         PathPreview.ToolTip = OutputExampleBorder.ToolTip = _model.PreviewPath;
         SpecificFolderPanel.IsEnabled = _model.DestinationMode == ExportDestinationMode.SpecificFolder;
+        ResetDefaultsButton.IsEnabled = _preferences?.HasOverrides == true;
         SubfolderText.IsEnabled = _model.CreateSubfolder;
         ExtensionPreview.Text = _model.RepresentativeExtension + (_model.HasHeterogeneousExtensions ? "  (varies)" : "");
         ExtensionPreview.ToolTip = _model.ExtensionHelp;
@@ -197,7 +326,7 @@ public partial class ExportDialog : Window
         MaxPrimaryLabel.Visibility = MaxText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         CbrPrimaryLabel.Visibility = CbrText.Visibility = cbr ? Visibility.Visible : Visibility.Collapsed;
         AqSettingLayout.IsEnabled = ExportPresentation.IsAqStrengthEnabled(SpatialAqCheck.IsChecked == true, TemporalAqCheck.IsChecked == true);
-        if (cbr && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
+        if (cbr && !CbrText.IsKeyboardFocusWithin && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,
             AdvancedExpander.IsExpanded ? "Advanced export settings expanded" : "Advanced export settings collapsed");
@@ -230,7 +359,11 @@ public partial class ExportDialog : Window
             dialog.InitialDirectory = start;
             dialog.SelectedPath = start;
         }
-        if (dialog.ShowDialog() == Forms.DialogResult.OK) DestinationText.Text = dialog.SelectedPath;
+        if (dialog.ShowDialog() == Forms.DialogResult.OK)
+        {
+            DestinationText.Text = dialog.SelectedPath;
+            _destinationEdited = true; _model.EditDestination(dialog.SelectedPath); CommitDestination();
+        }
     }
     private void AddPart_Click(object sender, RoutedEventArgs e) { if (AddPartCombo.SelectedItem is ExportChoice<NamePartKind> choice) _model.AddPart(choice.Value); Sync(); }
     private void RemovePart_Click(object sender, RoutedEventArgs e) { if (((FrameworkElement)sender).DataContext is ExportNamePartChip chip) { _model.RemovePart(chip.Index); Sync(); } }
@@ -300,7 +433,7 @@ public partial class ExportDialog : Window
         if (_submitting || !_model.CanExport) return;
         _submitting = true;
         ExportButton.IsEnabled=false; QueueError.Text="";
-        try { var plan=await _model.MaterializeAcceptedPlanAsync(); if(!plan.IsValid) { Sync(); return; } _coordinator.Queue(plan); DialogResult=true; }
+        try { var plan=await _model.MaterializeAcceptedPlanAsync(); if(!plan.IsValid) { Sync(); return; } _coordinator.Queue(plan); _accepted = true; if (_preferences is null) DialogResult=true; else Close(); }
         catch(Exception ex) { if (!_closed) QueueError.Text=ex.Message; }
         finally { _submitting = false; if (!_closed) SyncPreflightStatus(); }
     }

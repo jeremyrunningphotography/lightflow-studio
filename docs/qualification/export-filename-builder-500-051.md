@@ -183,3 +183,34 @@ Per the owner's conditional gate, stop here. No PR/push/merge, final packaging,
 exact-head CI or post-merge CI; issue #500 stays open / Review and parent #491
 stays open. Historical I02 package/GPU PASS evidence remains historical, not a
 substitute for final gates. Owner/environment review is required before resuming.
+
+## Owner-approved local exception and release reconciliation — 2026-11-15
+
+Owner explicitly approves proceeding with a documented local qualification
+exception for the twelve clipboard failures reproduced on unchanged release.
+The prior full result remains **2589 PASS / 12 FAIL / 8 SKIP**, not relabeled PASS.
+Focused279 PASS /1 existing opt-in SKIP and companion90/90 PASS remain evidence.
+The same category is tracked independently by #504. Exact causal mechanism and
+clipboard/OLE root cause remain unproven. Original failed logs/TRX and baseline
+comparison are retained. The exception supersedes the historical stop above only;
+it does not waive required exact-head CI or local package/GPU checks. AGENTS.md
+contains no explicit prohibition of this owner-authorized local exception. No
+production change, test exclusion/weakening, clipboard or CI modification, or
+further local full-suite retry solely for green is made.
+
+Verified #505 merge675182c and #506 merge80d4fca. Current release80d4fca was merged
+as2b1ef824. Only registry append conflicts required resolution; peer records were
+preserved. The four Export production files match accepted54f6a1a byte-for-byte;
+all other application files match release80d4fca. The combined production tree
+is58e11914c1e105e7276330d35d8d15874c724f1f. The complete production tree differs
+from acceptedI02 only by already-merged Player/Browser changes; this PR introduces
+none of those changes relative to its release target. No meaningful production
+reconciliation was needed. #496/#497 behavior and tests remain intact.
+
+Owner authorizes one implementation PR and normal merge after green final
+package/GPU and exact-head full/companion/installer/portable CI. No further
+hands-on acceptance or merge approval is needed for unchanged accepted behavior.
+Auto-merge remains disabled. Required red/inconclusive CI, package or GPU gates
+stop the task. Actual head/merge/post-merge CI and Project/registry closeout belong
+in #500/PR discussion when available. No administrative PR, release/tag or main
+forward-port. #503 contract remains established; persistence/reset unimplemented.

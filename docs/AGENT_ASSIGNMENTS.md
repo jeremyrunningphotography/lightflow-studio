@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01/I02 accepted 20/20; final full gate red (12 clipboard failures, reproduced on unchanged release); stopped before PR/merge; accepted production preserved |
+| 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491; infrastructure #504; defaults contract #503 | I01/I02 accepted 20/20; accepted Export preserved on current release; owner-approved local clipboard exception; prepared closeout, one PR/normal merge conditional on green package/GPU/exact-head CI; actual provenance in #500/PR |
 | 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
@@ -319,3 +319,28 @@ squash/rebase or auto-merge. Prepared closeout is not Done/merged; actual merge,
 post-merge CI, issue Completed/Project Done and branch retirement provenance
 belongs in #499/its single PR. Parent491 and infrastructure504 stay open.
 No release/tag/main forward-port. Historical maintenance: Not warranted.
+
+### Assignment 051 — approved local exception and prepared closeout (2026-11-15)
+
+Owner explicitly approves the documented local qualification exception for all
+12 Clipboard.Clear failures reproduced on unchanged release. They remain failed
+local evidence, independently tracked by #504; the underlying cause is unproven.
+This supersedes the historical stop above, without waiving required PR CI or
+package/GPU gates. No tests, CI, clipboard infrastructure or production workaround
+was changed. No further full-suite retry solely to obtain a green local result.
+Owner acceptance remains I01/I02 20/20 PASS, zero observations.
+
+Release reconciled with normally merged #505 (675182c) and #506 (80d4fca).
+Reconciliation commit2b1ef824 preserves all accepted Export file blobs from54f6a1a;
+all other production matches release80d4fca. Combined production tree is
+58e11914c1e105e7276330d35d8d15874c724f1f. Registry-only append conflicts retained
+all peer records; no other agent record was revised. Retired047–050 not contacted.
+
+One implementation PR targets release/1.0. Normal merge is conditionally authorized
+only after green exact-head full Windows/companion/package CI and local package/GPU
+qualification, with auto-merge disabled. Prepared closeout does not claim merge.
+Final merge/post-merge CI and actual completion provenance belong in #500/PR
+metadata, without an administrative PR. #491 stays open for remaining findings;
+#504 separate/open, #503 open/unimplemented with EXPORT_FILENAME_DEFAULTS.md as its
+established contract. No release/tag/main forward-port or production Catalog access.
+Historical maintenance: Not warranted for this bounded defect/default refinement.

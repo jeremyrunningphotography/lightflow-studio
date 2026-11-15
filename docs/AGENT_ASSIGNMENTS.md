@@ -13,6 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
@@ -143,6 +144,42 @@ production change/regression requires review. See
 [qualification](qualification/export-active-in-out-497-048.md).
 048 final local qualification: focused 263 PASS / 1 opt-in SKIP; unfiltered Release 2568 PASS / 0 FAIL / 8 opt-in SKIP; packaged-tools export/safety 12 PASS; package startup/shutdown/Catalog/dependencies PASS. No new failures or production/test changes. Historical I01 Jobs access-denied evidence retained. Single-PR exact-head CI, explicit merge authorization, normal merge and post-merge reconciliation remain gates; not merged/Done.
 
+## Assignment 050 reservation — 2026-11-13
+
+LF-WIN-RES-050 — Browser Select All, issue #499, tracking #491. Owner allocated; absent from fetched main 46201b4 and release/1.0 90f4f94 registries. Independent full clone C:\Git\Agents\LF-WIN-RES-050-BrowserSelectAll; branch codex/499-browser-select-all-research. Owner approved guarded Browser-level implementation on 2026-11-13; local implementation/qualification underway. Research evidence preserved; owner packaged acceptance remains required. No PR, merge, release or main forward-port authorized. Concurrent 048 Export Active In/Out and 049 Player Frame Stepping retain ownership. Reservation local pending normal authorized integration.
+
+## Assignment 050 I02 — owner focus corrections
+
+I01 d133db2 accepted 12 PASS, 2 NEEDS WORK, 0 FAIL. Same identity, clone and branch. Owner authorized Search Enter handoff and neutral Inspector focus only; accepted I01 behaviors/evidence preserved. Current release ca929e5 remains compatible; no unnecessary rebase. Focused 172 PASS; I02 full/package and separate owner acceptance required. No PR, merge, release or main forward-port authorized.
+
+## Assignment 050 I03 — successful Apply completion
+
+Owner I02: 7 PASS / 1 FAIL; neutral Inspector-to-Browser requirement superseded. Inspector retains ownership on neutral clicks; Browser focus returns only after successful explicit Apply, respecting later focus/context changes and preserving selection/persistence. Current release 293cd4b reconciled by merge d0d8bea; #501/#502 merged. Prior source/evidence retained. Focused 266 PASS; full/package and I03 owner acceptance remain gates. No PR, release/tag or main forward-port.
+
+## Assignment 050 — accepted I03 and prepared closeout (2026-11-13)
+
+Owner accepted I03 `48316bdfa0b923553ece346d7733efaa34793315`: **8/8 PASS,
+no observations**. Production tree `79d5730fdeb59d61f9c5e4b2d9b7df6546bbb619`
+and test tree `8e45234de554c0b56641358be1c10941794187c7` are preserved.
+Earlier I01/I02 checkpoints above are historical; the neutral Inspector-to-Browser
+requirement was superseded by Inspector ownership and successful explicit Apply
+handoff. Current release `293cd4b` is already an ancestor of accepted I03.
+Final qualification and one implementation PR targeting `release/1.0` are authorized.
+Normal merge (no squash/rebase, auto-merge disabled) is conditionally authorized
+only after green required exact-head CI, packaging and source/regression gates.
+Prepared closeout is not a claim of merge or Done. Post-merge CI, issue/Project
+reconciliation and safe branch retirement remain required. Preserve all evidence
+and isolated data; no release/tag/main forward-port. Historical maintenance:
+**Not warranted**, a bounded focus-routing correction.
+
+050 final qualification red gate: focused **357/357**, companion **90/90**;
+unfiltered Release **2613 PASS / 13 FAIL / 8 opt-in SKIP**, duration5m53s.
+One common MainWindow startup assertion failed with task-log UnauthorizedAccessException
+in ExportQueueStore.Save; twelve folder-context fixtures failed Clipboard.Clear
+with CLIPBRD_E_CANT_OPEN. Native overlap with049 was reported during the run;
+causality is unproven. All raw evidence retained. No retry, production/test change,
+packaging, PR or merge proceeds past this gate. Owner I03 acceptance is preserved;
+issue499 remains open/Review, parent491 incomplete. Branch is unmerged and retained.
 
 ## Assignment 049 — accepted focus and conditional final closeout
 
@@ -184,3 +221,47 @@ No test/configuration/production changes or another local full retry are authori
 Only049's record is updated; unrelated assignment records remain as fetched.
 Completion is prepared for this single PR. Actual normal merge/post-merge CI and
 Done provenance are recorded in #498/PR once conditions hold; no administrative PR.
+
+## Assignment 050 — bounded recovery stopped (2026-11-14)
+
+Owner authorized independent startup classification and supported clipboard exception,
+not a waiver of an unexplained startup failure. Current release `675182c` (#505
+merged) reconciled as `a9155ecbcd0af5e88fcbbd003a6901f5574a76d5`; only registry
+conflicts required resolution, preserving both records. The five accepted Browser
+production files and original regression test remain byte-identical to I03; the
+release-to-feature production patch is SHA-256 identical before/after reconciliation.
+
+Under acknowledged exclusive ownership with051, the unchanged-release common
+startup probe passed twice (1/1 each); accepted probe plus original case passed
+twice (2/2 each). The startup probe preserves the original fixture setup/assertions;
+release does not contain the new #499 feature case. Two additional runs were used,
+within the explicit bound. No full suite, clipboard tests or assertion changes.
+Temporary diagnostic source removed; no native processes remain; window released.
+
+All twelve original clipboard failures match #504 setup line37 /0x800401D0, before
+command assertions, with identical test blob across sources. Their separate local
+exception is supported by that signature and049's baseline evidence, without a
+confirmed root-cause claim. The additional startup UnauthorizedAccessException
+was not reproduced and remains independently inconclusive; isolated passes do
+not prove it unrelated/harmless. Owner's startup decision gate applies: no package,
+PR, CI, merge or further repetition. #499 remains OPEN/Review; #491 incomplete;
+#504 stays separate/open. Original acceptance and all evidence/data retained.
+
+## Assignment 050 — owner-approved exception and single-PR closeout (2026-11-14)
+
+Owner explicitly approves the documented local exception for the unresolved,
+non-reproduced Export queue startup failure and separately tracked #504 clipboard
+failures. This supersedes the prior local stop disposition, not the evidence.
+Original full2613/13/8 remains failed; isolated startup passes do not prove an
+environmental or harmless cause. No further full local retry or production/test/
+clipboard/Export workaround is authorized. I03 owner8/8 acceptance is preserved.
+
+Current release675182c (#505 merged) is incorporated. Accepted Browser feature
+blobs and release-to-feature production patch are unchanged. Complete final
+Windows package/keyboard smoke qualification and one implementation PR targeting
+release/1.0. Required exact-head full/companion/installer/portable CI must be green;
+otherwise stop. Normal merge is authorized only on all green gates, without
+squash/rebase or auto-merge. Prepared closeout is not Done/merged; actual merge,
+post-merge CI, issue Completed/Project Done and branch retirement provenance
+belongs in #499/its single PR. Parent491 and infrastructure504 stay open.
+No release/tag/main forward-port. Historical maintenance: Not warranted.

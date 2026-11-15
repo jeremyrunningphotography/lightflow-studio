@@ -13,7 +13,7 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
-| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; recovery reconciled release 675182c; bounded startup comparisons PASS but original cause inconclusive; stopped before package/PR/merge; evidence retained |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
 | 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
@@ -246,3 +246,22 @@ was not reproduced and remains independently inconclusive; isolated passes do
 not prove it unrelated/harmless. Owner's startup decision gate applies: no package,
 PR, CI, merge or further repetition. #499 remains OPEN/Review; #491 incomplete;
 #504 stays separate/open. Original acceptance and all evidence/data retained.
+
+## Assignment 050 — owner-approved exception and single-PR closeout (2026-11-14)
+
+Owner explicitly approves the documented local exception for the unresolved,
+non-reproduced Export queue startup failure and separately tracked #504 clipboard
+failures. This supersedes the prior local stop disposition, not the evidence.
+Original full2613/13/8 remains failed; isolated startup passes do not prove an
+environmental or harmless cause. No further full local retry or production/test/
+clipboard/Export workaround is authorized. I03 owner8/8 acceptance is preserved.
+
+Current release675182c (#505 merged) is incorporated. Accepted Browser feature
+blobs and release-to-feature production patch are unchanged. Complete final
+Windows package/keyboard smoke qualification and one implementation PR targeting
+release/1.0. Required exact-head full/companion/installer/portable CI must be green;
+otherwise stop. Normal merge is authorized only on all green gates, without
+squash/rebase or auto-merge. Prepared closeout is not Done/merged; actual merge,
+post-merge CI, issue Completed/Project Done and branch retirement provenance
+belongs in #499/its single PR. Parent491 and infrastructure504 stay open.
+No release/tag/main forward-port. Historical maintenance: Not warranted.

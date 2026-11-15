@@ -229,3 +229,34 @@ stop before packaging/PR/CI/merge; no further repetitions. Owner I03 acceptance
 remains8/8 with unchanged behavior, but its local full gate remains2613/13/8.
 #499 stays open/Review under491, #504 separate/open; no branch retirement/release/
 tag/main forward-port. Historical maintenance: Not warranted, bounded focus fix.
+
+## Owner-approved local exception and final delivery — 2026-11-14
+
+Owner explicitly approves proceeding with two accurately bounded local exceptions:
+1. The twelve Clipboard.Clear setup failures match #504; baseline evidence supports
+   a probable environmental contribution without a definitive root cause.
+2. The single ExportQueueStore.Save UnauthorizedAccess startup failure remains
+   unresolved and non-reproduced. No claim that it is environmental or harmless.
+
+This supersedes the earlier inconclusive-startup stop gate only by owner decision.
+All original full2613 PASS/13 FAIL/8 SKIP and bounded recovery records are preserved;
+no failure is converted to PASS, assertions/configuration changed, test disabled,
+Export persistence workaround introduced, or full local retry run for greenness.
+The accepted feature remains I03 owner8/8, no observations. No repeat hands-on
+acceptance or merge approval is needed if behavior and required gates stay intact.
+
+Current release675182c (#505 merged) is reconciled as a9155ec. Five Browser production
+files and the original routing regression blob are identical to accepted I03;
+release-to-feature production patches hash identically before/after reconciliation.
+No Player/Export/deferred functionality is introduced by #499. Final focused real
+WPF Browser/Inspector keyboard checks and required packaged startup/dependency/
+installer/portable gates precede the single PR. The original packaged hands-on
+acceptance remains the physical keyboard evidence for unchanged behavior.
+
+Required exact-head PR full Windows tests, companion tests and Windows packaging
+must all be green. Local exception does not waive CI. If CI or packaging fails,
+stop without merging. Owner authorizes normal merge only after all gates pass;
+no squash/rebase/auto-merge. Record merge and post-merge CI in issue/PR discussion,
+close #499 Completed/Project Done, keep #491/#504 open, retire only a fully merged
+task branch and preserve evidence. No administrative PR or release/main forward-port.
+Historical maintenance: Not warranted for this bounded focus correction.

@@ -33,6 +33,23 @@ public partial class MainWindow
         };
         _inspector.SeekMarker = marker => _playerViewerHost?.SeekMarkerAsync(marker) ?? Task.CompletedTask;
         HomeRightPanel.AddSurface("inspector", "Inspector", _inspector);
+        _inspector.BrowserFocusRequested += (_, _) =>
+        {
+            if (IsActive && HomeRightPanel.ActiveSurface == "inspector" && BrowserOwnsSelectAll(BrowserGridRows))
+                BrowserGridRows.Focus();
+        };
+        HomeRightPanel.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (e.Handled || Mouse.Captured is not null || HomeRightPanel.ActiveSurface != "inspector") return;
+            // Include the panel's neutral outer padding. Content handles its own background;
+            // tabs, editors and every other interactive control keep their pointer/focus behavior.
+            for (var node = e.OriginalSource as DependencyObject; node is not null; node = SelectionInputParent(node))
+            {
+                if (ReferenceEquals(node, HomeRightPanel)) { _inspector.Focus(); return; }
+                if (node is System.Windows.Controls.Control or System.Windows.Documents.Hyperlink ||
+                    node is UIElement { Focusable: true }) return;
+            }
+        };
         _compactJobsView = new CompactJobsView(this);
         HomeRightPanel.AddSurface("jobs", "Jobs", _compactJobsView);
         _inspector.OpenFolder = OpenInspectorFolderAsync;

@@ -5,7 +5,7 @@
  xmlns:sys="clr-namespace:System;assembly=System.Runtime"
  Title="Lightflow Studio" Icon="Assets/Branding/lightflow-icon-256x256.png"
  Height="900" Width="1440" MinHeight="720" MinWidth="1120" WindowStartupLocation="CenterScreen"
- Closing="Window_Closing" PreviewKeyDown="MainWindow_PreviewKeyDown" PreviewKeyUp="MainWindow_PreviewKeyUp">
+ Closing="Window_Closing" KeyDown="MainWindow_KeyDown" PreviewKeyDown="MainWindow_PreviewKeyDown" PreviewKeyUp="MainWindow_PreviewKeyUp">
  <Window.Resources>
   <sys:Double x:Key="BrowserRow2ControlHeight">34</sys:Double>
   <sys:Double x:Key="JobsToolbarControlHeight">34</sys:Double>
@@ -1091,7 +1091,7 @@
             <Grid Grid.Column="1" Margin="7,0,10,0">
              <TextBox x:Name="BrowserSearchBox" Background="Transparent" BorderThickness="0" Margin="0" Padding="0"
               VerticalAlignment="Center" ToolTip="Search filename or path within this scope (Ctrl+F)"
-              AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged"/>
+              AutomationProperties.Name="Search media" TextChanged="BrowserSearchBox_TextChanged" KeyDown="BrowserSearchBox_KeyDown"/>
              <TextBlock VerticalAlignment="Center" IsHitTestVisible="False" Foreground="{StaticResource MutedTextBrush}"
               Text="Search assets…" Visibility="{Binding Text, ElementName=BrowserSearchBox, Converter={StaticResource StringEmptyToVisibility}}"/>
             </Grid>

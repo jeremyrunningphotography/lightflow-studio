@@ -14,6 +14,8 @@ See [naming policy](../AGENTS.md#agent-assignment-naming).
 | Number | Agent ID | Short description | GitHub references | Assignment status |
 | --- | --- | --- | --- | --- |
 | 051 | LF-WIN-RES-051 | Export Filename Builder | Issue #500, parent #491 | I01/I02 accepted 20/20; final full gate red (12 clipboard failures, reproduced on unchanged release); stopped before PR/merge; accepted production preserved |
+| 050 | LF-WIN-RES-050 | Browser Select All | Issue #499, tracking #491 | I03 accepted 8/8; production preserved; owner-approved local startup/clipboard exception; final package and exact-head CI required; prepared closeout, conditional normal merge; final provenance in #499/PR |
+| 049 | LF-WIN-RES-049 | Player Frame Stepping | Issue #498, parent #491; infrastructure follow-up #504 | Owner accepted 8/8; focused358 PASS; accepted focus preserved; owner-approved local native/clipboard qualification exception documented; single release/1.0 implementation PR and normal merge require green exact-head CI/package gates; prepared closeout, final provenance in #498/PR; backward scrubbing deferred |
 | 048 | LF-WIN-DEV-048 | Export Active In/Out | [Issue #497](https://github.com/jeremyrunningphotography/lightflow-studio/issues/497), parent #491, dependency #496 | Owner accepted I01 8/8 PASS, zero observations at b268128; accepted production preserved; Windows focused 263, full 2568 and packaged-tools 12 PASS; package PASS; accepted production preserved; prepared closeout; one release/1.0 implementation PR/exact-head CI; explicit merge approval pending; not merged/Done |
 | 047 | LF-WIN-DEV-047 | Export Subclips Reliability | [Issue #496](https://github.com/jeremyrunningphotography/lightflow-studio/issues/496), [PR #501](https://github.com/jeremyrunningphotography/lightflow-studio/pull/501), tracking #491 | Done; owner accepted 10/10 PASS, zero observations; normal release/1.0 merge ca929e5; post-merge CI 43496848475 SUCCESS; #496 Completed / Project Done; accepted production preserved; local implementation branch retired; evidence retained; no release/main forward-port |
 | 046 | LF-WIN-DEV-046 | Windows Folder Context-Menu Safety | [Issue #492](https://github.com/jeremyrunningphotography/lightflow-studio/issues/492), tracking #491 | Owner accepted 17/17 PASS; qualification PASS; prepared closeout; exact-head CI and explicit merge authorization required; not merged/Done |
@@ -87,6 +89,24 @@ administrative PR. No main forward-port, other bug-bash fix, release/tag or
 production Catalog operation is authorized. Historical maintenance:
 **Not warranted** for a bounded targeting correction.
 
+## Assignment 049 — 2026-11-13
+
+Owner allocated LF-WIN-RES-049 for #498 research only. 049 absent from freshly cloned main/release registries and remote branch inventory; owner allocations 047 and 048 remain reserved. Independent full clone: C:\Git\Agents\LF-WIN-RES-049-PlayerFrameStepping; branch codex/498-player-frame-stepping-research; release base 90f4f94d72f4397325ba6547f486966044208a3f, tree 1b65a123ad0bdf81711c512859eddebe2cd5b79b. No production edits, PR, merge, release or production Catalog changes authorized. Stop at analysis and recommendation for owner review.
+
+
+## Assignment 049 — focus-only implementation authorized (2026-11-13)
+
+The owner approved only the confirmed playback-speed/Player keyboard-focus
+correction under #498. Existing identity, clone and research branch continue.
+Baseline release/1.0 ca929e586b929d721656a5ca5c5c5fb8fff5f905 includes #496 / #501.
+Issue scope updated before implementation; native parent #491 and Project #4
+In Progress / Player / P1 reconciled from authoritative issue/owner scope.
+No decoder, frame-step calculation, queue, scheduling, range or export changes.
+Backward latency, native EOF/VFR/duplicate-PTS/zero-boundary and teardown findings
+remain deferred; all prior ZIPs are preserved. Focused/full Windows tests,
+installer/portable packaging and isolated owner acceptance precede any PR.
+No PR, acceptance, merge or release is claimed. Historical maintenance:
+Not warranted for a bounded focus correction.
 ## Assignment 048 — reserved, investigation only (2026-11-13)
 
 LF-WIN-DEV-048 — Export Active In/Out; issue #497, bug bash #491,
@@ -178,3 +198,124 @@ Browser context fixtures. Bounded focused diagnostic and unchanged release
 `293cd4b9` comparison both reproduce 12 FAIL / 1 PASS. No fix, exclusion or
 production change was made. Final package, exact-head CI and merge remain unrun
 gates. See qualification record and final evidence. Branch/artifacts retained.
+## Assignment 050 reservation — 2026-11-13
+
+LF-WIN-RES-050 — Browser Select All, issue #499, tracking #491. Owner allocated; absent from fetched main 46201b4 and release/1.0 90f4f94 registries. Independent full clone C:\Git\Agents\LF-WIN-RES-050-BrowserSelectAll; branch codex/499-browser-select-all-research. Owner approved guarded Browser-level implementation on 2026-11-13; local implementation/qualification underway. Research evidence preserved; owner packaged acceptance remains required. No PR, merge, release or main forward-port authorized. Concurrent 048 Export Active In/Out and 049 Player Frame Stepping retain ownership. Reservation local pending normal authorized integration.
+
+## Assignment 050 I02 — owner focus corrections
+
+I01 d133db2 accepted 12 PASS, 2 NEEDS WORK, 0 FAIL. Same identity, clone and branch. Owner authorized Search Enter handoff and neutral Inspector focus only; accepted I01 behaviors/evidence preserved. Current release ca929e5 remains compatible; no unnecessary rebase. Focused 172 PASS; I02 full/package and separate owner acceptance required. No PR, merge, release or main forward-port authorized.
+
+## Assignment 050 I03 — successful Apply completion
+
+Owner I02: 7 PASS / 1 FAIL; neutral Inspector-to-Browser requirement superseded. Inspector retains ownership on neutral clicks; Browser focus returns only after successful explicit Apply, respecting later focus/context changes and preserving selection/persistence. Current release 293cd4b reconciled by merge d0d8bea; #501/#502 merged. Prior source/evidence retained. Focused 266 PASS; full/package and I03 owner acceptance remain gates. No PR, release/tag or main forward-port.
+
+## Assignment 050 — accepted I03 and prepared closeout (2026-11-13)
+
+Owner accepted I03 `48316bdfa0b923553ece346d7733efaa34793315`: **8/8 PASS,
+no observations**. Production tree `79d5730fdeb59d61f9c5e4b2d9b7df6546bbb619`
+and test tree `8e45234de554c0b56641358be1c10941794187c7` are preserved.
+Earlier I01/I02 checkpoints above are historical; the neutral Inspector-to-Browser
+requirement was superseded by Inspector ownership and successful explicit Apply
+handoff. Current release `293cd4b` is already an ancestor of accepted I03.
+Final qualification and one implementation PR targeting `release/1.0` are authorized.
+Normal merge (no squash/rebase, auto-merge disabled) is conditionally authorized
+only after green required exact-head CI, packaging and source/regression gates.
+Prepared closeout is not a claim of merge or Done. Post-merge CI, issue/Project
+reconciliation and safe branch retirement remain required. Preserve all evidence
+and isolated data; no release/tag/main forward-port. Historical maintenance:
+**Not warranted**, a bounded focus-routing correction.
+
+050 final qualification red gate: focused **357/357**, companion **90/90**;
+unfiltered Release **2613 PASS / 13 FAIL / 8 opt-in SKIP**, duration5m53s.
+One common MainWindow startup assertion failed with task-log UnauthorizedAccessException
+in ExportQueueStore.Save; twelve folder-context fixtures failed Clipboard.Clear
+with CLIPBRD_E_CANT_OPEN. Native overlap with049 was reported during the run;
+causality is unproven. All raw evidence retained. No retry, production/test change,
+packaging, PR or merge proceeds past this gate. Owner I03 acceptance is preserved;
+issue499 remains open/Review, parent491 incomplete. Branch is unmerged and retained.
+
+## Assignment 049 — accepted focus and conditional final closeout
+
+Owner accepted I01 b1592ddf560dc6c1ff34e68f0413a8079a221362 **8/8 PASS**,
+no corrections. Conditional final qualification, one implementation PR and normal
+merge are authorized only with preserved production and green required gates.
+Release reconciliation includes merged #501/#502 at 293cd4b; four accepted Player
+focus files remain byte-identical. No experimental decoder/cache/queue/presentation,
+VFR/duplicate-PTS/zero or teardown changes survived the deferred-code audit.
+Final test/package results and actual PR/merge/post-merge provenance belong in
+[qualification](qualification/player-focus-498-049.md), #498 and its single PR.
+This is prepared closeout, not a premature claim of merge or Project Done. If any
+required gate stays red, stop without merging. Historical maintenance: Not warranted.
+047 and048 are retired; routine source/private-desktop coordination uses active agents.
+
+## Assignment 049 — final qualification stopped (2026-11-13)
+
+Fresh source e241cc02f237ec095ed4930bfd7b1a147287c325, app subtree
+687cf634924c1616ac804264e6fbc434a77cb54b: focused358/0/0, companion90/0;
+full2589 PASS /2 FAIL /8 opt-in SKIP. Both StartupRestore_NativeVideoSurvivesTaskbarReveal
+cases (seconds0 and1) reported no presented frame after taskbar reveal. Both passed
+in focused qualification and in isolated unchanged release293cd4b comparison2/2.
+The full-run cause remains unclassified and is not proven baseline. Required full
+gate remains red; owner stop gate applied before PR/package/merge. No production
+or test changes, weakening, exclusions or retries until green. Accepted four focus
+files remain byte-identical; native slot released to051, branch and evidence retained.
+These local-only findings belong in the same eventual implementation PR if resumed;
+no administrative PR, release/tag, main forward-port or production Catalog change.
+
+## Assignment 049 — owner-approved local qualification exception (2026-11-14)
+
+Owner approves separating unrelated clipboard qualification work into #504 and
+proceeding with the accepted focus correction. No further hands-on acceptance
+is required. Local failures remain failures: full2589/2/8 (native taskbar pair,
+subsequently passed); recovery2579/12/8 (clipboard); exclusive subsets11/1 on both
+release and049. Explorer access is observed, contribution probable, root cause
+unproven. Exception is local only: full exact-head PR CI and package gates must pass.
+No test/configuration/production changes or another local full retry are authorized.
+Only049's record is updated; unrelated assignment records remain as fetched.
+Completion is prepared for this single PR. Actual normal merge/post-merge CI and
+Done provenance are recorded in #498/PR once conditions hold; no administrative PR.
+
+## Assignment 050 — bounded recovery stopped (2026-11-14)
+
+Owner authorized independent startup classification and supported clipboard exception,
+not a waiver of an unexplained startup failure. Current release `675182c` (#505
+merged) reconciled as `a9155ecbcd0af5e88fcbbd003a6901f5574a76d5`; only registry
+conflicts required resolution, preserving both records. The five accepted Browser
+production files and original regression test remain byte-identical to I03; the
+release-to-feature production patch is SHA-256 identical before/after reconciliation.
+
+Under acknowledged exclusive ownership with051, the unchanged-release common
+startup probe passed twice (1/1 each); accepted probe plus original case passed
+twice (2/2 each). The startup probe preserves the original fixture setup/assertions;
+release does not contain the new #499 feature case. Two additional runs were used,
+within the explicit bound. No full suite, clipboard tests or assertion changes.
+Temporary diagnostic source removed; no native processes remain; window released.
+
+All twelve original clipboard failures match #504 setup line37 /0x800401D0, before
+command assertions, with identical test blob across sources. Their separate local
+exception is supported by that signature and049's baseline evidence, without a
+confirmed root-cause claim. The additional startup UnauthorizedAccessException
+was not reproduced and remains independently inconclusive; isolated passes do
+not prove it unrelated/harmless. Owner's startup decision gate applies: no package,
+PR, CI, merge or further repetition. #499 remains OPEN/Review; #491 incomplete;
+#504 stays separate/open. Original acceptance and all evidence/data retained.
+
+## Assignment 050 — owner-approved exception and single-PR closeout (2026-11-14)
+
+Owner explicitly approves the documented local exception for the unresolved,
+non-reproduced Export queue startup failure and separately tracked #504 clipboard
+failures. This supersedes the prior local stop disposition, not the evidence.
+Original full2613/13/8 remains failed; isolated startup passes do not prove an
+environmental or harmless cause. No further full local retry or production/test/
+clipboard/Export workaround is authorized. I03 owner8/8 acceptance is preserved.
+
+Current release675182c (#505 merged) is incorporated. Accepted Browser feature
+blobs and release-to-feature production patch are unchanged. Complete final
+Windows package/keyboard smoke qualification and one implementation PR targeting
+release/1.0. Required exact-head full/companion/installer/portable CI must be green;
+otherwise stop. Normal merge is authorized only on all green gates, without
+squash/rebase or auto-merge. Prepared closeout is not Done/merged; actual merge,
+post-merge CI, issue Completed/Project Done and branch retirement provenance
+belongs in #499/its single PR. Parent491 and infrastructure504 stay open.
+No release/tag/main forward-port. Historical maintenance: Not warranted.

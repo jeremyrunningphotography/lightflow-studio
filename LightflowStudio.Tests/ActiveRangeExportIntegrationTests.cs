@@ -59,7 +59,9 @@ public sealed class ActiveRangeExportIntegrationTests
         var model = new ExportDialogModel(handoff, new(), [], [], resources,
             revalidate: (_, _) => Task.FromResult(handoff), namingDefault: ExportNamingDefault.Subclip);
         model.DestinationMode = ExportDestinationMode.SpecificFolder;
-        model.Destination = Directory.CreateDirectory(Path.Combine(root, "output")).FullName; model.CreateSubfolder = false;
+        model.Destination = root;
+        model.CreateSubfolder = true; model.SubfolderName = "output";
+        var resolvedOutputDirectory = Path.Combine(root, "output");
         JobPlan<EncodingJobOptions>? plan = null;
         await StaDispatcher.RunAsync(async () =>
         {
@@ -96,7 +98,7 @@ public sealed class ActiveRangeExportIntegrationTests
         if (mode == "eof" && offset == 5)
         {
             Assert.True(sourceIdentity.Matches(TrimSourceIdentity.Read(source)!));
-            Assert.False(Directory.Exists(model.Destination));
+            Assert.False(Directory.Exists(resolvedOutputDirectory));
             File.WriteAllText(Path.Combine(root, "evidence.json"), JsonSerializer.Serialize(new
             { mode, offset, rejected = true, reasons = model.Errors.Select(issue => issue.Message), unchangedSourceIdentity = true }));
             return;

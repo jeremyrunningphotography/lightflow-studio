@@ -58,7 +58,8 @@ public sealed class ActiveRangeExportIntegrationTests
         var handoff = new EncodingHandoffResult([input], [], root);
         var model = new ExportDialogModel(handoff, new(), [], [], resources,
             revalidate: (_, _) => Task.FromResult(handoff), namingDefault: ExportNamingDefault.Subclip);
-        model.Destination = Path.Combine(root, "output"); model.CreateSubfolder = false;
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
+        model.Destination = Directory.CreateDirectory(Path.Combine(root, "output")).FullName; model.CreateSubfolder = false;
         JobPlan<EncodingJobOptions>? plan = null;
         await StaDispatcher.RunAsync(async () =>
         {

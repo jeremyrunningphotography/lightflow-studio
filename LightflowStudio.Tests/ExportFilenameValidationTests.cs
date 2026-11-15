@@ -44,6 +44,10 @@ public sealed class ExportFilenameValidationTests
         using var fixture=new Fixture(2);
         using var gate=new Gate();
         var model=fixture.Model(_=>{gate.WaitOnce();return new(false,0);});
+        // This race exercises an explicitly selected shared destination. The #503
+        // default is now symbolic per-source output, so select this mode explicitly.
+        model.DestinationMode=ExportDestinationMode.SpecificFolder;
+        Directory.CreateDirectory(Path.Combine(fixture.Root,"changed"));
         model.AddPart(NamePartKind.CustomText);
         Enable(model); await Until(()=>!model.IsPlanPending);
         gate.Arm(); model.UpdateCustomText(2,"old");

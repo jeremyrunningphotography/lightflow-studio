@@ -36,6 +36,7 @@ internal sealed record ExportPreferences
             || !Enum.IsDefined(Codec) || !Enum.IsDefined(Resolution) || NameParts is null
             || NameParts.Any(p => p is null || !Enum.IsDefined(p.Kind)) || SubfolderName is null
             || Encoding is null || EncodingOptions.Normalize(Encoding) != Encoding
+            || !new double[] { 0, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 }.Contains(Encoding.FrameRate)
             || Camera is null || Creative is null || !ValidLut(Camera) || !ValidLut(Creative))
             throw new InvalidDataException("Saved Export preferences contain an unsupported or invalid value.");
         // Paths, empty recipes and cross-field incompatibilities are valid user intent;
@@ -100,11 +101,18 @@ internal sealed class ExportPreferenceSession
             ExportPreferenceDocument document;
             if (node.ContainsKey(nameof(ExportPreferenceDocument.SchemaVersion)))
             {
+                if (!node.ContainsKey(nameof(ExportPreferenceDocument.LegacyEncodingBaseline))
+                    || !node.ContainsKey(nameof(ExportPreferenceDocument.Overrides))
+                    || !node.ContainsKey(nameof(ExportPreferenceDocument.RecentFolders)))
+                    throw new InvalidDataException("The saved Export preference document is incomplete.");
                 document = node.Deserialize<ExportPreferenceDocument>(Json) ?? throw new InvalidDataException("Empty Export preferences.");
                 if (document.SchemaVersion != 1) throw new InvalidDataException("This Export preference schema is not supported by this version of Lightflow.");
             }
             else
             {
+                var legacyKeys = JsonSerializer.SerializeToNode(new EncodingOptions())!.AsObject();
+                if (node.Count != 0 && !node.Any(pair => legacyKeys.ContainsKey(pair.Key)))
+                    throw new InvalidDataException("The Export settings format is not recognized. The original file has been preserved.");
                 // Legacy EncodingOptions used numeric enums. Never normalize corrupt
                 // input into a replacement baseline without telling the user.
                 var legacy = JsonSerializer.Deserialize<EncodingOptions>(bytes) ?? throw new InvalidDataException("Empty legacy Export defaults.");
@@ -115,9 +123,12 @@ internal sealed class ExportPreferenceSession
                 || document.LegacyEncodingBaseline != EncodingOptions.Normalize(document.LegacyEncodingBaseline)
                 || document.RecentFolders.Any(p => string.IsNullOrWhiteSpace(p)))
                 throw new InvalidDataException("Invalid Export preference document.");
+            document.RecentFolders = document.RecentFolders.Select(CanonicalFolder)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToArray();
             return new(path, document, bytes);
         }
         catch (JsonException ex) { throw new InvalidDataException("Saved Export preferences could not be read. The original file has been preserved.", ex); }
+        catch (ArgumentException ex) { throw new InvalidDataException("Saved Export preferences contain an invalid path. The original file has been preserved.", ex); }
     }
 
     internal static async Task<ExportPreferenceSession> RecoverAsync(string settingsPath)
@@ -152,7 +163,7 @@ internal sealed class ExportPreferenceSession
         try
         {
             if (!Path.IsPathFullyQualified(path.Trim())) return;
-            canonical = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path.Trim()));
+            canonical = CanonicalFolder(path);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException) { return; }
         lock (_gate)
@@ -161,6 +172,12 @@ internal sealed class ExportPreferenceSession
                 .Distinct(StringComparer.OrdinalIgnoreCase).Take(10).ToArray();
             Schedule();
         }
+    }
+
+    private static string CanonicalFolder(string path)
+    {
+        if (!Path.IsPathFullyQualified(path.Trim())) throw new InvalidDataException("A recent Export folder is not an absolute path.");
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path.Trim()));
     }
 
     public void Reset()

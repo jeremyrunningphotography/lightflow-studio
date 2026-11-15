@@ -75,6 +75,8 @@ public partial class ExportDialog : Window
             e.Cancel = true;
             if (_closing) return;
             _closing = true;
+            IsEnabled = false;
+            await System.Windows.Threading.Dispatcher.Yield();
             CommitDestination();
             await _preferences.FlushAsync();
             if (_preferences.SaveError is { } error)
@@ -116,12 +118,14 @@ public partial class ExportDialog : Window
     }
     private void PreferenceSaveChanged() => Dispatcher.BeginInvoke(() =>
     {
-        if (!_closed && _preferences?.SaveError is { } error) QueueError.Text = error;
+        if (!_closed) QueueError.Text = _preferences?.SaveError ?? "";
     });
 
     private void Destination_Changed(object sender, TextChangedEventArgs e)
     {
-        if (_initializing) return;
+        // Applying the editable template raises TextChanged after construction.
+        // Only real editor input commits a suggestion; Browse/MRU commit explicitly.
+        if (_initializing || !DestinationText.IsKeyboardFocusWithin) return;
         _destinationEdited = true;
         _model.EditDestination(DestinationText.Text);
         SyncPreflightStatus();
@@ -262,6 +266,14 @@ public partial class ExportDialog : Window
     private void Configuration_Changed(object sender, SelectionChangedEventArgs e) { if (!_initializing) ReadControls(); }
     private void ReadControls()
     {
+        if (RateControlCombo.SelectedItem is ExportChoice<RateControlMode> mode && mode.Value != _model.Encoding.RateControl)
+        {
+            _initializing = true;
+            TargetText.Text = CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString();
+            _initializing = false;
+        }
+        _model.UpdateConfiguration(() =>
+        {
         _model.DestinationMode = SameFolderRadio.IsChecked == true
             ? ExportDestinationMode.SameFolderAsOriginal : ExportDestinationMode.SpecificFolder;
         _model.Destination = DestinationText.Text; _model.CreateSubfolder = CreateSubfolderCheck.IsChecked == true; _model.SubfolderName = SubfolderText.Text;
@@ -273,12 +285,23 @@ public partial class ExportDialog : Window
         var frameRates = new[] { 0d, 23.976, 24, 25, 29.97, 30, 50, 59.94, 60 };
         var encoding = _model.Encoding with { RateControl = (RateControlCombo.SelectedItem as ExportChoice<RateControlMode>)?.Value ?? _model.Encoding.RateControl, FrameRate = frameRates[Math.Max(0, FrameRateCombo.SelectedIndex)], AudioMode = (AudioEncodingMode)Math.Max(0, AudioCombo.SelectedIndex), Tune = (TuneCombo.SelectedItem as ExportChoice<EncoderTune>)?.Value ?? _model.Encoding.Tune, Multipass = (MultipassCombo.SelectedItem as ExportChoice<MultipassMode>)?.Value ?? _model.Encoding.Multipass, PixelFormat = (PixelFormatCombo.SelectedItem as ExportChoice<VideoPixelFormat>)?.Value ?? _model.Encoding.PixelFormat, SpatialAq = SpatialAqCheck.IsChecked == true, TemporalAq = TemporalAqCheck.IsChecked == true, Deinterlace = DeinterlaceCheck.IsChecked == true, FastStart = FastStartCheck.IsChecked == true };
         if (encoding.RateControl == RateControlMode.ConstantQuality) encoding = encoding with { Quality = ExportPresentation.ConstantQuality((int)Math.Round(QualitySlider.Value)) };
-        if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr)) encoding = encoding with { TargetBitrateMbps = cbr };
-        else if (int.TryParse(TargetText.Text, out var target)) encoding = encoding with { TargetBitrateMbps = target };
-        if (int.TryParse(MaxText.Text, out var max)) encoding = encoding with { MaxBitrateMbps = max };
+        if (encoding.RateControl == RateControlMode.ConstantBitrate && int.TryParse(CbrText.Text, out var cbr) && cbr is >= 1 and <= 500) encoding = encoding with { TargetBitrateMbps = cbr };
+        else if (int.TryParse(TargetText.Text, out var target) && target is >= 1 and <= 500) encoding = encoding with { TargetBitrateMbps = target };
+        if (int.TryParse(MaxText.Text, out var max) && max is >= 1 and <= 1000) encoding = encoding with { MaxBitrateMbps = max };
         if (PresetCombo.SelectedItem is ExportChoice<int> preset) encoding = encoding with { EncoderPreset = preset.Value };
         encoding = encoding with { AqStrength = ExportPresentation.AqStrength((int)Math.Round(AqStrengthSlider.Value)) };
-        _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded; Sync();
+        _model.Encoding = encoding; _model.AdvancedExpanded = AdvancedExpander.IsExpanded;
+        var numericError = encoding.RateControl switch
+        {
+            RateControlMode.VariableBitrate when !int.TryParse(TargetText.Text, out var t) || t is < 1 or > 500
+                || !int.TryParse(MaxText.Text, out var m) || m is < 1 or > 1000 => "Enter a target bitrate from 1 to 500 and maximum bitrate from 1 to 1000 Mbps.",
+            RateControlMode.ConstantBitrate when !int.TryParse(CbrText.Text, out var b) || b is < 1 or > 500
+                => "Enter a CBR bitrate from 1 to 500 Mbps.",
+            _ => null
+        };
+        _model.SetDraftError(numericError);
+        });
+        Sync();
     }
     private void Sync()
     {
@@ -303,7 +326,7 @@ public partial class ExportDialog : Window
         MaxPrimaryLabel.Visibility = MaxText.Visibility = vbr ? Visibility.Visible : Visibility.Collapsed;
         CbrPrimaryLabel.Visibility = CbrText.Visibility = cbr ? Visibility.Visible : Visibility.Collapsed;
         AqSettingLayout.IsEnabled = ExportPresentation.IsAqStrengthEnabled(SpatialAqCheck.IsChecked == true, TemporalAqCheck.IsChecked == true);
-        if (cbr && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
+        if (cbr && !CbrText.IsKeyboardFocusWithin && CbrText.Text != _model.Encoding.TargetBitrateMbps.ToString())
         { _initializing = true; CbrText.Text = _model.Encoding.TargetBitrateMbps.ToString(); _initializing = false; }
         System.Windows.Automation.AutomationProperties.SetHelpText(AdvancedExpander,
             AdvancedExpander.IsExpanded ? "Advanced export settings expanded" : "Advanced export settings collapsed");

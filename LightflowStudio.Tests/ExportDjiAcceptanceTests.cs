@@ -111,6 +111,8 @@ public sealed class ExportDjiAcceptanceTests
         var model = new ExportDialogModel(new([input], [], Path.GetDirectoryName(path)),
             new() { PixelFormat = VideoPixelFormat.P010 }, [], [], resources, _ => new(false, 0),
             namingDefault: ExportNamingDefault.Subclip);
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
+        Directory.CreateDirectory(outputRoot);
         model.Destination = outputRoot;
         model.CreateSubfolder = false;
         Assert.DoesNotContain(model.Issues, issue => issue.Message.Contains("'unknown'"));

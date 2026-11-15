@@ -62,6 +62,7 @@ public sealed class ExportOutputConflictTests : IDisposable
     public async Task SelectedSourceAndDuplicatePathsRemainBlockingAndHighestPriority(bool overwrite)
     {
         var model = Model("source", "other");
+        model.DestinationMode = ExportDestinationMode.SpecificFolder;
         model.OverwriteExisting = overwrite; model.CreateSubfolder = false;
         model.Destination = Path.Combine(_root, "input");
         Ready(model);

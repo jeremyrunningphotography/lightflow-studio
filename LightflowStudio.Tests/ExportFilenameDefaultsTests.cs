@@ -22,7 +22,7 @@ public sealed class ExportFilenameDefaultsTests
         Assert.Equal(new[]{NamePartKind.OriginalName},model.NameParts.Select(part=>part.Kind));
         Assert.Equal("clip001.mp4",model.PreviewName);
         Assert.Equal(Path.Combine(fixture.Root,"Exports","clip001.mp4"),model.CurrentPlan!.Items[0].OutputPaths[0]);
-        Assert.Equal(fixture.Root,model.Destination);Assert.Equal(ExportDestinationMode.SpecificFolder,model.DestinationMode);
+        Assert.Equal(fixture.Root,model.Destination);Assert.Equal(ExportDestinationMode.SameFolderAsOriginal,model.DestinationMode);
         Assert.True(model.CreateSubfolder);Assert.Equal("Exports",model.SubfolderName);
         Assert.Equal(ExportContainerChoice.SameAsSource,model.Container);Assert.Equal(ExportCodecChoice.SameAsSource,model.Codec);
         Assert.Equal(AudioEncodingMode.Copy,model.Encoding.AudioMode);
@@ -155,6 +155,133 @@ public sealed class ExportFilenameDefaultsTests
         }
         finally{dialog.Close();}
         Assert.Single(fixture.Model().NameParts); // Reopening has no new preference store.
+    });
+
+    [Fact]
+    public Task PersistentDialogSuggestionEditingHistoryResetAndCloseFlush() => StaDispatcher.RunAsync(async () =>
+    {
+        TestWpfApplication.EnsureLoaded(); using var fixture = new Fixture();
+        var settings = Path.Combine(fixture.Root, "settings.json");
+        var preferences = await ExportPreferenceSession.OpenAsync(settings);
+        var model = fixture.Model(); model.ApplyPreferences(preferences.Current);
+        var preflight = new ExportPreflightCoordinator(new("ffprobe", new Runner()), _ => Task.FromResult(Available));
+        var dialog = new ExportDialog(model, null!, null, preflight, preferences) { ShowInTaskbar = false };
+        try
+        {
+            dialog.Show(); await Until(() => model.CanExport);
+            Assert.True(dialog.SameFolderRadio.IsChecked); Assert.False(dialog.ResetDefaultsButton.IsEnabled);
+            dialog.SpecificFolderRadio.IsChecked = true;
+            Assert.True(model.IsPlanPending); Assert.False(dialog.ExportButton.IsEnabled);
+            Assert.Equal(fixture.Root, dialog.DestinationText.Text);
+            Assert.Null(preferences.Current.SpecificFolder); Assert.Empty(preferences.RecentFolders);
+            dialog.UpdateLayout(); dialog.DestinationText.ApplyTemplate();
+            var editor = Assert.IsType<TextBox>(dialog.DestinationText.Template.FindName("PART_EditableTextBox", dialog.DestinationText));
+            Assert.True(editor.Focus()); editor.SelectAll(); editor.SelectedText = fixture.Root;
+            dialog.SubfolderText.Focus(); await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+            Assert.Equal(fixture.Root, preferences.Current.SpecificFolder);
+            Assert.Equal(fixture.Root, Assert.Single(preferences.RecentFolders));
+            dialog.SubfolderText.Text = "Deliveries";
+            dialog.SameFolderRadio.IsChecked = true; Assert.Equal("Deliveries", model.SubfolderName);
+            dialog.SpecificFolderRadio.IsChecked = true; Assert.Equal("Deliveries", model.SubfolderName);
+            dialog.FrameRateCombo.SelectedIndex = 4;
+            dialog.CodecCombo.SelectedItem = ExportPresentation.Codecs.Single(c => c.Value == ExportCodecChoice.Hevc);
+            await preferences.FlushAsync();
+            var reopened = await ExportPreferenceSession.OpenAsync(settings);
+            Assert.Equal(29.97, reopened.Current.Encoding.FrameRate); Assert.Equal("Deliveries", reopened.Current.SubfolderName);
+            Assert.Equal(ExportCodecChoice.Hevc, reopened.Current.Codec);
+            model.OverwriteExisting = true;
+            dialog.ResetDefaultsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(model.IsPlanPending); Assert.False(dialog.ExportButton.IsEnabled); Assert.True((bool)dialog.FilesToExportItems.Tag);
+            Assert.Equal(ExportDestinationMode.SameFolderAsOriginal, model.DestinationMode);
+            Assert.Equal("Exports", dialog.SubfolderText.Text); Assert.True(model.CreateSubfolder);
+            Assert.False(model.OverwriteExisting); Assert.Equal(NamePartKind.OriginalName, Assert.Single(model.NameParts).Kind);
+            Assert.Single(preferences.RecentFolders);
+            await Until(() => model.CanExport);
+            dialog.SubfolderText.Text = "Final edit before close";
+        }
+        finally { dialog.Close(); await Until(() => !dialog.IsVisible); }
+        var restarted = await ExportPreferenceSession.OpenAsync(settings);
+        Assert.Equal("Final edit before close", restarted.Current.SubfolderName);
+        Assert.Single(restarted.RecentFolders); Assert.Null(restarted.Current.SpecificFolder);
+        Assert.Equal(ExportCodecChoice.SameAsSource, restarted.Current.Codec);
+    });
+
+    [Fact]
+    public Task PerSourcePathsAndUnavailableDestinationReanalyzeWithoutOverwritingIntent() => StaDispatcher.RunAsync(async () =>
+    {
+        using var fixture = new Fixture();
+        var a = Directory.CreateDirectory(Path.Combine(fixture.Root, "A")).FullName;
+        var b = Directory.CreateDirectory(Path.Combine(fixture.Root, "B")).FullName;
+        var inputs = new[] { a, b }.Select(folder =>
+        {
+            var path = Path.Combine(folder, "same.mp4"); File.WriteAllText(path, "fixture");
+            return fixture.Input with { AssetId = Guid.NewGuid(), SourcePath = path, SourceIdentity = TrimSourceIdentity.Read(path) };
+        }).ToArray();
+        var model = fixture.Model(inputs);
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        model.EnableBackgroundValidation(action => dispatcher.BeginInvoke(action));
+        try
+        {
+            await Until(() => model.CanExport);
+            Assert.Equal(new[] { Path.Combine(a, "Exports", "same.mp4"), Path.Combine(b, "Exports", "same.mp4") },
+                model.CurrentPlan!.Items.Select(i => i.OutputPaths.Single()));
+            model.DestinationMode = ExportDestinationMode.SpecificFolder; model.EditDestination(fixture.Root);
+            Assert.True(model.IsPlanPending); await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "encoding.output-collision");
+            model.EditDestination(Path.Combine(fixture.Root, "Offline"));
+            await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "export.destination-unavailable");
+            Assert.EndsWith("Offline", model.CapturePreferences().SpecificFolder!);
+            model.DestinationMode = ExportDestinationMode.SameFolderAsOriginal;
+            model.CreateSubfolder = false; await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "encoding.source-overwrite");
+            model.OverwriteExisting = true; await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "encoding.source-overwrite");
+            model.ApplyPreferences(new()); await Until(() => model.CanExport);
+            Assert.Null(model.CapturePreferences().SpecificFolder);
+            model.SubfolderName = " "; await Until(() => !model.IsPlanPending);
+            Assert.False(model.CanExport); Assert.Contains(model.Errors, i => i.Message.Contains("subfolder name"));
+            model.CreateSubfolder = false; await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "encoding.source-overwrite");
+        }
+        finally { model.CloseValidation(); }
+    });
+
+    [Fact]
+    public Task ConditionalIntentIsRetainedAndCannotBypassCurrentPreflight() => StaDispatcher.RunAsync(async () =>
+    {
+        using var fixture = new Fixture();
+        var preferences = new ExportPreferences
+        {
+            Camera = new(ColorStagePolicyMode.Override, Guid.NewGuid(), new string('a', 64), "My missing camera LUT"),
+            Encoding = new() { PixelFormat = VideoPixelFormat.P010, SpatialAq = false, TemporalAq = false, AqStrength = 12 }
+        };
+        var model = new ExportDialogModel(new([fixture.Input], [], fixture.Root), new(), [], [],
+            new EncodingLutResourceStore(Path.Combine(fixture.Root, "luts")), preferences: preferences, deferInitialValidation: true);
+        model.ApplyMetadata([Metadata()]);
+        model.ApplyEncoderCapability(new(EncoderBackend.NvidiaNvenc, EncoderCapabilityState.ImplementedButUnavailable, "offline"));
+        var dispatcher = Dispatcher.CurrentDispatcher;
+        model.EnableBackgroundValidation(action => dispatcher.BeginInvoke(action));
+        try
+        {
+            await Until(() => !model.IsPlanPending);
+            Assert.False(model.CanExport); Assert.Contains("My missing camera LUT", model.Camera.Label);
+            Assert.Contains("unavailable", model.Camera.Label); Assert.Equal(preferences.Camera, model.CapturePreferences().Camera);
+            Assert.Contains(model.Errors, i => i.Message.Contains("unavailable", StringComparison.OrdinalIgnoreCase));
+            model.Camera = model.CameraChoices.First(c => c.Mode == ColorStagePolicyMode.NoLut);
+            await Until(() => !model.IsPlanPending);
+            Assert.Contains(model.Errors, i => i.Code == "export.encoder-unavailable");
+            Assert.Contains(model.Errors, i => i.Message.Contains("requires HEVC"));
+            Assert.Equal(12, model.Encoding.AqStrength);
+            model.Codec = ExportCodecChoice.Hevc; model.ApplyEncoderCapability(Available);
+            await Until(() => model.CanExport);
+            model.SetDraftError("Enter a valid bitrate"); Assert.True(model.IsPlanPending);
+            await Until(() => !model.IsPlanPending); Assert.False(model.CanExport);
+            model.ApplyPreferences(new()); await Until(() => model.CanExport);
+            Assert.Equal(ColorStagePolicyMode.AsSelectedInLightflow, model.Camera.Mode);
+            Assert.Equal(8, model.Encoding.AqStrength);
+        }
+        finally { model.CloseValidation(); }
     });
 
     private static async Task Until(Func<bool> condition)

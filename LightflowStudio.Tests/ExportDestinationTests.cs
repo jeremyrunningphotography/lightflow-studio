@@ -34,6 +34,9 @@ public sealed class ExportDestinationTests : IDisposable
     [InlineData("nested/folder")]
     [InlineData("nested\\folder")]
     [InlineData("..")]
+    [InlineData("CON")]
+    [InlineData("NUL.txt")]
+    [InlineData("bad.")]
     internal void OptionalSubfolder_IsOneValidatedSegment(string subfolder)
     {
         var policy = new ExportDestination(ExportDestinationMode.SpecificFolder, _root, subfolder);

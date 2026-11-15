@@ -100,6 +100,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     private bool _explicitDestination;
     private bool _checkDestination;
     private bool _batchPreferences;
+    private string? _draftError;
     public event Action? PreferencesChanged;
     private bool _createSubfolder = true;
     private string _subfolderName = "Exports";
@@ -164,6 +165,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         _rangesGloballyEnabled = source._rangesGloballyEnabled; _includeNoSubclipSources = source._includeNoSubclipSources;
         _destination = source._destination; _destinationMode = source._destinationMode;
         _explicitDestination = source._explicitDestination; _checkDestination = source._checkDestination;
+        _draftError = source._draftError;
         _createSubfolder = source._createSubfolder; _subfolderName = source._subfolderName;
         _separator = source._separator; _container = source._container; _codec = source._codec;
         _resolution = source._resolution; _encoding = source._encoding; _overwrite = source._overwrite;
@@ -316,6 +318,17 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
         PreferencesChanged?.Invoke();
     }
 
+    public void UpdateConfiguration(Action edit)
+    {
+        _batchPreferences = true;
+        try { edit(); }
+        finally { _batchPreferences = false; }
+        Refresh();
+        PreferencesChanged?.Invoke();
+    }
+
+    public void SetDraftError(string? error) => Set(ref _draftError, error, "DraftError");
+
     public ExportPreferences CapturePreferences() => new()
     {
         DestinationMode = DestinationMode, SpecificFolder = _explicitDestination ? Destination : null,
@@ -339,6 +352,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             _createSubfolder = value.CreateSubfolder; _subfolderName = value.SubfolderName;
             _separator = value.Separator; _container = value.Container; _codec = value.Codec;
             _resolution = value.Resolution; _encoding = value.Encoding; _overwrite = false;
+            _draftError = null;
             _camera = RestoreLut(value.Camera, CameraChoices);
             _creative = RestoreLut(value.Creative, CreativeChoices);
             if (!CameraChoices.Contains(_camera)) CameraChoices = CameraChoices.Append(_camera).ToArray();
@@ -360,8 +374,12 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
                     LutDimension.ThreeDimensional, 0, LutResourceAvailability.Missing,
                     Diagnostic: "The saved LUT is unavailable or its content has changed. Choose an available LUT."));
     }
-    private ExportDestination CurrentDestination() => new(DestinationMode, Destination,
-        CreateSubfolder ? SubfolderName : null);
+    private ExportDestination CurrentDestination()
+    {
+        if (CreateSubfolder && string.IsNullOrWhiteSpace(SubfolderName))
+            throw new ArgumentException("Enter a subfolder name or turn off Create subfolder.");
+        return new(DestinationMode, Destination, CreateSubfolder ? SubfolderName : null);
+    }
 
     public void ApplyMetadata(IReadOnlyList<MediaMetadata?> metadata, IReadOnlyList<string?>? diagnostics = null)
     {
@@ -559,6 +577,7 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
             return item with { Issues = item.Issues.Where(value => value.Code != "encoding.materialization-unsupported").Append(issue).ToList() };
         }).ToList() };
         var extra = new List<JobIssue>();
+        if (_draftError is not null) extra.Add(new("export.input", _draftError, JobIssueSeverity.Error));
         if (_checkDestination)
             foreach (var directory in ActiveInputs().Select(value => destination.ResolveDirectory(value.input.SourcePath))
                          .Distinct(StringComparer.OrdinalIgnoreCase))
@@ -843,7 +862,8 @@ internal sealed class ExportDialogModel : INotifyPropertyChanged
     }).ToArray();
     private void Set<T>(ref T field, T value, [CallerMemberName] string name = "")
     { if (EqualityComparer<T>.Default.Equals(field, value)) return; field = value; _revision++; Refresh(); OnChanged(name);
-        if (name is not nameof(OverwriteExisting) and not nameof(AdvancedExpanded)) PreferencesChanged?.Invoke(); }
+        if (!_batchPreferences && name is not nameof(OverwriteExisting) and not nameof(AdvancedExpanded)
+            and not nameof(IncludeNoSubclipSources) and not "DraftError") PreferencesChanged?.Invoke(); }
     private void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new(name));
     public event PropertyChangedEventHandler? PropertyChanged;
 

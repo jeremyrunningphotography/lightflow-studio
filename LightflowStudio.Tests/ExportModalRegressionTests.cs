@@ -71,7 +71,9 @@ public sealed class ExportModalRegressionTests
         Assert.DoesNotContain("Ready to export", xaml.ToString());
         Assert.NotNull(Named(xaml, "ReadySummaryText"));
         Assert.DoesNotContain("ProgressBar", xaml.Descendants().Select(x => x.Name.LocalName));
-        Assert.Contains("_coordinator.Queue(plan); DialogResult=true", text);
+        Assert.Contains("_coordinator.Queue(plan); _accepted = true", text);
+        Assert.Contains("await _preferences.FlushAsync()", text);
+        Assert.Contains("if (_accepted) DialogResult = true", text);
         Assert.DoesNotContain("await runtime.Completion", text);
     }
 
@@ -83,7 +85,9 @@ public sealed class ExportModalRegressionTests
         var source = File.ReadAllText(Path.Combine(root, "LightflowStudio", "ExportDialog.xaml.cs"));
 
         Assert.Equal("Specific folder", (string?)Named(xaml, "SpecificFolderRadio").Attribute("Content"));
-        Assert.Equal("Same folder as original", (string?)Named(xaml, "SameFolderRadio").Attribute("Content"));
+        Assert.Equal("Same as Source", (string?)Named(xaml, "SameFolderRadio").Attribute("Content"));
+        Assert.Equal("True", (string?)Named(xaml, "DestinationText").Attribute("IsEditable"));
+        Assert.NotNull(Named(xaml, "ResetDefaultsButton"));
         Assert.Equal("DestinationMode", (string?)Named(xaml, "SpecificFolderRadio").Attribute("GroupName"));
         Assert.Equal("DestinationMode", (string?)Named(xaml, "SameFolderRadio").Attribute("GroupName"));
         Assert.Equal("DestinationModeRadio", ResourceName(Named(xaml, "SpecificFolderRadio"), "Style"));

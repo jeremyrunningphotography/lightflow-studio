@@ -42,6 +42,14 @@ feature implementations, with only the approved Jobs ordering, publication conte
 version/splash and release-documentation corrections. #510/#511 are deferred;
 #491 and separate #504 remain open. No implementation PR until owner RC acceptance.
 
+Jeremy accepted RC2b48891 on November16,2026: functionality, fresh installation,
+v1.0.2 upgrade with Catalog/preferences preserved, and uninstall/reinstall PASS.
+The single preparation PR/normal merge is authorized only after green exact-head
+CI and preserved accepted inputs. See [qualification](qualification/release-1.1-053.md).
+Installer replacement notification #512 is deferred, not included in1.1.0.
+The original local full2693/12/8 remains failed under a LOCAL clipboard exception;
+this is not a required-CI waiver. #509 stays open through publication.
+
 VersionPrefix is `1.1.0`; `ReleasePublicationYear` is release-controlled `2026`.
 Assembly/File/Product versions, About and splash derive from shared metadata;
 installer/portable names derive from VersionPrefix. Update the publication year

@@ -85,11 +85,27 @@ public sealed class FileOperationTests
             jobs.Cancel(intent.OperationId);
             await WaitUntilAsync(() => jobs.Jobs.Single().State == FileOperationState.Cancelled);
             Assert.Empty(jobs.Jobs.Single().Result!.CompletedMutations);
-            jobs.Enqueue(intent with { OperationId = Guid.NewGuid() });
+            var completedIntent = intent with { OperationId = Guid.NewGuid() };
+            jobs.Enqueue(completedIntent);
             Assert.Equal(FileOperationState.Waiting, jobs.Jobs[1].State);
             admission.IsPaused = false;
             await WaitUntilAsync(() => jobs.Jobs[1].State == FileOperationState.Completed);
             Assert.Single(jobs.Jobs[1].Result!.CompletedMutations);
+            // Terminal states precede history persistence. Reading both records under
+            // the history lock also waits for both Complete calls' active-file writes.
+            await WaitUntilAsync(() =>
+            {
+                var history = jobs.History;
+                return history.Any(record => record.Intent.OperationId == intent.OperationId)
+                    && history.Any(record => record.Intent.OperationId == completedIntent.OperationId);
+            });
+            var history = jobs.History;
+            var cancelled = Assert.Single(history, record => record.Intent.OperationId == intent.OperationId);
+            Assert.Equal(FileOperationState.Cancelled, cancelled.Result.State);
+            Assert.Empty(cancelled.Result.CompletedMutations);
+            var completed = Assert.Single(history, record => record.Intent.OperationId == completedIntent.OperationId);
+            Assert.Equal(FileOperationState.Completed, completed.Result.State);
+            Assert.Single(completed.Result.CompletedMutations);
         }
         finally { Directory.Delete(temporary, true); }
     }

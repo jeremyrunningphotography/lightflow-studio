@@ -89,6 +89,32 @@ Never reset persistent acceptance state or access production Catalog storage.
 
 ## Preparation-stage closeout and publication boundary
 
+### Owner-authorized PR #513 fixture recovery (November 16, 2026)
+
+Initial exact-head run43915930381 at0504ff65 failed2704/1/8: fixture
+deletion encountered history.json.tmp in use. Terminal Job state is published
+before history completion; the precise CI lock owner/interleaving was not captured.
+Only PromotedJobsWaitForSharedAdmissionAndCancelWithoutChangingFiles changes:
+retain the second operation ID, wait for both persisted history records, and
+assert their Cancelled/Completed states and zero/one mutations. Load and Complete
+share the same lock, held through both history and active-file writes; observing
+both records therefore completes the fixture's persistence barrier. Cancelled
+admission produces a normal persisted Cancelled result. All original admission,
+cancellation and mutation assertions, five-second deadlines and cleanup remain.
+No production change, sleep, timeout increase, exclusion or swallowed exception.
+
+Private-desktop local qualification: independent1/1; predeclared ten separate
+stress runs10/10; neighboring File Operations31/31; relevant Jobs143/143, all
+without skips/failures. Stop-on-first-failure applied; no retry occurred. Raw
+TRX/logs and commands are retained in task evidence. No new file-operation temp
+directories or owned validation processes remained; pre-existing temp directories
+were preserved. Production subtree800b6b018badab9754edec40ab9f50aaf6edca39,
+Jobs checkpoint correction, version/splash, workflow and packaging inputs remain
+identical to accepted2b48891. Existing RC assets and acceptance roots retained.
+Required new exact-head CI and conditional normal merge/post-merge verification
+remain gates; actual results/provenance belong in #509/PR discussion. This bounded
+fixture correction does not warrant a separate historical chronicle or PR.
+
 One implementation PR targets release/1.1. Owner authorizes normal merge only on
 unchanged accepted implementation and all green required exact-head checks;
 no squash/rebase/force-push/auto-merge. Keep #509 open because publication is still

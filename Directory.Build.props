@@ -1,7 +1,10 @@
 <Project>
   <PropertyGroup>
     <!-- The single authoritative product version. Use set-version.ps1 to change it. -->
-    <VersionPrefix>1.0.2</VersionPrefix>
+    <VersionPrefix>1.1.0</VersionPrefix>
+    <!-- Publication year is release-controlled, never the runtime machine's year. -->
+    <ReleasePublicationYear>2026</ReleasePublicationYear>
+    <Copyright>© $(ReleasePublicationYear) Jeremy Running Photography</Copyright>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 </Project>

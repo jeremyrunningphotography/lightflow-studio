@@ -20,6 +20,19 @@ public class VersionConsistencyTests
     }
 
     [Fact]
+    public void BuiltFileProductAndCopyrightMatchReleaseMetadata()
+    {
+        var assembly = typeof(AppVersion).Assembly;
+        var file = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
+        Assert.Equal(ReadVersion() + ".0", file.FileVersion);
+        Assert.StartsWith(ReadVersion(), file.ProductVersion);
+        var props = XDocument.Load(Path.Combine(FindRepositoryRoot(), "Directory.Build.props"));
+        var year = props.Descendants("ReleasePublicationYear").Single().Value;
+        Assert.Matches("^[0-9]{4}$", year);
+        Assert.Equal($"© {year} Jeremy Running Photography", AppVersion.Copyright);
+    }
+
+    [Fact]
     public void Readme_MatchesAuthoritativeApplicationVersion()
     {
         var root = FindRepositoryRoot();

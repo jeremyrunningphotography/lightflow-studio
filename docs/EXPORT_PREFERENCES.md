@@ -1,9 +1,11 @@
 # Export preferences — #503 / LF-WIN-DEV-052 I01
 
-Local implementation, pending packaged owner acceptance. This current contract
+Accepted implementation from #503 / PR #508, included in the Windows v1.1.0
+candidate preparation tracked by #509. Release publication remains gated. This current contract
 supersedes only the Specific Folder destination default in the historical
 #500 filename-defaults document. Original Name-only, empty Custom values and
-display-only Custom hint remain unchanged. No PR, merge or release is implied.
+display-only Custom hint remain unchanged. Historical qualification stops remain
+preserved in the qualification records; actual merge/CI provenance is in #503/PR #508.
 
 ## Defaults and preference inventory
 

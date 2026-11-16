@@ -33,6 +33,8 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
     private readonly Dictionary<Guid, Entry> _jobs = [];
     private readonly Action<JobPlan<TOptions>, JobRuntimeSnapshot<TData>, bool>? _checkpoint;
     private readonly JobsAdmission? _admission;
+    // Internal synchronization seam for deterministic publication-order regression tests.
+    internal Action? BeforeCheckpointPublication { get; set; }
 
     public ApplicationJobsRuntime(Action<JobPlan<TOptions>, JobRuntimeSnapshot<TData>, bool>? checkpoint = null, JobsAdmission? admission = null)
     { _checkpoint = checkpoint; _admission = admission; }
@@ -96,9 +98,13 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
 
     private void Publish(JobRuntime<TOptions, TData> runtime)
     {
-        var snapshot = runtime.Snapshot();
+        BeforeCheckpointPublication?.Invoke();
         lock (_sync)
         {
+            // Capture and save under the same publication lock. A delayed publisher must
+            // read current runtime state, never commit a snapshot captured before a newer save.
+            // Runtime notifications release their own lock before calling this owner.
+            var snapshot = runtime.Snapshot();
             var checkpoint = true;
             if (_jobs.TryGetValue(snapshot.JobId, out var entry))
             {
@@ -112,8 +118,6 @@ internal sealed class ApplicationJobsRuntime<TOptions, TData> : IAsyncDisposable
                 entry.LastItemStates = itemStates;
                 entry.HasCompletedAt = snapshot.CompletedAt.HasValue;
             }
-            // Keep durable writes in the same order as the snapshots that triggered them. Otherwise two
-            // parallel workers could release this lock and let an older write overwrite a newer lifecycle.
             if (checkpoint) _checkpoint?.Invoke(runtime.Plan, snapshot, runtime.IsPauseRequested);
         }
         Changed?.Invoke(Jobs);

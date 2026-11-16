@@ -30,6 +30,49 @@ on `main` and establishes its own maintenance line.
 
 ## Selecting and publishing an exact source
 
+### v1.1.0 Windows-only source exception
+
+On November 15, 2026 Jeremy approved [#509](https://github.com/jeremyrunningphotography/lightflow-studio/issues/509):
+create `release/1.1` from accepted Windows baseline
+`6b488064cfa24fbb2b6476b03e5bf15ab5a5083b` on `release/1.0`, rather than importing
+main's broader Catalog/macOS development. This is a bounded exception to the normal
+main-first minor-release policy, not a reset/rebase of main or a macOS release.
+The local preparation branch targets `release/1.1`; preserve the accepted six
+feature implementations, with only the approved Jobs ordering, publication context,
+version/splash and release-documentation corrections. #510/#511 are deferred;
+#491 and separate #504 remain open. No implementation PR until owner RC acceptance.
+
+Jeremy accepted RC2b48891 on November16,2026: functionality, fresh installation,
+v1.0.2 upgrade with Catalog/preferences preserved, and uninstall/reinstall PASS.
+The single preparation PR/normal merge is authorized only after green exact-head
+CI and preserved accepted inputs. See [qualification](qualification/release-1.1-053.md).
+Installer replacement notification #512 is deferred, not included in1.1.0.
+The original local full2693/12/8 remains failed under a LOCAL clipboard exception;
+this is not a required-CI waiver. #509 stays open through publication.
+
+VersionPrefix is `1.1.0`; `ReleasePublicationYear` is release-controlled `2026`.
+Assembly/File/Product versions, About and splash derive from shared metadata;
+installer/portable names derive from VersionPrefix. Update the publication year
+before publication if the intended year changes, never at runtime. This Windows
+checkout contains no macOS product/project; Companion retains independent version1.2.2.
+
+Fresh full Release/Companion/GPU qualification, actual Release-mode installer and
+portable packaging, isolated stable-profile upgrade and physical owner acceptance
+are required. Archive source/tree, tool versions, lock/dependency hashes, per-file
+staging/portable hashes and final checksums. PR mode alone does not produce a portable ZIP.
+The tag publication job reads reviewed notes from `docs/releases/<version>.md` at
+the tag through an explicit repository API path, then uses explicit `--repo` and
+`--verify-tag`. No new permission, secret, dependency or publication trigger is added.
+
+RC preparation does not authorize a tag, GitHub release/assets/latest designation,
+or main forward-port. Later publication requires explicit owner permission and
+green exact-head CI on accepted source. Record actual public download verification
+and main reconciliation applicability in #509, preserving published tags and prior
+release data. Main integration remains a separate reviewed action, never a wholesale
+replacement by the Windows release tree. Published1.0 remains current until1.1 publishes.
+
+### Standard source and publication gates
+
 1. Fetch the applicable remote branch and record its exact accepted commit. For an
    initial minor release, create its maintenance branch at that accepted source.
    For a patch release, use the maintained release branch, not future `main` work.

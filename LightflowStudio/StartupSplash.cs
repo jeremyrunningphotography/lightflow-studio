@@ -85,6 +85,26 @@ internal sealed class StartupSplash : Window
         _status.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
         var content = new System.Windows.Controls.Grid();
         content.Children.Add(artwork);
+        // The approved viewport has empty space above the mark. Keep identity outside
+        // the artwork and the existing normal/exceptional progress footer.
+        var identity = new System.Windows.Controls.StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(8, 2, 8, 0),
+            IsHitTestVisible = false
+        };
+        identity.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
+        identity.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = $"Version {AppVersion.Display}", FontSize = 11,
+            TextAlignment = TextAlignment.Center
+        });
+        identity.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = AppVersion.Copyright, FontSize = 10,
+            TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 1, 0, 0)
+        });
+        content.Children.Add(identity);
         content.Children.Add(_validationBackdrop);
         content.Children.Add(_status);
         _support.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");

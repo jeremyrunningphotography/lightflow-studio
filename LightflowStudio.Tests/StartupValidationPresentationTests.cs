@@ -12,6 +12,43 @@ namespace LightflowStudio.Tests;
 public sealed class StartupValidationPresentationTests
 {
     [Fact]
+    public async Task SplashReleaseIdentityFitsAboveArtworkAndSurvivesProgressChanges()
+    {
+        await StaDispatcher.RunAsync(() =>
+        {
+            TestWpfApplication.EnsureLoaded();
+            var splash = new StartupSplash();
+            try
+            {
+                var content = (Grid)splash.Content;
+                var identity = Assert.Single(content.Children.OfType<StackPanel>());
+                var labels = identity.Children.OfType<TextBlock>().ToArray();
+                Assert.Equal(new[] { $"Version {AppVersion.Display}", AppVersion.Copyright }, labels.Select(t => t.Text));
+                foreach (var scale in new[] { 1d, 1.5d, 2d })
+                foreach (var exceptional in new[] { false, true })
+                {
+                    if (exceptional) splash.SetValidation(StartupValidationProgress.For("Catalog", StartupValidationReason.Migration));
+                    else splash.SetProgress("Opening storage…");
+                    VisualTreeHelper.SetRootDpi(content, new DpiScale(scale, scale));
+                    content.Measure(new Size(splash.Width, splash.Height));
+                    content.Arrange(new Rect(0, 0, splash.Width, splash.Height)); content.UpdateLayout();
+                    Assert.Equal(Visibility.Visible, identity.Visibility);
+                    Assert.True(identity.TranslatePoint(new Point(0, identity.ActualHeight), content).Y <= 31,
+                        "Release identity must remain within the empty area above the approved mark.");
+                    foreach (var label in labels)
+                    {
+                        var shaped = new FormattedText(label.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                            new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch), label.FontSize, Brushes.White, scale);
+                        Assert.True(shaped.Width <= splash.Width - identity.Margin.Left - identity.Margin.Right);
+                    }
+                }
+            }
+            finally { splash.Close(); }
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
     public async Task ExceptionalSplashFitsExistingFootprintAndProgressNeverClaimsCompletion()
     {
         await StaDispatcher.RunAsync(() =>

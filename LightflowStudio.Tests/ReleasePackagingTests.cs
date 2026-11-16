@@ -218,6 +218,23 @@ public sealed class ReleasePackagingTests
     }
 
     [Fact]
+    public void PublicationUsesExplicitRepositoryAndNotesFromTheTagWithoutBroaderPermissions()
+    {
+        var workflow = File.ReadAllText(PathAtRoot(".github", "workflows", "ci-release.yml"));
+        var publication = workflow[workflow.IndexOf("  release:", StringComparison.Ordinal)..];
+        Assert.Contains("if: startsWith(github.ref, 'refs/tags/v')", publication);
+        Assert.Contains("needs: package", publication);
+        Assert.Contains("contents: write", publication);
+        Assert.Contains("--repo \"$env:GITHUB_REPOSITORY\" --verify-tag --notes-file release-notes.md", publication);
+        Assert.Contains("contents/docs/releases/$version.md?ref=$env:GITHUB_REF_NAME", publication);
+        Assert.Contains("if ($LASTEXITCODE -ne 0)", publication);
+        Assert.Contains("IsNullOrWhiteSpace($notes)", publication);
+        Assert.DoesNotContain("--generate-notes", publication);
+        Assert.DoesNotContain("secrets.", publication);
+        Assert.Contains("permissions:\n  contents: read", workflow.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
     public void Installer_IsBrandedPerMachineAndRecursivelyPackagesTheStagedApplication()
     {
         var installer = File.ReadAllText(PathAtRoot("installer", "LightflowStudio.iss"));

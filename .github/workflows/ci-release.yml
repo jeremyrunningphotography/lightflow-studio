@@ -95,4 +95,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/* --verify-tag --generate-notes --title "Lightflow Studio ${{ github.ref_name }}"
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $encodedNotes = gh api "repos/$env:GITHUB_REPOSITORY/contents/docs/releases/$version.md?ref=$env:GITHUB_REF_NAME" --jq .content
+          if ($LASTEXITCODE -ne 0) { throw "Could not read release notes from the tagged source." }
+          $notes = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($encodedNotes -join '')))
+          if ([string]::IsNullOrWhiteSpace($notes)) { throw "Tagged release notes are empty." }
+          [IO.File]::WriteAllText((Join-Path $pwd 'release-notes.md'), $notes, [Text.UTF8Encoding]::new($false))
+          gh release create "$env:GITHUB_REF_NAME" dist/* --repo "$env:GITHUB_REPOSITORY" --verify-tag --notes-file release-notes.md --title "Lightflow Studio $env:GITHUB_REF_NAME"
